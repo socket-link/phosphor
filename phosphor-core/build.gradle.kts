@@ -9,7 +9,6 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
     id("org.jetbrains.dokka")
     id("com.vanniktech.maven.publish")
-    id("signing")
 }
 
 val phosphorVersion: String by project
@@ -59,10 +58,6 @@ kotlin {
             }
         }
     }
-}
-
-signing {
-    useGpgCmd()
 }
 
 mavenPublishing {
