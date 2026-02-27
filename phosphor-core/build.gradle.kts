@@ -76,7 +76,9 @@ mavenPublishing {
     pom {
         name.set("Phosphor")
         description.set(
-            "Kotlin Multiplatform rendering library that translates cognitive state into visible light — ASCII luminance, color ramps, particle physics, and 3D waveform surfaces.",
+            "Kotlin Multiplatform rendering library that translates cognitive state " +
+                "into visible light — ASCII luminance, color ramps, particle physics, " +
+                "and 3D waveform surfaces.",
         )
         url.set("https://github.com/socket-link/phosphor")
         inceptionYear.set("2025")
