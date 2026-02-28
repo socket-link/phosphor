@@ -7,6 +7,8 @@ import kotlin.test.assertNotEquals
 import link.socket.phosphor.math.Point
 import link.socket.phosphor.math.Vector2
 
+private const val FLOAT_TOLERANCE = 1e-6f
+
 class SubstrateStateTest {
     @Test
     fun `create substrate with correct dimensions`() {
@@ -22,7 +24,7 @@ class SubstrateStateTest {
         val state = SubstrateState.create(5, 5, baseDensity = 0.7f)
         for (y in 0 until 5) {
             for (x in 0 until 5) {
-                assertEquals(0.7f, state.getDensity(x, y))
+                assertEquals(0.7f, state.getDensity(x, y), FLOAT_TOLERANCE)
             }
         }
     }
@@ -31,7 +33,7 @@ class SubstrateStateTest {
     fun `get and set density`() {
         val state = SubstrateState.create(5, 5)
         state.setDensity(2, 3, 0.8f)
-        assertEquals(0.8f, state.getDensity(2, 3))
+        assertEquals(0.8f, state.getDensity(2, 3), FLOAT_TOLERANCE)
     }
 
     @Test
@@ -143,9 +145,9 @@ class SubstrateGlyphsTest {
     fun `getThresholds returns copy of thresholds`() {
         val thresholds = SubstrateGlyphs.getThresholds()
         assertEquals(4, thresholds.size)
-        assertEquals(0.2f, thresholds[0])
-        assertEquals(0.4f, thresholds[1])
-        assertEquals(0.6f, thresholds[2])
-        assertEquals(0.8f, thresholds[3])
+        assertEquals(0.2f, thresholds[0], FLOAT_TOLERANCE)
+        assertEquals(0.4f, thresholds[1], FLOAT_TOLERANCE)
+        assertEquals(0.6f, thresholds[2], FLOAT_TOLERANCE)
+        assertEquals(0.8f, thresholds[3], FLOAT_TOLERANCE)
     }
 }

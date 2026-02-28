@@ -6,6 +6,8 @@ import kotlin.test.assertTrue
 import link.socket.phosphor.math.Point
 import link.socket.phosphor.math.Vector2
 
+private const val FLOAT_TOLERANCE = 1e-6f
+
 class SubstrateAnimatorTest {
     @Test
     fun `updateAmbient advances time`() {
@@ -182,7 +184,7 @@ class SubstrateAnimatorTest {
                 assertEquals(
                     0.4f,
                     clearedState.getDensity(x, y),
-                    "Density at ($x, $y) should be base density",
+                    FLOAT_TOLERANCE,
                 )
             }
         }
