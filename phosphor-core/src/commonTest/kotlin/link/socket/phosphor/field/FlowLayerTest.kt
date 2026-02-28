@@ -43,7 +43,7 @@ class FlowConnectionTest {
         assertEquals(FlowState.ACTIVATING, started.state)
         assertEquals(0f, started.progress)
         assertNotNull(started.taskToken)
-        assertEquals(Vector2(10f, 5f), started.taskToken?.position)
+        assertEquals(Vector2(10f, 5f), started.taskToken.position)
     }
 
     @Test

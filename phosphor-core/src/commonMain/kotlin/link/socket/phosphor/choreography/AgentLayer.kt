@@ -278,9 +278,9 @@ class AgentLayer(
             val phi = acos(1f - 2f * (i + 0.5f) / count)
 
             Vector3(
-                (sin(phi) * cos(theta) * radius).toFloat(),
-                (cos(phi) * radius).toFloat(),
-                (sin(phi) * sin(theta) * radius).toFloat(),
+                sin(phi) * cos(theta) * radius,
+                cos(phi) * radius,
+                sin(phi) * sin(theta) * radius,
             )
         }
     }
