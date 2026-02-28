@@ -147,4 +147,4 @@ Phosphor is the rendering engine extracted from [Ampere](https://github.com/sock
 
 Apache 2.0 — see [LICENSE.txt](LICENSE.txt) for details.
 
-Copyright 2025 Miley Chandonnet, Stedfast Softworks LLC
+Copyright 2026 Miley Chandonnet, Stedfast Softworks LLC
