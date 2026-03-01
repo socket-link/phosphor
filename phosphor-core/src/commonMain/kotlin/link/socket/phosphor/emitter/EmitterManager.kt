@@ -9,9 +9,10 @@ data class EmitterInstance(
     val effect: EmitterEffect,
     val position: Vector3,
     val activatedAt: Float,
+    val metadata: Map<String, Float> = emptyMap(),
     val age: Float = 0f,
 ) {
-    val isExpired: Boolean get() = age >= effect.duration
+    val isExpired: Boolean get() = age >= effect.activeDuration(metadata)
 }
 
 /**
@@ -42,12 +43,14 @@ class EmitterManager {
         effect: EmitterEffect,
         position: Vector3,
         currentTime: Float = 0f,
+        metadata: Map<String, Float> = emptyMap(),
     ) {
         _instances.add(
             EmitterInstance(
                 effect = effect,
                 position = position,
                 activatedAt = currentTime,
+                metadata = metadata,
             ),
         )
     }
@@ -91,7 +94,7 @@ class EmitterManager {
             val dx = worldX - instance.position.x
             val dz = worldZ - instance.position.z
             val distance = kotlin.math.sqrt(dx * dx + dz * dz)
-            val influence = instance.effect.influence(distance, instance.age)
+            val influence = instance.effect.influence(distance, instance.age, instance.metadata)
             if (influence.intensity > 0f) {
                 result = result + influence
             }

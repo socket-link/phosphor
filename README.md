@@ -103,6 +103,25 @@ Phase transitions trigger effects automatically — spark bursts, substrate ripp
 
 ---
 
+## Metadata-Driven Emitters
+
+Emitter instances can carry generic scalar metadata that effects consume at render time.
+
+```kotlin
+emitters.emit(
+    effect = EmitterEffect.SparkBurst(),
+    position = Vector3.ZERO,
+    metadata = mapOf(
+        MetadataKeys.INTENSITY to 1.4f,
+        MetadataKeys.HEAT to 0.85f,
+    ),
+)
+```
+
+`SparkBurst` uses these values to scale brightness and expansion while preserving the same base effect shape. See [docs/METADATA_GUIDE.md](docs/METADATA_GUIDE.md) for the built-in keys and integration pattern.
+
+---
+
 ## Platforms
 
 Phosphor compiles to:
