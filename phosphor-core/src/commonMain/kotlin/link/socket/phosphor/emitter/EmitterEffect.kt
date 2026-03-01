@@ -24,6 +24,26 @@ sealed class EmitterEffect(
     val peakIntensity: Float = 1f,
 ) {
     /**
+     * Resolve how long an effect instance should stay alive for a metadata payload.
+     *
+     * Most effects use their base duration unchanged; metadata-aware effects can
+     * override this when lifespan itself is part of the modulation.
+     */
+    open fun activeDuration(metadata: Map<String, Float> = emptyMap()): Float = duration
+
+    /**
+     * Compute the effect's influence with optional per-instance metadata.
+     *
+     * The default implementation preserves the original behavior by ignoring
+     * metadata and delegating to the legacy two-parameter overload.
+     */
+    open fun influence(
+        distanceFromCenter: Float,
+        timeSinceActivation: Float,
+        metadata: Map<String, Float>,
+    ): EffectInfluence = influence(distanceFromCenter, timeSinceActivation)
+
+    /**
      * Compute the effect's influence at a given distance from its center,
      * at a given time since activation.
      *
@@ -41,15 +61,34 @@ sealed class EmitterEffect(
         val ringWidth: Float = 0.5f,
         val expansionSpeed: Float = 8f,
         val palette: AsciiLuminancePalette = AsciiLuminancePalette.EXECUTE,
-    ) : EmitterEffect("spark_burst", duration, radius) {
+        peakIntensity: Float = 1f,
+    ) : EmitterEffect("spark_burst", duration, radius, peakIntensity) {
+        override fun activeDuration(metadata: Map<String, Float>): Float {
+            return duration * (metadata[MetadataKeys.DURATION_SCALE] ?: 1f)
+        }
+
         override fun influence(
             distanceFromCenter: Float,
             timeSinceActivation: Float,
-        ): EffectInfluence {
-            if (timeSinceActivation >= duration || timeSinceActivation < 0f) return EffectInfluence.NONE
-            if (distanceFromCenter > radius) return EffectInfluence.NONE
+        ): EffectInfluence = influence(distanceFromCenter, timeSinceActivation, emptyMap())
 
-            val ringCenter = expansionSpeed * timeSinceActivation
+        override fun influence(
+            distanceFromCenter: Float,
+            timeSinceActivation: Float,
+            metadata: Map<String, Float>,
+        ): EffectInfluence {
+            val effectiveDuration = activeDuration(metadata)
+            if (timeSinceActivation >= effectiveDuration || timeSinceActivation < 0f) return EffectInfluence.NONE
+
+            val radiusScale = metadata[MetadataKeys.RADIUS_SCALE] ?: 1f
+            val effectiveRadius = radius * radiusScale
+            if (distanceFromCenter > effectiveRadius) return EffectInfluence.NONE
+
+            val heat = metadata[MetadataKeys.HEAT] ?: 0.5f
+            val intensityScale = metadata[MetadataKeys.INTENSITY] ?: peakIntensity
+            val effectiveExpansionSpeed = expansionSpeed * (0.5f + heat.coerceAtLeast(0f))
+
+            val ringCenter = effectiveExpansionSpeed * timeSinceActivation
             val distFromRing = abs(distanceFromCenter - ringCenter)
             val ringInfluence =
                 if (distFromRing < ringWidth) {
@@ -59,12 +98,12 @@ sealed class EmitterEffect(
                 }
 
             // Decay over time
-            val timeDecay = 1f - (timeSinceActivation / duration)
-            val intensity = ringInfluence * timeDecay * peakIntensity
+            val timeDecay = 1f - (timeSinceActivation / effectiveDuration)
+            val intensity = ringInfluence * timeDecay * intensityScale
 
             return EffectInfluence(
                 luminanceModifier = intensity * 0.6f,
-                paletteOverride = if (intensity > 0.3f) palette else null,
+                paletteOverride = if (intensity > 0.3f || heat >= 0.75f) palette else null,
                 intensity = intensity,
             )
         }

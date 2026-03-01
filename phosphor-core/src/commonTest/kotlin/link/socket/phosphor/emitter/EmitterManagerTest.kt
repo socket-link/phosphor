@@ -136,6 +136,14 @@ class EmitterManagerTest {
     }
 
     @Test
+    fun `emit records metadata on instance`() {
+        val manager = EmitterManager()
+        val metadata = mapOf(MetadataKeys.INTENSITY to 0.25f, MetadataKeys.HEAT to 0.9f)
+        manager.emit(EmitterEffect.SparkBurst(), Vector3.ZERO, metadata = metadata)
+        assertEquals(metadata, manager.instances.first().metadata)
+    }
+
+    @Test
     fun `instance isExpired when age reaches duration`() {
         val instance =
             EmitterInstance(
@@ -167,5 +175,40 @@ class EmitterManagerTest {
         manager.update(0.2f)
         manager.update(0.3f)
         assertEquals(0.6f, manager.instances.first().age, 0.001f)
+    }
+
+    @Test
+    fun `aggregateInfluenceAt passes metadata into effect computation`() {
+        val withoutMetadata = EmitterManager()
+        withoutMetadata.emit(EmitterEffect.SparkBurst(), Vector3.ZERO)
+        withoutMetadata.update(0.05f)
+
+        val withZeroIntensity = EmitterManager()
+        withZeroIntensity.emit(
+            EmitterEffect.SparkBurst(),
+            Vector3.ZERO,
+            metadata = mapOf(MetadataKeys.INTENSITY to 0f),
+        )
+        withZeroIntensity.update(0.05f)
+
+        val baseline = withoutMetadata.aggregateInfluenceAt(0.4f, 0f)
+        val suppressed = withZeroIntensity.aggregateInfluenceAt(0.4f, 0f)
+
+        assertTrue(baseline.intensity > 0f)
+        assertEquals(EffectInfluence.NONE, suppressed)
+    }
+
+    @Test
+    fun `duration scale metadata extends instance lifetime`() {
+        val manager = EmitterManager()
+        manager.emit(
+            EmitterEffect.SparkBurst(duration = 0.5f),
+            Vector3.ZERO,
+            metadata = mapOf(MetadataKeys.DURATION_SCALE to 2f),
+        )
+
+        manager.update(0.75f)
+
+        assertEquals(1, manager.activeCount)
     }
 }

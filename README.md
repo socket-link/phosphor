@@ -61,7 +61,7 @@ Add the dependency:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("link.socket:phosphor-core:0.2.2")
+    implementation("link.socket:phosphor-core:0.3.0")
 }
 ```
 
@@ -100,6 +100,25 @@ buffer[row, col] = cell
 ```
 
 Phase transitions trigger effects automatically — spark bursts, substrate ripples, particle acceleration — all from the cognitive signal alone.
+
+---
+
+## Metadata-Driven Emitters
+
+Emitter instances can carry generic scalar metadata that effects consume at render time.
+
+```kotlin
+emitters.emit(
+    effect = EmitterEffect.SparkBurst(),
+    position = Vector3.ZERO,
+    metadata = mapOf(
+        MetadataKeys.INTENSITY to 1.4f,
+        MetadataKeys.HEAT to 0.85f,
+    ),
+)
+```
+
+`SparkBurst` uses these values to scale brightness and expansion while preserving the same base effect shape. See [docs/METADATA_GUIDE.md](docs/METADATA_GUIDE.md) for the built-in keys and integration pattern.
 
 ---
 

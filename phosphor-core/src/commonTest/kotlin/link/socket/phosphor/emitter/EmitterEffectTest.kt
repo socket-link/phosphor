@@ -69,6 +69,50 @@ class EmitterEffectTest {
         }
     }
 
+    @Test
+    fun `SparkBurst metadata intensity can suppress influence`() {
+        val burst = EmitterEffect.SparkBurst()
+        val ringPos = burst.expansionSpeed * 0.05f
+        val influence =
+            burst.influence(
+                distanceFromCenter = ringPos,
+                timeSinceActivation = 0.05f,
+                metadata = mapOf(MetadataKeys.INTENSITY to 0f),
+            )
+        assertEquals(0f, influence.intensity)
+    }
+
+    @Test
+    fun `SparkBurst higher heat pushes the ring outward faster`() {
+        val burst = EmitterEffect.SparkBurst()
+        val lowHeat =
+            burst.influence(
+                distanceFromCenter = 1.1f,
+                timeSinceActivation = 0.1f,
+                metadata = mapOf(MetadataKeys.HEAT to 0.1f),
+            )
+        val highHeat =
+            burst.influence(
+                distanceFromCenter = 1.1f,
+                timeSinceActivation = 0.1f,
+                metadata = mapOf(MetadataKeys.HEAT to 0.9f),
+            )
+        assertTrue(highHeat.intensity > lowHeat.intensity)
+    }
+
+    @Test
+    fun `SparkBurst empty metadata preserves legacy behavior`() {
+        val burst = EmitterEffect.SparkBurst()
+        val legacy = burst.influence(distanceFromCenter = 0.4f, timeSinceActivation = 0.05f)
+        val metadataAware =
+            burst.influence(
+                distanceFromCenter = 0.4f,
+                timeSinceActivation = 0.05f,
+                metadata = emptyMap(),
+            )
+        assertEquals(legacy, metadataAware)
+    }
+
     // --- HeightPulse ---
 
     @Test
