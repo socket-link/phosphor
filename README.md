@@ -61,7 +61,7 @@ Add the dependency:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("link.socket:phosphor-core:0.2.2")
+    implementation("link.socket:phosphor-core:0.3.0")
 }
 ```
 
