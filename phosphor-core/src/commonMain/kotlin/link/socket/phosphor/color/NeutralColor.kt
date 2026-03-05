@@ -1,5 +1,6 @@
 package link.socket.phosphor.color
 
+import kotlin.jvm.JvmInline
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -29,9 +30,9 @@ value class NeutralColor private constructor(
     val alphaInt: Int get() = (packedRgba and CHANNEL_MASK).toInt()
 
     fun toHex(includeAlpha: Boolean = true): String {
-        val rgb = "%02X%02X%02X".format(redInt, greenInt, blueInt)
+        val rgb = channelToHex(redInt) + channelToHex(greenInt) + channelToHex(blueInt)
         return if (includeAlpha) {
-            "#$rgb%02X".format(alphaInt)
+            "#$rgb${channelToHex(alphaInt)}"
         } else {
             "#$rgb"
         }
@@ -155,5 +156,7 @@ value class NeutralColor private constructor(
         ): Float = start + ((end - start) * t)
 
         private fun toChannel(value: Float): Int = (value.coerceIn(0f, 1f) * CHANNEL_MAX_FLOAT).roundToInt()
+
+        private fun channelToHex(channel: Int): String = channel.toString(radix = 16).uppercase().padStart(2, '0')
     }
 }

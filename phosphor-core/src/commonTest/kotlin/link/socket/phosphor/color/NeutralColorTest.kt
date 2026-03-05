@@ -77,6 +77,13 @@ class NeutralColorTest {
     }
 
     @Test
+    fun `toHex pads channels with leading zeros`() {
+        val color = NeutralColor.fromHex("#010A0B0C")
+
+        assertEquals("#010A0B0C", color.toHex())
+    }
+
+    @Test
     fun `fromRgba clamps out of range channels`() {
         val color = NeutralColor.fromRgba(-1f, 0.5f, 2f, 9f)
 
