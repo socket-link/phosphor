@@ -1,6 +1,9 @@
 package link.socket.phosphor.field
 
 import kotlin.math.roundToInt
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
+import link.socket.phosphor.color.ParticleColorKind
 import link.socket.phosphor.math.Vector2
 
 /**
@@ -310,6 +313,8 @@ class ParticleRenderer(
     private val height: Int,
     private val useUnicode: Boolean = true,
 ) {
+    private val ansi = AnsiColorAdapter.DEFAULT
+
     /**
      * Render particles to a 2D character grid.
      *
@@ -354,10 +359,14 @@ class ParticleRenderer(
             if (x in 0 until width && y in 0 until height) {
                 val color =
                     when (p.type) {
-                        ParticleType.MOTE -> "\u001B[38;5;240m" // Gray
-                        ParticleType.SPARK -> "\u001B[38;5;226m" // Yellow
-                        ParticleType.TRAIL -> "\u001B[38;5;45m" // Cyan
-                        ParticleType.RIPPLE -> "\u001B[38;5;51m" // Light cyan
+                        ParticleType.MOTE ->
+                            ansi.foreground(CognitiveColorModel.particleColors.getValue(ParticleColorKind.MOTE))
+                        ParticleType.SPARK ->
+                            ansi.foreground(CognitiveColorModel.particleColors.getValue(ParticleColorKind.SPARK))
+                        ParticleType.TRAIL ->
+                            ansi.foreground(CognitiveColorModel.particleColors.getValue(ParticleColorKind.TRAIL))
+                        ParticleType.RIPPLE ->
+                            ansi.foreground(CognitiveColorModel.particleColors.getValue(ParticleColorKind.RIPPLE))
                     }
                 grid[y][x] = p.glyph to color
             }
@@ -369,7 +378,7 @@ class ParticleRenderer(
                     if (color != null) {
                         append(color)
                         append(char)
-                        append("\u001B[0m")
+                        append(AnsiColorAdapter.RESET)
                     } else {
                         append(char)
                     }

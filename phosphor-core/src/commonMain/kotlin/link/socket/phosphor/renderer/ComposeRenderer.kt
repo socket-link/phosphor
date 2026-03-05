@@ -1,6 +1,8 @@
 package link.socket.phosphor.renderer
 
 import kotlin.math.roundToInt
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.PlatformColorAdapter
 
 /**
  * Generic color model for Compose-like draw surfaces.
@@ -55,6 +57,8 @@ data class ComposeRenderFrame(
 class ComposeRenderer(
     override val preferredFps: Int = DEFAULT_TARGET_FPS,
     private val skipWhitespaceCells: Boolean = true,
+    private val colorAdapter: PlatformColorAdapter<ComposeColor> = ComposeColorAdapter(),
+    private val ansiColorAdapter: AnsiColorAdapter = AnsiColorAdapter.DEFAULT,
 ) : PhosphorRenderer<ComposeRenderFrame> {
     override val target: RenderTarget = RenderTarget.COMPOSE
 
@@ -70,7 +74,7 @@ class ComposeRenderer(
                 val cell = frame.cellAt(row, col)
                 if (skipWhitespaceCells && cell.char == ' ') continue
 
-                val start = ansi256ToColor(cell.fgColor)
+                val start = colorAdapter.adapt(ansiColorAdapter.neutralFromAnsi256(cell.fgColor))
                 val end = start.lighten(if (cell.bold) 0.25f else 0.12f)
                 val alpha = (cell.luminance ?: if (cell.char == ' ') 0f else 1f).coerceIn(0f, 1f)
 
@@ -96,45 +100,12 @@ class ComposeRenderer(
     companion object {
         const val DEFAULT_TARGET_FPS: Int = 60
 
-        private val ANSI_BASE_COLORS =
-            arrayOf(
-                ComposeColor(0, 0, 0),
-                ComposeColor(128, 0, 0),
-                ComposeColor(0, 128, 0),
-                ComposeColor(128, 128, 0),
-                ComposeColor(0, 0, 128),
-                ComposeColor(128, 0, 128),
-                ComposeColor(0, 128, 128),
-                ComposeColor(192, 192, 192),
-                ComposeColor(128, 128, 128),
-                ComposeColor(255, 0, 0),
-                ComposeColor(0, 255, 0),
-                ComposeColor(255, 255, 0),
-                ComposeColor(0, 0, 255),
-                ComposeColor(255, 0, 255),
-                ComposeColor(0, 255, 255),
-                ComposeColor(255, 255, 255),
-            )
-
-        private val ANSI_COLOR_CUBE_LEVELS = intArrayOf(0, 95, 135, 175, 215, 255)
+        private val defaultAnsiAdapter = AnsiColorAdapter.DEFAULT
+        private val defaultComposeAdapter = ComposeColorAdapter()
 
         internal fun ansi256ToColor(index: Int): ComposeColor {
-            val normalized = index.coerceIn(0, 255)
-
-            if (normalized < ANSI_BASE_COLORS.size) {
-                return ANSI_BASE_COLORS[normalized]
-            }
-
-            if (normalized in 16..231) {
-                val cubeIndex = normalized - 16
-                val r = ANSI_COLOR_CUBE_LEVELS[cubeIndex / 36]
-                val g = ANSI_COLOR_CUBE_LEVELS[(cubeIndex % 36) / 6]
-                val b = ANSI_COLOR_CUBE_LEVELS[cubeIndex % 6]
-                return ComposeColor(r, g, b)
-            }
-
-            val gray = 8 + ((normalized - 232) * 10)
-            return ComposeColor(gray, gray, gray)
+            val neutral = defaultAnsiAdapter.neutralFromAnsi256(index)
+            return defaultComposeAdapter.adapt(neutral)
         }
     }
 }

@@ -1,5 +1,7 @@
 package link.socket.phosphor.palette
 
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
 import link.socket.phosphor.signal.CognitivePhase
 
 /**
@@ -58,47 +60,36 @@ data class CognitiveColorRamp(
     }
 
     companion object {
+        private val ansiAdapter = AnsiColorAdapter.DEFAULT
+
+        private fun fromModel(
+            phase: CognitivePhase,
+            modelPhase: CognitivePhase = phase,
+        ): CognitiveColorRamp {
+            val stops =
+                CognitiveColorModel.phaseRampFor(modelPhase).stops.map { color ->
+                    ansiAdapter.ansi256Code(color)
+                }
+            return CognitiveColorRamp(phase = phase, colorStops = stops)
+        }
+
         /** Cool blues -> white (sensory, exploratory) */
-        val PERCEIVE =
-            CognitiveColorRamp(
-                phase = CognitivePhase.PERCEIVE,
-                colorStops = listOf(17, 18, 24, 31, 38, 74, 110, 117, 153, 189, 231),
-            )
+        val PERCEIVE = fromModel(CognitivePhase.PERCEIVE)
 
         /** Dark amber -> warm gold (memory, warmth) */
-        val RECALL =
-            CognitiveColorRamp(
-                phase = CognitivePhase.RECALL,
-                colorStops = listOf(52, 94, 130, 136, 172, 178, 214, 220, 221),
-            )
+        val RECALL = fromModel(CognitivePhase.RECALL)
 
         /** Teal -> cyan (structured, deliberate) */
-        val PLAN =
-            CognitiveColorRamp(
-                phase = CognitivePhase.PLAN,
-                colorStops = listOf(23, 29, 30, 36, 37, 43, 79, 115, 159),
-            )
+        val PLAN = fromModel(CognitivePhase.PLAN)
 
         /** Red -> yellow -> white (discharge, energy) */
-        val EXECUTE =
-            CognitiveColorRamp(
-                phase = CognitivePhase.EXECUTE,
-                colorStops = listOf(52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 231),
-            )
+        val EXECUTE = fromModel(CognitivePhase.EXECUTE)
 
         /** Purple -> dim lavender (reflection, settling) */
-        val EVALUATE =
-            CognitiveColorRamp(
-                phase = CognitivePhase.EVALUATE,
-                colorStops = listOf(53, 54, 91, 97, 134, 140, 141, 183, 189),
-            )
+        val EVALUATE = fromModel(CognitivePhase.EVALUATE)
 
         /** Neutral gray ramp for LOOP/NONE phases */
-        val NEUTRAL =
-            CognitiveColorRamp(
-                phase = CognitivePhase.NONE,
-                colorStops = listOf(232, 236, 240, 244, 248, 252, 255),
-            )
+        val NEUTRAL = fromModel(phase = CognitivePhase.NONE, modelPhase = CognitivePhase.NONE)
 
         /**
          * Get the color ramp for a cognitive phase.

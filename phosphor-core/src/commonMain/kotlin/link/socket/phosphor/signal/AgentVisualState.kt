@@ -1,5 +1,8 @@
 package link.socket.phosphor.signal
 
+import link.socket.phosphor.color.AgentColorState
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
 import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
 
@@ -156,30 +159,90 @@ object AgentGlyphs {
  * Color scheme for agent rendering.
  */
 object AgentColors {
+    private val ansi = AnsiColorAdapter.DEFAULT
+
     // ANSI 256-color codes
+    @Deprecated(
+        message = "Use CognitiveColorModel.agentStateColors + AnsiColorAdapter instead.",
+        replaceWith =
+            ReplaceWith(
+                "AnsiColorAdapter.DEFAULT.foreground(" +
+                    "CognitiveColorModel.agentStateColors.getValue(AgentColorState.IDLE))",
+            ),
+    )
     const val IDLE = "\u001B[38;5;240m" // Gray
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.agentStateColors + AnsiColorAdapter instead.",
+        replaceWith =
+            ReplaceWith(
+                "AnsiColorAdapter.DEFAULT.foreground(" +
+                    "CognitiveColorModel.agentStateColors.getValue(AgentColorState.ACTIVE))",
+            ),
+    )
     const val ACTIVE = "\u001B[38;5;226m" // Gold/Yellow
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.agentActivityColors + AnsiColorAdapter instead.",
+        replaceWith =
+            ReplaceWith(
+                "AnsiColorAdapter.DEFAULT.foreground(" +
+                    "CognitiveColorModel.agentActivityColors.getValue(AgentActivityState.PROCESSING))",
+            ),
+    )
     const val PROCESSING = "\u001B[38;5;226m" // Gold with shimmer
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.agentActivityColors + AnsiColorAdapter instead.",
+        replaceWith =
+            ReplaceWith(
+                "AnsiColorAdapter.DEFAULT.foreground(" +
+                    "CognitiveColorModel.agentActivityColors.getValue(AgentActivityState.SPAWNING))",
+            ),
+    )
     const val SPAWNING = "\u001B[38;5;240m" // Gray
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.agentActivityColors + AnsiColorAdapter instead.",
+        replaceWith =
+            ReplaceWith(
+                "AnsiColorAdapter.DEFAULT.foreground(" +
+                    "CognitiveColorModel.agentActivityColors.getValue(AgentActivityState.COMPLETE))",
+            ),
+    )
     const val COMPLETE = "\u001B[38;5;82m" // Green
+
+    @Deprecated(
+        message = "Use AnsiColorAdapter.RESET instead.",
+        replaceWith = ReplaceWith("AnsiColorAdapter.RESET"),
+    )
     const val RESET = "\u001B[0m"
 
     // Role-based colors
+    @Deprecated(
+        message = "Use CognitiveColorModel.roleColorFor + AnsiColorAdapter instead.",
+        replaceWith = ReplaceWith("AnsiColorAdapter.DEFAULT.foreground(CognitiveColorModel.reasoningRoleColor)"),
+    )
     const val REASONING = "\u001B[38;5;213m" // Pink/Magenta (Spark)
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.roleColorFor + AnsiColorAdapter instead.",
+        replaceWith = ReplaceWith("AnsiColorAdapter.DEFAULT.foreground(CognitiveColorModel.codegenRoleColor)"),
+    )
     const val CODEGEN = "\u001B[38;5;45m" // Cyan (Jazz)
+
+    @Deprecated(
+        message = "Use CognitiveColorModel.roleColorFor + AnsiColorAdapter instead.",
+        replaceWith = ReplaceWith("AnsiColorAdapter.DEFAULT.foreground(CognitiveColorModel.coordinatorRoleColor)"),
+    )
     const val COORDINATOR = "\u001B[38;5;226m" // Gold
 
     /**
      * Get color for agent state.
      */
     fun forState(state: AgentActivityState): String {
-        return when (state) {
-            AgentActivityState.SPAWNING -> SPAWNING
-            AgentActivityState.IDLE -> IDLE
-            AgentActivityState.ACTIVE -> ACTIVE
-            AgentActivityState.PROCESSING -> PROCESSING
-            AgentActivityState.COMPLETE -> COMPLETE
-        }
+        val neutral = CognitiveColorModel.agentActivityColors.getValue(state)
+        return ansi.foreground(neutral)
     }
 
     /**
@@ -187,10 +250,10 @@ object AgentColors {
      */
     fun forRole(role: String): String {
         return when (role.lowercase()) {
-            "reasoning", "spark" -> REASONING
-            "codegen", "code", "jazz" -> CODEGEN
-            "coordinator" -> COORDINATOR
-            else -> IDLE
+            "reasoning", "spark" -> ansi.foreground(CognitiveColorModel.reasoningRoleColor)
+            "codegen", "code", "jazz" -> ansi.foreground(CognitiveColorModel.codegenRoleColor)
+            "coordinator" -> ansi.foreground(CognitiveColorModel.coordinatorRoleColor)
+            else -> ansi.foreground(CognitiveColorModel.agentStateColors.getValue(AgentColorState.IDLE))
         }
     }
 }
