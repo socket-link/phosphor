@@ -4,6 +4,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.random.Random
 import link.socket.phosphor.field.BurstEmitter
 import link.socket.phosphor.field.EmitterConfig
 import link.socket.phosphor.field.ParticleAttractor
@@ -38,6 +39,7 @@ import link.socket.phosphor.signal.CognitivePhase
 class CognitiveChoreographer(
     private val particles: ParticleSystem,
     private val substrateAnimator: SubstrateAnimator,
+    private val random: Random = Random.Default,
 ) {
     private val previousPhases = mutableMapOf<String, CognitivePhase>()
 
@@ -205,7 +207,7 @@ class CognitiveChoreographer(
 
                 // Direction points inward toward agent
                 val inwardAngle = angle + PI // Reverse direction
-                val emitter = StreamEmitter()
+                val emitter = StreamEmitter(random)
                 val config =
                     EmitterConfig(
                         type = ParticleType.MOTE,
@@ -272,7 +274,7 @@ class CognitiveChoreographer(
                         agent.position.y + sin(angle).toFloat() * PLAN_CLUSTER_RADIUS,
                     )
 
-                val emitter = BurstEmitter()
+                val emitter = BurstEmitter(random)
                 val config =
                     EmitterConfig(
                         type = ParticleType.MOTE,
@@ -323,7 +325,7 @@ class CognitiveChoreographer(
     ): SubstrateState {
         if (canSpawn(agent.id)) {
             // High-speed focused stream outward from agent
-            val emitter = StreamEmitter()
+            val emitter = StreamEmitter(random)
             val config =
                 EmitterConfig(
                     type = ParticleType.SPARK,
@@ -393,7 +395,7 @@ class CognitiveChoreographer(
 
         // Spawn single ambient mote (subtle sign of life)
         if (canSpawn(agent.id)) {
-            val emitter = BurstEmitter()
+            val emitter = BurstEmitter(random)
             val config =
                 EmitterConfig(
                     type = ParticleType.MOTE,
@@ -418,7 +420,7 @@ class CognitiveChoreographer(
         position: Vector2,
         count: Int,
     ) {
-        val emitter = BurstEmitter()
+        val emitter = BurstEmitter(random)
         val config =
             EmitterConfig(
                 type = ParticleType.SPARK,
@@ -433,7 +435,7 @@ class CognitiveChoreographer(
 
     private fun spawnTrailFromAgent(position: Vector2) {
         // Spawn trail particles radiating gently outward (executed action afterimage)
-        val emitter = BurstEmitter()
+        val emitter = BurstEmitter(random)
         val config =
             EmitterConfig(
                 type = ParticleType.TRAIL,
