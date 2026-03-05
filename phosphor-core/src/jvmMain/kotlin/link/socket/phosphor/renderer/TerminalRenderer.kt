@@ -1,5 +1,6 @@
 package link.socket.phosphor.renderer
 
+import link.socket.phosphor.color.AnsiColorAdapter
 import link.socket.phosphor.palette.AsciiLuminancePalette
 
 /**
@@ -81,7 +82,7 @@ class TerminalRenderer(
                 if (includeAnsi) {
                     appendStyle(line, cell)
                     line.append(char)
-                    line.append(ANSI_RESET)
+                    line.append(AnsiColorAdapter.RESET)
                 } else {
                     line.append(char)
                 }
@@ -115,8 +116,8 @@ class TerminalRenderer(
         cell: FrameCell,
     ) {
         builder.append(if (cell.bold) ANSI_BOLD else ANSI_NORMAL_WEIGHT)
-        builder.append(ansiForeground(cell.fgColor))
-        cell.bgColor?.let { bg -> builder.append(ansiBackground(bg)) }
+        builder.append(AnsiColorAdapter.foregroundEscapeForCode(cell.fgColor))
+        cell.bgColor?.let { bg -> builder.append(AnsiColorAdapter.backgroundEscapeForCode(bg)) }
     }
 
     companion object {
@@ -125,10 +126,5 @@ class TerminalRenderer(
         private const val ESC = "\u001B["
         private const val ANSI_BOLD = "${ESC}1m"
         private const val ANSI_NORMAL_WEIGHT = "${ESC}22m"
-        private const val ANSI_RESET = "${ESC}0m"
-
-        private fun ansiForeground(code: Int): String = "${ESC}38;5;${code.coerceIn(0, 255)}m"
-
-        private fun ansiBackground(code: Int): String = "${ESC}48;5;${code.coerceIn(0, 255)}m"
     }
 }

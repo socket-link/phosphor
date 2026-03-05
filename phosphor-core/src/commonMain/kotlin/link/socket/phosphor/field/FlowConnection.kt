@@ -1,5 +1,8 @@
 package link.socket.phosphor.field
 
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
+import link.socket.phosphor.color.FlowColorState
 import link.socket.phosphor.math.Vector2
 
 /**
@@ -55,10 +58,52 @@ data class TaskToken(
 
         /** Colors for task tokens */
         object Colors {
+            private val ansi = AnsiColorAdapter.DEFAULT
+
+            @Deprecated(
+                message = "Use active() with CognitiveColorModel + AnsiColorAdapter instead.",
+                replaceWith =
+                    ReplaceWith(
+                        "TaskToken.Colors.active()",
+                    ),
+            )
             const val ACTIVE = "\u001B[38;5;226m" // Yellow
+
+            @Deprecated(
+                message = "Use trail() with CognitiveColorModel + AnsiColorAdapter instead.",
+                replaceWith =
+                    ReplaceWith(
+                        "TaskToken.Colors.trail()",
+                    ),
+            )
             const val TRAIL = "\u001B[38;5;240m" // Gray
+
+            @Deprecated(
+                message = "Use received() with CognitiveColorModel + AnsiColorAdapter instead.",
+                replaceWith =
+                    ReplaceWith(
+                        "TaskToken.Colors.received()",
+                    ),
+            )
             const val RECEIVED = "\u001B[38;5;46m" // Green
+
+            @Deprecated(
+                message = "Use AnsiColorAdapter.RESET instead.",
+                replaceWith = ReplaceWith("AnsiColorAdapter.RESET"),
+            )
             const val RESET = "\u001B[0m"
+
+            fun active(): String =
+                ansi.foreground(
+                    CognitiveColorModel.flowStateColors.getValue(FlowColorState.ACTIVATING),
+                )
+
+            fun trail(): String = ansi.foreground(CognitiveColorModel.flowStateColors.getValue(FlowColorState.DORMANT))
+
+            fun received(): String =
+                ansi.foreground(
+                    CognitiveColorModel.flowStateColors.getValue(FlowColorState.RECEIVED),
+                )
         }
     }
 

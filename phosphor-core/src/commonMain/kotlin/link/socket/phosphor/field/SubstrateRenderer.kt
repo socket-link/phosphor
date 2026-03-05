@@ -1,5 +1,6 @@
 package link.socket.phosphor.field
 
+import link.socket.phosphor.color.AnsiColorAdapter
 import link.socket.phosphor.math.Vector2
 
 /**
@@ -118,15 +119,11 @@ class ColoredSubstrateRenderer(
                             append(color)
                             append(glyph)
                         }
-                        append(ANSI_RESET)
+                        append(AnsiColorAdapter.RESET)
                     }
                 add(row)
             }
         }
-    }
-
-    companion object {
-        private const val ANSI_RESET = "\u001B[0m"
     }
 }
 
@@ -158,15 +155,15 @@ class SubstrateColorScheme(
             SubstrateColorScheme(
                 listOf(
                     // Dark gray
-                    "\u001B[38;5;236m",
+                    AnsiColorAdapter.foregroundEscapeForCode(236),
                     // Gray
-                    "\u001B[38;5;240m",
+                    AnsiColorAdapter.foregroundEscapeForCode(240),
                     // Light gray
-                    "\u001B[38;5;250m",
+                    AnsiColorAdapter.foregroundEscapeForCode(250),
                     // Cyan
-                    "\u001B[38;5;45m",
+                    AnsiColorAdapter.foregroundEscapeForCode(45),
                     // Bright cyan
-                    "\u001B[38;5;51m",
+                    AnsiColorAdapter.foregroundEscapeForCode(51),
                 ),
             )
 
@@ -175,15 +172,15 @@ class SubstrateColorScheme(
             SubstrateColorScheme(
                 listOf(
                     // Dark green
-                    "\u001B[38;5;22m",
+                    AnsiColorAdapter.foregroundEscapeForCode(22),
                     // Green
-                    "\u001B[38;5;28m",
+                    AnsiColorAdapter.foregroundEscapeForCode(28),
                     // Bright green
-                    "\u001B[38;5;34m",
+                    AnsiColorAdapter.foregroundEscapeForCode(34),
                     // Lime
-                    "\u001B[38;5;46m",
+                    AnsiColorAdapter.foregroundEscapeForCode(46),
                     // Bright lime
-                    "\u001B[38;5;118m",
+                    AnsiColorAdapter.foregroundEscapeForCode(118),
                 ),
             )
 
@@ -192,15 +189,15 @@ class SubstrateColorScheme(
             SubstrateColorScheme(
                 listOf(
                     // Dark purple
-                    "\u001B[38;5;53m",
+                    AnsiColorAdapter.foregroundEscapeForCode(53),
                     // Purple
-                    "\u001B[38;5;127m",
+                    AnsiColorAdapter.foregroundEscapeForCode(127),
                     // Magenta
-                    "\u001B[38;5;165m",
+                    AnsiColorAdapter.foregroundEscapeForCode(165),
                     // Pink
-                    "\u001B[38;5;207m",
+                    AnsiColorAdapter.foregroundEscapeForCode(207),
                     // Light pink
-                    "\u001B[38;5;213m",
+                    AnsiColorAdapter.foregroundEscapeForCode(213),
                 ),
             )
 
@@ -209,15 +206,15 @@ class SubstrateColorScheme(
             SubstrateColorScheme(
                 listOf(
                     // Dark brown
-                    "\u001B[38;5;94m",
+                    AnsiColorAdapter.foregroundEscapeForCode(94),
                     // Brown
-                    "\u001B[38;5;130m",
+                    AnsiColorAdapter.foregroundEscapeForCode(130),
                     // Orange
-                    "\u001B[38;5;172m",
+                    AnsiColorAdapter.foregroundEscapeForCode(172),
                     // Gold
-                    "\u001B[38;5;214m",
+                    AnsiColorAdapter.foregroundEscapeForCode(214),
                     // Yellow
-                    "\u001B[38;5;226m",
+                    AnsiColorAdapter.foregroundEscapeForCode(226),
                 ),
             )
     }

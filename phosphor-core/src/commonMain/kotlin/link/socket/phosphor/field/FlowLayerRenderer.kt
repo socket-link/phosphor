@@ -2,6 +2,9 @@ package link.socket.phosphor.field
 
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
+import link.socket.phosphor.color.FlowColorState
 import link.socket.phosphor.math.Vector2
 
 /**
@@ -14,6 +17,8 @@ class FlowLayerRenderer(
     private val useUnicode: Boolean = true,
     private val showDormantConnections: Boolean = false,
 ) {
+    private val ansi = AnsiColorAdapter.DEFAULT
+
     /**
      * Rendered item for a flow connection.
      */
@@ -238,10 +243,14 @@ class FlowLayerRenderer(
         // Determine color based on state
         val color =
             when (connection.state) {
-                FlowState.DORMANT -> "\u001B[38;5;240m" // Gray
-                FlowState.ACTIVATING -> "\u001B[38;5;226m" // Yellow
-                FlowState.TRANSMITTING -> "\u001B[38;5;45m" // Cyan
-                FlowState.RECEIVED -> "\u001B[38;5;46m" // Green
+                FlowState.DORMANT ->
+                    ansi.foreground(CognitiveColorModel.flowStateColors.getValue(FlowColorState.DORMANT))
+                FlowState.ACTIVATING ->
+                    ansi.foreground(CognitiveColorModel.flowStateColors.getValue(FlowColorState.ACTIVATING))
+                FlowState.TRANSMITTING ->
+                    ansi.foreground(CognitiveColorModel.flowStateColors.getValue(FlowColorState.TRANSMITTING))
+                FlowState.RECEIVED ->
+                    ansi.foreground(CognitiveColorModel.flowStateColors.getValue(FlowColorState.RECEIVED))
             }
 
         return FlowRenderItem(
@@ -350,7 +359,7 @@ class FlowLayerRenderer(
                 if (x in 0 until width && y in 0 until height) {
                     val existing = grid[y][x]
                     if (existing.first == background) {
-                        grid[y][x] = char to TaskToken.Companion.Colors.TRAIL
+                        grid[y][x] = char to TaskToken.Companion.Colors.trail()
                     }
                 }
             }
@@ -362,7 +371,7 @@ class FlowLayerRenderer(
                 val x = item.tokenPosition.x.roundToInt()
                 val y = item.tokenPosition.y.roundToInt()
                 if (x in 0 until width && y in 0 until height) {
-                    grid[y][x] = item.tokenChar to TaskToken.Companion.Colors.ACTIVE
+                    grid[y][x] = item.tokenChar to TaskToken.Companion.Colors.active()
                 }
             }
         }
@@ -373,7 +382,7 @@ class FlowLayerRenderer(
                     if (color != null) {
                         append(color)
                         append(char)
-                        append("\u001B[0m")
+                        append(AnsiColorAdapter.RESET)
                     } else {
                         append(char)
                     }

@@ -5,6 +5,9 @@ import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import link.socket.phosphor.color.AgentColorState
+import link.socket.phosphor.color.AnsiColorAdapter
+import link.socket.phosphor.color.CognitiveColorModel
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.coordinate.CoordinateTransform
 import link.socket.phosphor.math.Vector2
@@ -455,6 +458,8 @@ class AgentLayerRenderer(
     private val useUnicode: Boolean = true,
     private val showStatusText: Boolean = true,
 ) {
+    private val ansi = AnsiColorAdapter.DEFAULT
+
     /**
      * Render all agents to a list of positioned render items.
      */
@@ -492,7 +497,7 @@ class AgentLayerRenderer(
                 append(color)
                 append(glyph)
                 append(suffix)
-                append(AgentColors.RESET)
+                append(AnsiColorAdapter.RESET)
                 append(" ")
                 append(agent.name)
             }
@@ -501,10 +506,10 @@ class AgentLayerRenderer(
         val statusDisplay =
             if (showStatusText && agent.statusText.isNotEmpty()) {
                 buildString {
-                    append("\u001B[38;5;240m") // Gray
+                    append(ansi.foreground(CognitiveColorModel.agentStateColors.getValue(AgentColorState.IDLE)))
                     append("\u2514\u2500 ") // └─
                     append(agent.statusText)
-                    append(AgentColors.RESET)
+                    append(AnsiColorAdapter.RESET)
                 }
             } else {
                 null
@@ -538,10 +543,10 @@ class AgentLayerRenderer(
     private fun getShimmerColor(agent: AgentVisualState): String {
         val phase = agent.pulsePhase
         return when {
-            phase < 0.25f -> "\u001B[38;5;226m" // Bright gold
-            phase < 0.5f -> "\u001B[38;5;228m" // Light gold
-            phase < 0.75f -> "\u001B[38;5;226m" // Bright gold
-            else -> "\u001B[38;5;220m" // Gold
+            phase < 0.25f -> AnsiColorAdapter.foregroundEscapeForCode(226) // Bright gold
+            phase < 0.5f -> AnsiColorAdapter.foregroundEscapeForCode(228) // Light gold
+            phase < 0.75f -> AnsiColorAdapter.foregroundEscapeForCode(226) // Bright gold
+            else -> AnsiColorAdapter.foregroundEscapeForCode(220) // Gold
         }
     }
 
