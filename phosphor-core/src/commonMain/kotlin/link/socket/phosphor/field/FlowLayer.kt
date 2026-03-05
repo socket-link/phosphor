@@ -1,6 +1,7 @@
 package link.socket.phosphor.field
 
 import kotlin.math.roundToInt
+import kotlin.random.Random
 import link.socket.phosphor.choreography.AgentLayer
 import link.socket.phosphor.math.Vector2
 
@@ -20,6 +21,7 @@ import link.socket.phosphor.math.Vector2
 class FlowLayer(
     val width: Int,
     val height: Int,
+    private val random: Random = Random.Default,
 ) {
     private val connections = mutableMapOf<String, FlowConnection>()
     private var trailParticles = mutableListOf<Particle>()
@@ -187,7 +189,7 @@ class FlowLayer(
 
                         if (currentToken != null) {
                             // Spawn trail particle
-                            if (kotlin.random.Random.nextFloat() < trailSpawnRate) {
+                            if (random.nextFloat() < trailSpawnRate) {
                                 val trailParticle =
                                     Particle(
                                         position = currentToken.position,
