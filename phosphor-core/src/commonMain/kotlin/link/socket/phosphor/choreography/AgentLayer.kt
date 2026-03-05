@@ -5,6 +5,8 @@ import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import link.socket.phosphor.coordinate.CoordinateSpace
+import link.socket.phosphor.coordinate.CoordinateTransform
 import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.signal.AgentActivityState
@@ -47,6 +49,23 @@ class AgentLayer(
 ) {
     private val agents = mutableMapOf<String, AgentVisualState>()
     private val spawnProgress = mutableMapOf<String, Float>()
+
+    /**
+     * The coordinate space that agent positions are expressed in.
+     *
+     * 3D-aware layouts ([AgentLayoutOrientation.CIRCULAR], [AgentLayoutOrientation.SPHERE],
+     * [AgentLayoutOrientation.CLUSTERED]) produce positions in [CoordinateSpace.WORLD_CENTERED].
+     * 2D layouts and [AgentLayoutOrientation.CUSTOM] use [CoordinateSpace.WORLD_POSITIVE].
+     */
+    val coordinateSpace: CoordinateSpace
+        get() =
+            when (orientation) {
+                AgentLayoutOrientation.CIRCULAR,
+                AgentLayoutOrientation.SPHERE,
+                AgentLayoutOrientation.CLUSTERED,
+                -> CoordinateSpace.WORLD_CENTERED
+                else -> CoordinateSpace.WORLD_POSITIVE
+            }
 
     /** All current agents */
     val allAgents: List<AgentVisualState> get() = agents.values.toList()
@@ -375,6 +394,57 @@ class AgentLayer(
     fun clear() {
         agents.clear()
         spawnProgress.clear()
+    }
+
+    /**
+     * Get an agent's 2D position converted to the requested coordinate space.
+     *
+     * @param agentId The agent to query
+     * @param targetSpace The desired coordinate space
+     * @param worldWidth The world extent along X (needed for conversion)
+     * @param worldDepth The world extent along Z (needed for conversion)
+     * @return The position in [targetSpace], or null if agent not found
+     */
+    fun getAgentPositionIn(
+        agentId: String,
+        targetSpace: CoordinateSpace,
+        worldWidth: Float,
+        worldDepth: Float,
+    ): Vector2? {
+        val agent = agents[agentId] ?: return null
+        return CoordinateTransform.convert(
+            agent.position,
+            worldWidth,
+            worldDepth,
+            from = coordinateSpace,
+            to = targetSpace,
+        )
+    }
+
+    /**
+     * Get an agent's 3D position converted to the requested coordinate space.
+     * Y (height) is preserved during conversion.
+     *
+     * @param agentId The agent to query
+     * @param targetSpace The desired coordinate space
+     * @param worldWidth The world extent along X (needed for conversion)
+     * @param worldDepth The world extent along Z (needed for conversion)
+     * @return The position in [targetSpace], or null if agent not found
+     */
+    fun getAgentPosition3DIn(
+        agentId: String,
+        targetSpace: CoordinateSpace,
+        worldWidth: Float,
+        worldDepth: Float,
+    ): Vector3? {
+        val agent = agents[agentId] ?: return null
+        return CoordinateTransform.convert(
+            agent.position3D,
+            worldWidth,
+            worldDepth,
+            from = coordinateSpace,
+            to = targetSpace,
+        )
     }
 }
 

@@ -1,10 +1,12 @@
 package link.socket.phosphor.choreography
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.signal.AgentActivityState
@@ -417,6 +419,106 @@ class AgentLayerTest {
         // 2D position should be XZ projection
         assertEquals(10f, updated.position.x, 0.01f)
         assertEquals(20f, updated.position.y, 0.01f)
+    }
+
+    @Test
+    fun `coordinateSpace is WORLD_CENTERED for 3D layouts`() {
+        assertEquals(
+            CoordinateSpace.WORLD_CENTERED,
+            AgentLayer(100, 100, AgentLayoutOrientation.CIRCULAR).coordinateSpace,
+        )
+        assertEquals(
+            CoordinateSpace.WORLD_CENTERED,
+            AgentLayer(100, 100, AgentLayoutOrientation.SPHERE).coordinateSpace,
+        )
+        assertEquals(
+            CoordinateSpace.WORLD_CENTERED,
+            AgentLayer(100, 100, AgentLayoutOrientation.CLUSTERED).coordinateSpace,
+        )
+    }
+
+    @Test
+    fun `coordinateSpace is WORLD_POSITIVE for 2D layouts`() {
+        assertEquals(
+            CoordinateSpace.WORLD_POSITIVE,
+            AgentLayer(100, 30, AgentLayoutOrientation.HORIZONTAL).coordinateSpace,
+        )
+        assertEquals(
+            CoordinateSpace.WORLD_POSITIVE,
+            AgentLayer(100, 30, AgentLayoutOrientation.VERTICAL).coordinateSpace,
+        )
+        assertEquals(
+            CoordinateSpace.WORLD_POSITIVE,
+            AgentLayer(100, 30, AgentLayoutOrientation.CUSTOM).coordinateSpace,
+        )
+    }
+
+    @Test
+    fun `getAgentPositionIn converts from centered to positive`() {
+        val layer = AgentLayer(100, 100, AgentLayoutOrientation.CIRCULAR)
+        layer.addAgent(AgentVisualState("1", "A", "r", Vector2.ZERO))
+
+        // Circular layout produces centered coordinates; get position in positive space
+        val centered = layer.getAgent("1")!!.position
+        val positive =
+            layer.getAgentPositionIn(
+                "1",
+                CoordinateSpace.WORLD_POSITIVE,
+                worldWidth = 20f,
+                worldDepth = 15f,
+            )
+
+        assertNotNull(positive)
+        // Conversion: positive = centered + worldSize/2
+        assertEquals(centered.x + 10f, positive.x, 0.01f)
+        assertEquals(centered.y + 7.5f, positive.y, 0.01f)
+    }
+
+    @Test
+    fun `getAgentPositionIn same-space returns unchanged`() {
+        val layer = AgentLayer(100, 30, AgentLayoutOrientation.CUSTOM)
+        layer.addAgent(AgentVisualState("1", "A", "r", Vector2(10f, 7.5f)))
+
+        val result =
+            layer.getAgentPositionIn(
+                "1",
+                CoordinateSpace.WORLD_POSITIVE,
+                worldWidth = 20f,
+                worldDepth = 15f,
+            )
+
+        assertNotNull(result)
+        assertEquals(10f, result.x, 0.01f)
+        assertEquals(7.5f, result.y, 0.01f)
+    }
+
+    @Test
+    fun `getAgentPosition3DIn preserves Y during conversion`() {
+        val layer = AgentLayer(100, 100, AgentLayoutOrientation.CIRCULAR)
+        layer.addAgent(AgentVisualState("1", "A", "r", Vector2.ZERO))
+
+        // Set a custom 3D position with non-zero Y
+        layer.setAgentPosition3D("1", Vector3(-5f, 3f, 2f))
+
+        val positive =
+            layer.getAgentPosition3DIn(
+                "1",
+                CoordinateSpace.WORLD_POSITIVE,
+                worldWidth = 20f,
+                worldDepth = 15f,
+            )
+
+        assertNotNull(positive)
+        assertEquals(3f, positive.y, 0.01f) // Y preserved
+        assertEquals(-5f + 10f, positive.x, 0.01f) // X converted
+        assertEquals(2f + 7.5f, positive.z, 0.01f) // Z converted
+    }
+
+    @Test
+    fun `getAgentPositionIn returns null for unknown agent`() {
+        val layer = AgentLayer(100, 30)
+        assertNull(layer.getAgentPositionIn("nonexistent", CoordinateSpace.WORLD_POSITIVE, 20f, 15f))
+        assertNull(layer.getAgentPosition3DIn("nonexistent", CoordinateSpace.WORLD_POSITIVE, 20f, 15f))
     }
 }
 
