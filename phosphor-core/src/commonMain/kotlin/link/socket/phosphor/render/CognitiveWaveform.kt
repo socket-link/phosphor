@@ -3,6 +3,8 @@ package link.socket.phosphor.render
 import kotlin.math.exp
 import kotlin.math.sqrt
 import link.socket.phosphor.choreography.AgentLayer
+import link.socket.phosphor.coordinate.CoordinateSpace
+import link.socket.phosphor.coordinate.CoordinateTransform
 import link.socket.phosphor.field.FlowLayer
 import link.socket.phosphor.field.SubstrateState
 import link.socket.phosphor.math.Vector3
@@ -30,6 +32,7 @@ class CognitiveWaveform(
     val gridDepth: Int = 30,
     val worldWidth: Float = 20f,
     val worldDepth: Float = 15f,
+    val agentCoordinateSpace: CoordinateSpace = CoordinateSpace.WORLD_POSITIVE,
 ) {
     /** Height values at each grid point. Updated each frame. */
     val heights: FloatArray = FloatArray(gridWidth * gridDepth)
@@ -171,10 +174,11 @@ class CognitiveWaveform(
 
         val radius = defaultInfluenceRadius
 
-        // Convert agent's 2D position to world-space fraction
-        // Agent positions are in screen/grid coordinates; normalize them
-        val agentWorldX = agent.position.x
-        val agentWorldZ = agent.position.y
+        // Convert agent position to positive space (matching the grid sampling loop below)
+        val agentWorldX =
+            CoordinateTransform.toPositive(agent.position.x, worldWidth, agentCoordinateSpace)
+        val agentWorldZ =
+            CoordinateTransform.toPositive(agent.position.y, worldDepth, agentCoordinateSpace)
 
         for (gz in 0 until gridDepth) {
             for (gx in 0 until gridWidth) {
@@ -204,10 +208,10 @@ class CognitiveWaveform(
             val source = agents.getAgent(connection.sourceAgentId) ?: continue
             val target = agents.getAgent(connection.targetAgentId) ?: continue
 
-            val sx = source.position.x
-            val sz = source.position.y
-            val tx = target.position.x
-            val tz = target.position.y
+            val sx = CoordinateTransform.toPositive(source.position.x, worldWidth, agentCoordinateSpace)
+            val sz = CoordinateTransform.toPositive(source.position.y, worldDepth, agentCoordinateSpace)
+            val tx = CoordinateTransform.toPositive(target.position.x, worldWidth, agentCoordinateSpace)
+            val tz = CoordinateTransform.toPositive(target.position.y, worldDepth, agentCoordinateSpace)
 
             // Direction along the ridge
             val ridgeDx = tx - sx

@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import link.socket.phosphor.choreography.AgentLayer
 import link.socket.phosphor.choreography.AgentLayoutOrientation
+import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.field.FlowLayer
 import link.socket.phosphor.field.SubstrateState
 import link.socket.phosphor.math.Vector2
@@ -267,5 +268,71 @@ class CognitiveWaveformTest {
             processingPeak > idlePeak,
             "PROCESSING peak ($processingPeak) should be taller than IDLE ($idlePeak)",
         )
+    }
+
+    @Test
+    fun `centered agent position produces peak aligned with positive equivalent`() {
+        val substrate = createSubstrate(density = 0.1f)
+
+        // Waveform expecting POSITIVE agent coordinates
+        val waveformPositive =
+            CognitiveWaveform(
+                gridWidth = 20,
+                gridDepth = 15,
+                worldWidth = 20f,
+                worldDepth = 15f,
+                agentCoordinateSpace = CoordinateSpace.WORLD_POSITIVE,
+            )
+        val agentsPositive = createAgentLayer()
+        agentsPositive.addAgent(
+            AgentVisualState(
+                id = "pos",
+                name = "Pos",
+                role = "r",
+                // positive center
+                position = Vector2(10f, 7.5f),
+                state = AgentActivityState.PROCESSING,
+            ),
+        )
+        waveformPositive.update(substrate, agentsPositive, null, dt = 1f)
+
+        // Waveform expecting CENTERED agent coordinates
+        val waveformCentered =
+            CognitiveWaveform(
+                gridWidth = 20,
+                gridDepth = 15,
+                worldWidth = 20f,
+                worldDepth = 15f,
+                agentCoordinateSpace = CoordinateSpace.WORLD_CENTERED,
+            )
+        val agentsCentered = createAgentLayer()
+        agentsCentered.addAgent(
+            AgentVisualState(
+                id = "cen",
+                name = "Cen",
+                role = "r",
+                // Same point in centered coords: 10 - 20/2 = 0, 7.5 - 15/2 = 0
+                position = Vector2(0f, 0f),
+                state = AgentActivityState.PROCESSING,
+            ),
+        )
+        waveformCentered.update(substrate, agentsCentered, null, dt = 1f)
+
+        // Both should produce the same peak at the same grid location
+        val peakGx = 10
+        val peakGz = 7
+        val peakPositive = waveformPositive.heightAt(peakGx, peakGz)
+        val peakCentered = waveformCentered.heightAt(peakGx, peakGz)
+
+        assertTrue(
+            abs(peakPositive - peakCentered) < 0.1f,
+            "peaks should align: positive=$peakPositive, centered=$peakCentered",
+        )
+
+        // Both peaks should be higher than edges
+        val edgePositive = waveformPositive.heightAt(0, 0)
+        val edgeCentered = waveformCentered.heightAt(0, 0)
+        assertTrue(peakPositive > edgePositive, "positive peak should be above edge")
+        assertTrue(peakCentered > edgeCentered, "centered peak should be above edge")
     }
 }
