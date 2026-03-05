@@ -47,7 +47,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run tests before publish
-        run: ./gradlew :phosphor-core:jvmTest
+        run: ./gradlew :phosphor-core:jvmTest :phosphor-core:compileKotlinIosArm64
 
       - name: Decode signing key
         if: ${{ github.event.inputs.dry_run != 'true' }}
