@@ -3,6 +3,7 @@ package link.socket.phosphor.runtime
 import kotlin.random.Random
 import link.socket.phosphor.choreography.AgentLayer
 import link.socket.phosphor.choreography.AgentLayoutOrientation
+import link.socket.phosphor.choreography.AtmosphereChoreographer
 import link.socket.phosphor.choreography.CognitiveChoreographer
 import link.socket.phosphor.emitter.EmitterEffect
 import link.socket.phosphor.emitter.EmitterManager
@@ -13,6 +14,7 @@ import link.socket.phosphor.field.ParticleSystem
 import link.socket.phosphor.field.SubstrateAnimator
 import link.socket.phosphor.field.SubstrateState
 import link.socket.phosphor.math.Vector3
+import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.render.Camera
 import link.socket.phosphor.render.CameraOrbit
 import link.socket.phosphor.render.CognitiveWaveform
@@ -77,11 +79,15 @@ class CognitiveSceneRuntime(
             )
         }
 
-    private var atmosphereState: AtmosphereState? =
-        if (configuration.enableAtmosphere) configuration.initialAtmosphere else null
+    val atmosphereChoreographer: AtmosphereChoreographer? =
+        if (configuration.enableAtmosphere) {
+            AtmosphereChoreographer(configuration.initialAtmosphere)
+        } else {
+            null
+        }
 
     val currentAtmosphere: AtmosphereState?
-        get() = atmosphereState
+        get() = atmosphereChoreographer?.currentState
 
     private var substrateState: SubstrateState =
         SubstrateState.create(
@@ -119,13 +125,43 @@ class CognitiveSceneRuntime(
     fun snapshot(): SceneSnapshot = latestSnapshot
 
     /**
-     * Replace the current atmosphere state.
+     * Replace the current atmosphere state and begin a transition.
+     *
+     * Delegates to [AtmosphereChoreographer.setAtmosphere]. The from-preset
+     * name is inferred by reverse-lookup against [AtmospherePresets.ALL]; the
+     * to-preset name is also inferred (so callers using a known preset value
+     * still get a tabled transition). Callers that need to bind a specific
+     * preset name should use [setAtmospherePreset].
      */
     fun setAtmosphere(state: AtmosphereState) {
-        check(configuration.enableAtmosphere) {
-            "Atmosphere subsystem not enabled in SceneConfiguration. Set enableAtmosphere = true to use setAtmosphere."
-        }
-        atmosphereState = state
+        val choreographer =
+            checkNotNull(atmosphereChoreographer) {
+                "Atmosphere subsystem not enabled in SceneConfiguration. " +
+                    "Set enableAtmosphere = true to use setAtmosphere."
+            }
+        choreographer.setAtmosphere(state, targetPresetName = null)
+    }
+
+    /**
+     * Replace the current atmosphere with the preset registered as [name].
+     *
+     * Lookup is case-insensitive via [AtmospherePresets.byName]. The resolved
+     * preset name is forwarded to the choreographer so transition specs can be
+     * looked up in the default table.
+     *
+     * @throws IllegalArgumentException when [name] does not match any registered preset.
+     */
+    fun setAtmospherePreset(name: String) {
+        val choreographer =
+            checkNotNull(atmosphereChoreographer) {
+                "Atmosphere subsystem not enabled in SceneConfiguration. " +
+                    "Set enableAtmosphere = true to use setAtmospherePreset."
+            }
+        val state =
+            requireNotNull(AtmospherePresets.byName(name)) {
+                "Unknown atmosphere preset: '$name'"
+            }
+        choreographer.setAtmosphere(state, targetPresetName = name)
     }
 
     /**
@@ -149,30 +185,31 @@ class CognitiveSceneRuntime(
         // 3) Agent state update.
         agents.update(deltaTimeSeconds)
 
-        // PHO-X4 will add AtmosphereChoreographer.update(dt) here
+        // 4) Atmosphere interpolation advance.
+        atmosphereChoreographer?.update(deltaTimeSeconds)
 
-        // 4) Emitter emission pass and lifecycle update.
+        // 5) Emitter emission pass and lifecycle update.
         if (emitters != null) {
             flushQueuedEmitterEffects()
             emitters.update(deltaTimeSeconds)
         }
 
-        // 5) Particle simulation.
+        // 6) Particle simulation.
         if (particles != null) {
             particles.update(deltaTimeSeconds)
             particles.updateSubstrate(updatedSubstrate)
         }
 
-        // 6) Flow field advection.
+        // 7) Flow field advection.
         if (flow != null) {
             flow.update(deltaTimeSeconds)
             updatedSubstrate = flow.updateSubstrate(updatedSubstrate)
         }
 
-        // 7) Waveform sampling.
+        // 8) Waveform sampling.
         waveform?.update(updatedSubstrate, agents, flow, deltaTimeSeconds)
 
-        // 8) Camera orbit.
+        // 9) Camera orbit.
         val camera = cameraOrbit?.update(deltaTimeSeconds)
 
         substrateState = updatedSubstrate
@@ -265,7 +302,8 @@ class CognitiveSceneRuntime(
             cameraTransform = camera?.toCameraTransform(),
             emitterStates = emitters?.instances?.map { it.toEmitterState() } ?: emptyList(),
             choreographyPhase = dominantPhase(sortedAgents),
-            atmosphere = atmosphereState,
+            atmosphere = atmosphereChoreographer?.currentState,
+            atmosphereTransition = atmosphereChoreographer?.activeTransition,
         )
     }
 
