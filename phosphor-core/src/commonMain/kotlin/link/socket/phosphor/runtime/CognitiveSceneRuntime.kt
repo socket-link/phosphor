@@ -17,6 +17,7 @@ import link.socket.phosphor.render.Camera
 import link.socket.phosphor.render.CameraOrbit
 import link.socket.phosphor.render.CognitiveWaveform
 import link.socket.phosphor.signal.AgentVisualState
+import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
 
 /**
@@ -76,6 +77,12 @@ class CognitiveSceneRuntime(
             )
         }
 
+    private var atmosphereState: AtmosphereState? =
+        if (configuration.enableAtmosphere) configuration.initialAtmosphere else null
+
+    val currentAtmosphere: AtmosphereState?
+        get() = atmosphereState
+
     private var substrateState: SubstrateState =
         SubstrateState.create(
             width = configuration.width,
@@ -112,6 +119,16 @@ class CognitiveSceneRuntime(
     fun snapshot(): SceneSnapshot = latestSnapshot
 
     /**
+     * Replace the current atmosphere state.
+     */
+    fun setAtmosphere(state: AtmosphereState) {
+        check(configuration.enableAtmosphere) {
+            "Atmosphere subsystem not enabled in SceneConfiguration. Set enableAtmosphere = true to use setAtmosphere."
+        }
+        atmosphereState = state
+    }
+
+    /**
      * Advance the scene by [deltaTimeSeconds] and return an immutable snapshot.
      */
     fun update(deltaTimeSeconds: Float): SceneSnapshot {
@@ -131,6 +148,8 @@ class CognitiveSceneRuntime(
 
         // 3) Agent state update.
         agents.update(deltaTimeSeconds)
+
+        // PHO-X4 will add AtmosphereChoreographer.update(dt) here
 
         // 4) Emitter emission pass and lifecycle update.
         if (emitters != null) {
@@ -246,6 +265,7 @@ class CognitiveSceneRuntime(
             cameraTransform = camera?.toCameraTransform(),
             emitterStates = emitters?.instances?.map { it.toEmitterState() } ?: emptyList(),
             choreographyPhase = dominantPhase(sortedAgents),
+            atmosphere = atmosphereState,
         )
     }
 
