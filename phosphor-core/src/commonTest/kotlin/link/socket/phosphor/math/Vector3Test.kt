@@ -1,5 +1,6 @@
 package link.socket.phosphor.math
 
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -98,6 +99,18 @@ class Vector3Test {
     @Test
     fun `lengthSquared avoids sqrt`() {
         assertEquals(14f, Vector3(1f, 2f, 3f).lengthSquared())
+    }
+
+    @Test
+    fun `rotatedBy preserves vector for zero rotation`() {
+        val vector = Vector3(1f, 2f, 3f)
+        assertApprox(vector, vector.rotatedBy(Vector3.ZERO))
+    }
+
+    @Test
+    fun `rotatedBy follows matrix Y rotation convention`() {
+        val result = Vector3.FORWARD.rotatedBy(Vector3(0f, (PI / 2).toFloat(), 0f))
+        assertApprox(Vector3.RIGHT, result)
     }
 
     @Test
