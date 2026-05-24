@@ -149,6 +149,37 @@ value class NeutralColor private constructor(
             )
         }
 
+        /**
+         * Interpolate between two sRGB colors in OKLab perceptual space.
+         *
+         * This is opt-in because it performs extra color-space conversions. Use
+         * [lerp] for nearby hues and performance-sensitive render-loop paths; use
+         * [lerpOklab] for distant hues where linear RGB would pass through muddy
+         * or hue-biased midpoints.
+         */
+        fun lerpOklab(
+            start: NeutralColor,
+            end: NeutralColor,
+            t: Float,
+        ): NeutralColor {
+            val clamped = t.coerceIn(0f, 1f)
+            val color =
+                OklabColor
+                    .lerp(
+                        start = OklabColor.fromSrgb(start),
+                        end = OklabColor.fromSrgb(end),
+                        t = clamped,
+                    )
+                    .toSrgb(alpha = interpolate(start.alpha, end.alpha, clamped))
+
+            return fromRgba(
+                red = color.red.coerceIn(0f, 1f),
+                green = color.green.coerceIn(0f, 1f),
+                blue = color.blue.coerceIn(0f, 1f),
+                alpha = color.alpha.coerceIn(0f, 1f),
+            )
+        }
+
         private fun interpolate(
             start: Float,
             end: Float,

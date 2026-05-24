@@ -16,6 +16,24 @@ data class ColorRamp(
      * Sample the ramp at t in [0, 1], linearly interpolating between stops.
      */
     fun sample(t: Float): NeutralColor {
+        return sampleWith(t, NeutralColor::lerp)
+    }
+
+    /**
+     * Sample the ramp at t in [0, 1], interpolating between stops in OKLab.
+     *
+     * Prefer [sample] for nearby hues and performance-sensitive render-loop
+     * paths. Use [sampleOklab] for ramps that bridge distant hues where
+     * perceptual uniformity matters more than the extra conversion cost.
+     */
+    fun sampleOklab(t: Float): NeutralColor {
+        return sampleWith(t, NeutralColor::lerpOklab)
+    }
+
+    private inline fun sampleWith(
+        t: Float,
+        interpolate: (NeutralColor, NeutralColor, Float) -> NeutralColor,
+    ): NeutralColor {
         val clamped = t.coerceIn(0f, 1f)
         if (clamped <= 0f) return stops.first()
         if (clamped >= 1f) return stops.last()
@@ -27,7 +45,7 @@ data class ColorRamp(
         if (lower == upper) return stops[lower]
 
         val localT = scaled - lower
-        return NeutralColor.lerp(stops[lower], stops[upper], localT)
+        return interpolate(stops[lower], stops[upper], localT)
     }
 
     companion object {
