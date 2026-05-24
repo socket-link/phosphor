@@ -12,6 +12,7 @@ import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.render.Camera
 import link.socket.phosphor.signal.AgentVisualState
 import link.socket.phosphor.signal.AtmosphereState
+import link.socket.phosphor.signal.AtmosphereTransition
 import link.socket.phosphor.signal.CognitivePhase
 
 /**
@@ -33,6 +34,7 @@ data class SceneSnapshot(
     val emitterStates: List<EmitterState>,
     val choreographyPhase: CognitivePhase,
     val atmosphere: AtmosphereState? = null,
+    val atmosphereTransition: AtmosphereTransition? = null,
 ) {
     init {
         if (waveformHeightField != null) {
@@ -71,6 +73,7 @@ data class SceneSnapshot(
         if (emitterStates != other.emitterStates) return false
         if (choreographyPhase != other.choreographyPhase) return false
         if (atmosphere != other.atmosphere) return false
+        if (atmosphereTransition != other.atmosphereTransition) return false
 
         return true
     }
@@ -91,6 +94,7 @@ data class SceneSnapshot(
         result = 31 * result + emitterStates.hashCode()
         result = 31 * result + choreographyPhase.hashCode()
         result = 31 * result + (atmosphere?.hashCode() ?: 0)
+        result = 31 * result + (atmosphereTransition?.hashCode() ?: 0)
         return result
     }
 }

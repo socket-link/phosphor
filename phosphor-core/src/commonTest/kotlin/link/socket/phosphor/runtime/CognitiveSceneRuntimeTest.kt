@@ -63,7 +63,7 @@ class CognitiveSceneRuntimeTest {
     }
 
     @Test
-    fun `setAtmosphere replaces atmosphere before next snapshot`() {
+    fun `setAtmosphere drives transition to completion across updates`() {
         val runtime =
             CognitiveSceneRuntime(
                 SceneConfiguration(
@@ -74,10 +74,55 @@ class CognitiveSceneRuntimeTest {
             )
 
         runtime.setAtmosphere(AtmospherePresets.THINKING)
-        val snapshot = runtime.update(0.016f)
+        val midSnapshot = runtime.update(0.1f)
+        assertTrue(midSnapshot.atmosphere != AtmospherePresets.THINKING)
+        assertTrue(midSnapshot.atmosphereTransition != null)
 
+        val finalSnapshot = runtime.update(2f)
         assertEquals(AtmospherePresets.THINKING, runtime.currentAtmosphere)
-        assertEquals(AtmospherePresets.THINKING, snapshot.atmosphere)
+        assertEquals(AtmospherePresets.THINKING, finalSnapshot.atmosphere)
+        assertNull(finalSnapshot.atmosphereTransition)
+    }
+
+    @Test
+    fun `setAtmospherePreset resolves by name and triggers transition`() {
+        val runtime =
+            CognitiveSceneRuntime(
+                SceneConfiguration(
+                    width = 8,
+                    height = 6,
+                    enableAtmosphere = true,
+                ),
+            )
+
+        runtime.setAtmospherePreset("listening")
+        val snapshot = runtime.update(0.0f)
+
+        val transition =
+            requireNotNull(snapshot.atmosphereTransition) {
+                "atmosphereTransition should be populated immediately after setAtmospherePreset"
+            }
+        assertEquals("idle", transition.fromPresetName)
+        assertEquals("listening", transition.toPresetName)
+        assertEquals("eager", transition.easingName)
+    }
+
+    @Test
+    fun `setAtmospherePreset throws on unknown name`() {
+        val runtime =
+            CognitiveSceneRuntime(
+                SceneConfiguration(
+                    width = 8,
+                    height = 6,
+                    enableAtmosphere = true,
+                ),
+            )
+
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                runtime.setAtmospherePreset("nonexistent")
+            }
+        assertEquals("Unknown atmosphere preset: 'nonexistent'", failure.message)
     }
 
     @Test
@@ -96,7 +141,8 @@ class CognitiveSceneRuntimeTest {
             }
 
         assertEquals(
-            "Atmosphere subsystem not enabled in SceneConfiguration. Set enableAtmosphere = true to use setAtmosphere.",
+            "Atmosphere subsystem not enabled in SceneConfiguration. " +
+                "Set enableAtmosphere = true to use setAtmosphere.",
             failure.message,
         )
     }

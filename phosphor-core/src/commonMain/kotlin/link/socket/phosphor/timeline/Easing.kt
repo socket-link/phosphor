@@ -168,6 +168,46 @@ object Easing {
     }
 
     /**
+     * Eager arrival — fast initial acceleration, then settles quickly.
+     *
+     * Use for transitions where the system is eager to arrive at the new state:
+     * relief responses, snapping to attention.
+     */
+    val eager: (Float) -> Float = { t -> 1f - (1f - t).pow(4f) }
+
+    /**
+     * Reluctant departure — slow initial movement, accelerating toward the end.
+     *
+     * Use for transitions where the system resists the change initially:
+     * descending into uncertain states.
+     */
+    val reluctant: (Float) -> Float = { t -> t.pow(3.5f) }
+
+    /**
+     * Overshoot arrival — exceeds the target value briefly before settling.
+     *
+     * Matches the standard easeOutBack formulation with overshoot constant
+     * 1.70158. Use for arrivals that should feel like the system is excited or
+     * relieved to be there: landing in a ready state.
+     */
+    val overshoot: (Float) -> Float = { t ->
+        val c1 = 1.70158f
+        val c3 = c1 + 1
+        val t1 = t - 1
+        1 + c3 * t1 * t1 * t1 + c1 * t1 * t1
+    }
+
+    /**
+     * Settled bidirectional ease — smooth without character bias.
+     *
+     * Use for transitions that should feel neither eager nor reluctant:
+     * defaults and neutral movements.
+     */
+    val settled: (Float) -> Float = { t ->
+        if (t < 0.5f) 2f * t * t else 1f - (-2f * t + 2f).pow(2f) / 2f
+    }
+
+    /**
      * Get an easing function by name.
      */
     fun byName(name: String): ((Float) -> Float)? =
@@ -190,6 +230,10 @@ object Easing {
             "easeoutcirc" -> easeOutCirc
             "easeinexpo" -> easeInExpo
             "easeoutexpo" -> easeOutExpo
+            "eager" -> eager
+            "reluctant" -> reluctant
+            "overshoot" -> overshoot
+            "settled" -> settled
             else -> null
         }
 
@@ -207,5 +251,6 @@ object Easing {
             "easeOutBounce",
             "easeInCirc", "easeOutCirc",
             "easeInExpo", "easeOutExpo",
+            "eager", "reluctant", "overshoot", "settled",
         )
 }
