@@ -31,11 +31,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run tests
-        run: ./gradlew :phosphor-core:jvmTest
+      - name: Run JVM tests
+        run: ./gradlew :phosphor-core:jvmTest :phosphor-lumos:jvmTest
 
       - name: Check formatting
-        run: ./gradlew :phosphor-core:ktlintCheck
+        run: ./gradlew :phosphor-core:ktlintCheck :phosphor-lumos:ktlintCheck
 
   ios_compile:
     name: iOS Compile
@@ -54,8 +54,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Compile iOS target
-        run: ./gradlew :phosphor-core:compileKotlinIosArm64
+      - name: Compile iOS targets
+        run: ./gradlew :phosphor-core:compileKotlinIosArm64 :phosphor-lumos:compileKotlinIosArm64
 
   test:
     name: Tests

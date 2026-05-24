@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Phosphor is a Kotlin Multiplatform rendering library that translates cognitive state into visible light — ASCII luminance, color ramps, particle physics, and 3D waveform surfaces. Read [SOUL.md](SOUL.md) for project philosophy and values.
+Phosphor is a Kotlin Multiplatform rendering library that translates cognitive state into visible light — ASCII luminance, color ramps, particle physics, 3D waveform surfaces, and the Lumos voxel-orb companion visualization. Read [SOUL.md](SOUL.md) for project philosophy and values.
 
 ## Development Commands
 
@@ -18,12 +18,6 @@ Phosphor is a Kotlin Multiplatform rendering library that translates cognitive s
 ./gradlew ktlintFormat                 # Auto-format code
 ./gradlew ktlintCheck                  # Check formatting
 ./gradlew dokkaHtml                    # Generate API documentation
-```
-
-### Demo
-```bash
-./gradlew :phosphor-demo:run           # Run the desktop demo application
-./gradlew :phosphor-demo-cli:installDist && ./phosphor-demo-cli/phosphor-demo  # Run the terminal demo
 ```
 
 ### Publishing
@@ -45,13 +39,22 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | Emitter | `emitter/` | EmitterEffect sealed hierarchy — transient visual events (SparkBurst, HeightPulse, Turbulence, ColorWash) |
 | Bridge | `bridge/` | Adapters connecting live runtime state to the animation field |
 
-### Rendering Surface Adapters (separate modules)
+### Active Modules
+
+| Module | Purpose |
+|--------|---------|
+| `phosphor-core/` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
+| `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core` |
+
+### Future / Aspirational Modules
 
 | Module | Purpose |
 |--------|---------|
 | `phosphor-mosaic/` | Mosaic (Compose-for-terminal) adapter — AnnotatedString output |
 | `phosphor-compose/` | Compose Multiplatform Canvas adapter — DrawScope rendering |
 | `phosphor-ansi/` | Raw ANSI escape code output for non-Compose terminals |
+| `phosphor-demo/` | Desktop demo app (Compose Desktop) |
+| `phosphor-demo-cli/` | Terminal demo app |
 
 ## Key Paths
 
@@ -59,10 +62,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 |--------|---------|
 | `phosphor-core/src/commonMain/` | Shared rendering pipeline — signals, fields, palettes, cells |
 | `phosphor-core/src/commonTest/` | Unit tests for palette mapping, projection math, particle physics |
-| `phosphor-mosaic/src/jvmMain/` | Terminal rendering via Mosaic AnnotatedString |
-| `phosphor-compose/src/commonMain/` | Compose Canvas rendering via DrawScope |
-| `phosphor-demo/` | Desktop demo app (Compose Desktop) |
-| `phosphor-demo-cli/` | Terminal demo app |
+| `phosphor-lumos/src/commonMain/` | Lumos module boundary for framework-free voxel-orb visualization data |
+| `phosphor-lumos/src/commonTest/` | Lumos smoke tests and future voxel-frame API tests |
 
 ## Before You Change Anything
 

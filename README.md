@@ -14,6 +14,8 @@ Phosphor is a Kotlin Multiplatform rendering library that transduces cognitive s
 
 Just as CRT phosphor converts electron energy into visible light, this library converts an AI agent's internal state into something you can see: sparse floating dots coalescing into dense bright strokes as cognition shifts from perception to execution.
 
+Phosphor ships `:phosphor-core` alongside `:phosphor-lumos`, its first separate output module. Lumos is a framework-free voxel-orb companion visualization for cognitive state; it complements the CRT-phosphor terminal aesthetic and does not replace it.
+
 ---
 
 ## The Pipeline
@@ -34,7 +36,14 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | **Emitter** | `emitter/` | Transient effects — spark bursts, height pulses, turbulence — that decay naturally |
 | **Bridge** | `bridge/` | Connects runtime cognitive state to the animation field |
 
-`phosphor-core` has zero UI framework dependencies. Surface adapters (phosphor-mosaic, phosphor-compose, phosphor-ansi) live in separate modules.
+`phosphor-core` has zero UI framework dependencies. Platform-specific rendering belongs in separate surface modules; `:phosphor-lumos` is the first concrete sibling module and establishes the boundary for framework-free voxel-orb frame data.
+
+## Modules
+
+| Module | Purpose |
+|--------|---------|
+| `:phosphor-core` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
+| `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state, scaffolded for downstream Lumos frame APIs |
 
 ---
 
