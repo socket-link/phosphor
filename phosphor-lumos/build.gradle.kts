@@ -63,7 +63,7 @@ kotlin {
 
     iosTargets.forEach {
         it.binaries.framework {
-            baseName = "phosphor-core"
+            baseName = "phosphor-lumos"
             xcf.add(this)
         }
     }
@@ -71,15 +71,12 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
+                implementation(project(":phosphor-core"))
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             }
         }
     }
@@ -91,14 +88,13 @@ mavenPublishing {
 
     configure(KotlinMultiplatform(javadocJar = JavadocJar.Dokka("dokkaGeneratePublicationHtml")))
 
-    coordinates("link.socket", "phosphor-core", version.toString())
+    coordinates("link.socket", "phosphor-lumos", version.toString())
 
     pom {
-        name.set("Phosphor")
+        name.set("Phosphor Lumos")
         description.set(
-            "Kotlin Multiplatform rendering library that translates cognitive state " +
-                "into visible light — ASCII luminance, color ramps, particle physics, " +
-                "and 3D waveform surfaces.",
+            "Kotlin Multiplatform voxel-orb companion visualization for cognitive state, " +
+                "built on the Phosphor core signal and rendering substrate.",
         )
         url.set("https://github.com/socket-link/phosphor")
         inceptionYear.set("2025")

@@ -1,6 +1,7 @@
 rootProject.name = "Phosphor"
 
 include(":phosphor-core")
+include(":phosphor-lumos")
 
 pluginManagement {
     repositories {
