@@ -4,8 +4,10 @@ import link.socket.phosphor.choreography.AgentLayoutOrientation
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
+import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AgentActivityState
 import link.socket.phosphor.signal.AgentVisualState
+import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
 
 /**
@@ -21,6 +23,8 @@ data class SceneConfiguration(
     val enableFlow: Boolean = true,
     val enableEmitters: Boolean = true,
     val enableCamera: Boolean = true,
+    val enableAtmosphere: Boolean = false,
+    val initialAtmosphere: AtmosphereState = AtmospherePresets.IDLE,
     val coordinateSpace: CoordinateSpace = CoordinateSpace.WORLD_CENTERED,
     val seed: Long = 0L,
     val agentLayout: AgentLayoutOrientation = AgentLayoutOrientation.CUSTOM,

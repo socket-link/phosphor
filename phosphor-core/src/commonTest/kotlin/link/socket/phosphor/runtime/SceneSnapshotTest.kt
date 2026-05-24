@@ -6,6 +6,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.field.SubstrateState
+import link.socket.phosphor.palette.AtmospherePresets
+import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
 
 class SceneSnapshotTest {
@@ -24,6 +26,18 @@ class SceneSnapshotTest {
         val second = buildSnapshot(floatArrayOf(0.1f, 0.2f, 0.35f, 0.4f))
 
         assertNotEquals(first, second)
+    }
+
+    @Test
+    fun `atmosphere participates in equality and hash code`() {
+        val first = buildSnapshot(floatArrayOf(0.1f, 0.2f, 0.3f, 0.4f), AtmospherePresets.IDLE)
+        val second = first.copy(atmosphere = AtmospherePresets.IDLE)
+        val third = first.copy(atmosphere = AtmospherePresets.THINKING)
+
+        assertEquals(first, second)
+        assertEquals(first.hashCode(), second.hashCode())
+        assertNotEquals(first, third)
+        assertNotEquals(first.hashCode(), third.hashCode())
     }
 
     @Test
@@ -48,7 +62,10 @@ class SceneSnapshotTest {
         }
     }
 
-    private fun buildSnapshot(waveformHeightField: FloatArray): SceneSnapshot {
+    private fun buildSnapshot(
+        waveformHeightField: FloatArray,
+        atmosphere: AtmosphereState? = null,
+    ): SceneSnapshot {
         return SceneSnapshot(
             frameIndex = 12,
             elapsedTimeSeconds = 1.2f,
@@ -64,6 +81,7 @@ class SceneSnapshotTest {
             cameraTransform = null,
             emitterStates = emptyList(),
             choreographyPhase = CognitivePhase.NONE,
+            atmosphere = atmosphere,
         )
     }
 }

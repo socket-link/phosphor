@@ -53,6 +53,17 @@ class RuntimeAdapter(
 }
 ```
 
+## Atmosphere Snapshot Field
+
+Atmosphere is a passive runtime subsystem. It is disabled by default, so
+`SceneSnapshot.atmosphere` is `null` unless `SceneConfiguration.enableAtmosphere`
+is set to `true`.
+
+When enabled, the runtime starts from `SceneConfiguration.initialAtmosphere`,
+which defaults to `AtmospherePresets.IDLE`. Calls to `runtime.setAtmosphere(state)`
+replace the current value, and the next snapshot exposes that value without
+interpolation. Lumos consumes the atmosphere via its renderer.
+
 ## Notes
 
 - `CognitiveSceneRuntime` is timing-agnostic. You own timers and frame pacing.
