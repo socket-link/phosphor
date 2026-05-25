@@ -1,6 +1,7 @@
 package link.socket.phosphor.color
 
 import kotlin.math.pow
+import kotlinx.serialization.Serializable
 
 /**
  * Linear RGB color with normalized channels.
@@ -56,6 +57,7 @@ data class LinearRgbColor(
  * [NeutralColor.lerpOklab] or [ColorRamp.sampleOklab] when clean perceptual
  * handoffs matter more than the extra conversion cost.
  */
+@Serializable
 data class OklabColor(
     val lightness: Float,
     val a: Float,
