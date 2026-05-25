@@ -45,6 +45,7 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 |--------|---------|
 | `phosphor-core/` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
 | `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core` |
+| `phosphor-lumos-cli/` | JVM terminal DTO and future CLI renderer surface for projected Lumos voxel frames |
 
 ### Future / Aspirational Modules
 
@@ -64,6 +65,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-core/src/commonTest/` | Unit tests for palette mapping, projection math, particle physics |
 | `phosphor-lumos/src/commonMain/` | Lumos module boundary for framework-free voxel-orb visualization data |
 | `phosphor-lumos/src/commonTest/` | Lumos smoke tests and future voxel-frame API tests |
+| `phosphor-lumos-cli/src/commonMain/` | JVM CLI-facing Lumos terminal frame DTOs |
+| `phosphor-lumos-cli/src/commonTest/` | CLI DTO serialization and shape-contract tests |
 
 ## Before You Change Anything
 
