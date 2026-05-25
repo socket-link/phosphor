@@ -7,6 +7,7 @@ import kotlin.test.assertNotNull
 import kotlinx.serialization.json.Json
 import link.socket.phosphor.render.AsciiCell
 import link.socket.phosphor.render.CellBuffer
+import link.socket.phosphor.test.assertFloatEquals
 
 class SimulationFrameTest {
     @Test
@@ -51,10 +52,10 @@ class SimulationFrameTest {
                 normalY = floatArrayOf(1f, 1f),
             )
 
-        assertEquals(0.2f, frame.cellAt(0, 0).luminance)
-        assertEquals(0.8f, frame.cellAt(1, 0).luminance)
-        assertEquals(-0.5f, frame.cellAt(0, 0).normalX)
-        assertEquals(1f, frame.cellAt(1, 0).normalY)
+        assertFloatEquals(0.2f, frame.cellAt(0, 0).luminance)
+        assertFloatEquals(0.8f, frame.cellAt(1, 0).luminance)
+        assertFloatEquals(-0.5f, frame.cellAt(0, 0).normalX)
+        assertFloatEquals(1f, frame.cellAt(1, 0).normalY)
     }
 
     @Test

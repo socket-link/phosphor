@@ -32,10 +32,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run JVM tests
-        run: ./gradlew :phosphor-core:jvmTest :phosphor-lumos:jvmTest
+        run: ./gradlew jvmTest
 
-      - name: Check formatting
-        run: ./gradlew :phosphor-core:ktlintCheck :phosphor-lumos:ktlintCheck
+      - name: Verify formatting
+        run: ./gradlew ktlintFormat --no-rebuild
+
+      - name: Check formatting diff
+        run: git diff --exit-code
 
   ios_compile:
     name: iOS Compile
@@ -59,7 +62,7 @@ jobs:
 
   test:
     name: Tests
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs: [jvm, ios_compile]
     if: ${{ always() }}
 
@@ -70,3 +73,21 @@ jobs:
             echo "Required CI jobs did not all pass."
             exit 1
           fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run build
+        run: ./gradlew build
+
+      - name: Run all tests
+        run: ./gradlew allTests
