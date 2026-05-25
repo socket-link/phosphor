@@ -82,7 +82,7 @@ class AnsiColorAdapterTest {
 
     @Test
     fun `true color mode emits 24 bit escapes`() {
-        val adapter = AnsiColorAdapter(mode = AnsiColorMode.TRUE_COLOR)
+        val adapter = AnsiColorAdapter(mode = AnsiColorMode.TRUECOLOR)
         val color = NeutralColor.fromHex("#3366CC")
 
         assertEquals("\u001B[38;2;51;102;204m", adapter.foreground(color))
