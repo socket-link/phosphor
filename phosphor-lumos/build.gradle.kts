@@ -72,11 +72,13 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":phosphor-core"))
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             }
         }
     }
