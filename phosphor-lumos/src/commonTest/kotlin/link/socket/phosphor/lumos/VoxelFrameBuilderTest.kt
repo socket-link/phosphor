@@ -203,10 +203,10 @@ class VoxelFrameBuilderTest {
 
         repeat(200) { builder.build(snapshot(atmosphere = fast), dt = 0.5f) }
 
-        assertTrue(builder.pulsePhase in 0f..twoPi)
-        assertTrue(builder.patternPhase in 0f..patternWrap)
-        assertTrue(builder.orbRotationX in 0f..twoPi)
-        assertTrue(builder.orbRotationY in 0f..twoPi)
+        assertWrappedPhase("pulsePhase", builder.pulsePhase, twoPi)
+        assertWrappedPhase("patternPhase", builder.patternPhase, patternWrap)
+        assertWrappedPhase("orbRotationX", builder.orbRotationX, twoPi)
+        assertWrappedPhase("orbRotationY", builder.orbRotationY, twoPi)
     }
 
     @Test
@@ -395,4 +395,16 @@ class VoxelFrameBuilderTest {
             atmosphere = atmosphere,
             atmosphereTransition = transition,
         )
+
+    private fun assertWrappedPhase(
+        name: String,
+        actual: Float,
+        upperBound: Float,
+    ) {
+        val tolerance = 1e-4f
+        assertTrue(
+            actual >= -tolerance && actual <= upperBound + tolerance,
+            "$name should stay in [0, $upperBound], got $actual",
+        )
+    }
 }

@@ -159,8 +159,11 @@ class VoxelSphere(val resolution: Int) {
 
 /**
  * Return true when this voxel's outward direction faces a viewer on the +Z axis.
+ *
+ * [orbRotation] is an Euler-style XYZ rotation in radians, matching [Vector3.rotatedBy].
+ * It is not a quaternion despite earlier naming.
  */
 fun Voxel.facingCamera(
-    orbQuaternion: Vector3,
+    orbRotation: Vector3,
     threshold: Float = 0.15f,
-): Boolean = unitDirection.rotatedBy(orbQuaternion).z > threshold
+): Boolean = unitDirection.rotatedBy(orbRotation).z > threshold
