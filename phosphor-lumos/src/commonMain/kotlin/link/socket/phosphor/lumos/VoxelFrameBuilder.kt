@@ -6,6 +6,8 @@ import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.field.Voxel
 import link.socket.phosphor.field.VoxelSphere
+import link.socket.phosphor.field.facingCamera
+import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmospherePattern
 import link.socket.phosphor.signal.AtmosphereState
@@ -74,6 +76,25 @@ class VoxelFrameBuilder(
     var voxelSphere: VoxelSphere = VoxelSphere(initialResolution)
         private set
 
+    private var activeGlyph: GlyphLifecycle? = null
+
+    /** True if a glyph is currently being rendered. */
+    val hasActiveGlyph: Boolean get() = activeGlyph != null
+
+    /** Queue a glyph for display. Replaces any currently active glyph. */
+    fun queueGlyph(
+        glyph: LumosGlyph,
+        durationSeconds: Float = 1.5f,
+    ) {
+        require(durationSeconds > 0f) { "durationSeconds must be > 0" }
+        activeGlyph =
+            GlyphLifecycle(
+                glyph = glyph,
+                totalDurationSeconds = durationSeconds,
+                ageSeconds = 0f,
+            )
+    }
+
     /**
      * Produce a [VoxelFrame] from [snapshot], advancing phase accumulators
      * and rotations by [dt] seconds.
@@ -96,17 +117,43 @@ class VoxelFrameBuilder(
             voxelSphere = voxelSphere.rebuild(atmosphere.resolution)
         }
 
+        val glyphLifecycle = advanceGlyph(dt)
         advancePhases(atmosphere, dt)
 
         val pulse = 1f + sin(pulsePhase) * atmosphere.pulseAmplitude
         val effectiveYSquash = atmosphere.ySquash * (config.globalYSquashOverride ?: 1f)
+        val glyphColor =
+            glyphLifecycle
+                ?.takeIf { config.enableGlyphCarving }
+                ?.let { NeutralColor.fromHsl(it.glyph.hue, it.glyph.saturation, it.glyph.lightness) }
+        val glyphShape = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.let { GlyphShape.forGlyph(it.glyph) }
+        val glyphVisibility = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.visibility ?: 0f
+        val glyphRotation = Vector3(orbRotationX, orbRotationY, 0f)
 
         val cells = ArrayList<VoxelCell>(voxelSphere.voxels.size)
         for (voxel in voxelSphere.voxels) {
             val mix = computeMix(atmosphere, transition, voxel)
             val boundaryShrink = computeBoundaryShrink(atmosphere.bipolarStrength, mix)
-            val color = computeVoxelColor(atmosphere, transition, mix)
-            val scale = atmosphere.voxelGap * pulse * boundaryShrink
+            val baseColor = computeVoxelColor(atmosphere, transition, mix)
+            val rotatedDirection = glyphShape?.let { voxel.unitDirection.rotatedBy(glyphRotation) }
+            val isGlyphMember =
+                glyphShape != null &&
+                    rotatedDirection != null &&
+                    voxel.facingCamera(glyphRotation, GLYPH_FACING_THRESHOLD) &&
+                    glyphShape.contains(rotatedDirection.x, rotatedDirection.y)
+            val color =
+                if (isGlyphMember && glyphColor != null) {
+                    NeutralColor.lerp(baseColor, glyphColor, glyphVisibility)
+                } else {
+                    baseColor
+                }
+            val glyphShrink =
+                if (glyphLifecycle != null && config.enableGlyphCarving && !isGlyphMember) {
+                    1f - GLYPH_BACKGROUND_SHRINK * glyphVisibility
+                } else {
+                    1f
+                }
+            val scale = atmosphere.voxelGap * pulse * boundaryShrink * glyphShrink
 
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 
@@ -145,8 +192,26 @@ class VoxelFrameBuilder(
             resolution = voxelSphere.resolution,
             cells = cells,
             ambient = ambient,
-            glyph = null,
+            glyph =
+                glyphLifecycle
+                    ?.takeIf { config.enableGlyphCarving }
+                    ?.let { lifecycle ->
+                        checkNotNull(glyphColor)
+                        VoxelGlyphState(
+                            glyphName = lifecycle.glyph.name,
+                            progress = lifecycle.progress,
+                            red = glyphColor.red,
+                            green = glyphColor.green,
+                            blue = glyphColor.blue,
+                        )
+                    },
         )
+    }
+
+    private fun advanceGlyph(dt: Float): GlyphLifecycle? {
+        val next = activeGlyph?.advance(dt) ?: return null
+        activeGlyph = next.takeUnless { it.isComplete }
+        return activeGlyph
     }
 
     private fun advancePhases(
@@ -243,6 +308,8 @@ class VoxelFrameBuilder(
         private const val BUMP_PHI: Float = 2.5f
         private const val BUMP_PHASE: Float = 1.4f
         private const val BAND_GAIN: Float = 0.4f
+        private const val GLYPH_FACING_THRESHOLD: Float = 0.15f
+        private const val GLYPH_BACKGROUND_SHRINK: Float = 0.30f
 
         internal fun evaluatePattern(
             pattern: AtmospherePattern,
