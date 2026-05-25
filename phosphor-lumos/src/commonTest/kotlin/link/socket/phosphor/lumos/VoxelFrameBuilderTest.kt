@@ -4,11 +4,17 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.field.SubstrateState
 import link.socket.phosphor.field.VoxelSphere
+import link.socket.phosphor.field.facingCamera
+import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmospherePattern
@@ -289,6 +295,82 @@ class VoxelFrameBuilderTest {
 
         assertEquals(42L, frame.tick)
         assertEquals(1_500L, frame.timestampEpochMillis)
+    }
+
+    @Test
+    fun `queueGlyph causes the next build to populate glyph state`() {
+        val builder = VoxelFrameBuilder(initialResolution = 5)
+
+        builder.queueGlyph(LumosGlyph.CHECK)
+        val frame = builder.build(snapshot(atmosphere = AtmospherePresets.IDLE), dt = 0f)
+
+        val glyph = assertNotNull(frame.glyph)
+        assertEquals("CHECK", glyph.glyphName)
+        assertEquals(0f, glyph.progress, absoluteTolerance = 1e-5f)
+        assertTrue(builder.hasActiveGlyph)
+    }
+
+    @Test
+    fun `glyph clears after its duration elapses`() {
+        val builder = VoxelFrameBuilder(initialResolution = 5)
+
+        builder.queueGlyph(LumosGlyph.CHECK, durationSeconds = 0.2f)
+        val activeFrame = builder.build(snapshot(atmosphere = AtmospherePresets.IDLE), dt = 0.1f)
+        val expiredFrame = builder.build(snapshot(atmosphere = AtmospherePresets.IDLE), dt = 0.1f)
+
+        assertNotNull(activeFrame.glyph)
+        assertNull(expiredFrame.glyph)
+        assertFalse(builder.hasActiveGlyph)
+    }
+
+    @Test
+    fun `glyph-member voxels lerp to the glyph accent color`() {
+        val atmosphere =
+            AtmospherePresets.IDLE.copy(
+                resolution = 8,
+                noise = 0f,
+                pulseAmplitude = 0f,
+                rotationX = 0f,
+                rotationY = 0f,
+                surfaceBump = 0f,
+            )
+        val builder = VoxelFrameBuilder(initialResolution = atmosphere.resolution)
+        val shape = GlyphShape.forGlyph(LumosGlyph.CHECK)
+        val sampleIndex =
+            builder.voxelSphere.voxels.indexOfFirst { voxel ->
+                voxel.facingCamera(Vector3.ZERO) &&
+                    shape.contains(voxel.unitDirection.x, voxel.unitDirection.y)
+            }
+
+        assertTrue(sampleIndex >= 0, "expected at least one CHECK glyph voxel at resolution ${atmosphere.resolution}")
+
+        builder.queueGlyph(LumosGlyph.CHECK, durationSeconds = 1.5f)
+        val frame = builder.build(snapshot(atmosphere = atmosphere), dt = 0.3f)
+        val cell = frame.cells[sampleIndex]
+        val accent =
+            NeutralColor.fromHsl(
+                LumosGlyph.CHECK.hue,
+                LumosGlyph.CHECK.saturation,
+                LumosGlyph.CHECK.lightness,
+            )
+
+        assertEquals(accent.red, cell.red, absoluteTolerance = 0.02f)
+        assertEquals(accent.green, cell.green, absoluteTolerance = 0.02f)
+        assertEquals(accent.blue, cell.blue, absoluteTolerance = 0.02f)
+    }
+
+    @Test
+    fun `queueGlyph replaces the active glyph`() {
+        val builder = VoxelFrameBuilder(initialResolution = 5)
+
+        builder.queueGlyph(LumosGlyph.CHECK, durationSeconds = 1.5f)
+        builder.build(snapshot(atmosphere = AtmospherePresets.IDLE), dt = 0.3f)
+        builder.queueGlyph(LumosGlyph.QUESTION, durationSeconds = 1.5f)
+        val frame = builder.build(snapshot(atmosphere = AtmospherePresets.IDLE), dt = 0f)
+
+        val glyph = assertNotNull(frame.glyph)
+        assertEquals("QUESTION", glyph.glyphName)
+        assertEquals(0f, glyph.progress, absoluteTolerance = 1e-5f)
     }
 
     private fun snapshot(
