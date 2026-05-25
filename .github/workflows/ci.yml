@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   jvm:
-    name: JVM And Lint
+    name: JVM, Lint, Web
     runs-on: ubuntu-latest
 
     steps:
@@ -31,17 +31,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run JVM tests
-        run: ./gradlew :phosphor-core:jvmTest :phosphor-lumos:jvmTest :phosphor-lumos-cli:jvmTest
+      - name: Run JVM and web tests
+        run: ./gradlew jvmTest jsTest wasmJsTest
 
       - name: Verify formatting
-        run: ./gradlew ktlintFormat --no-rebuild
+        run: ./gradlew ktlintCheck
 
-      - name: Check formatting diff
-        run: git diff --exit-code
-
-  ios_compile:
-    name: iOS Compile
+  ios:
+    name: iOS Compile And Test
     runs-on: macos-latest
 
     steps:
@@ -57,37 +54,5 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Compile iOS targets
-        run: ./gradlew :phosphor-core:compileKotlinIosArm64 :phosphor-lumos:compileKotlinIosArm64
-
-  test:
-    name: Tests
-    runs-on: macos-latest
-    needs: [jvm, ios_compile]
-    if: ${{ always() }}
-
-    steps:
-      - name: Enforce required checks
-        run: |
-          if [ "${{ needs.jvm.result }}" != "success" ] || [ "${{ needs.ios_compile.result }}" != "success" ]; then
-            echo "Required CI jobs did not all pass."
-            exit 1
-          fi
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'zulu'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Run build
-        run: ./gradlew :phosphor-core:build :phosphor-lumos:build :phosphor-lumos-cli:build
-
-      - name: Run all tests
-        run: ./gradlew allTests
+      - name: Compile iOS device target and run simulator tests
+        run: ./gradlew :phosphor-core:compileKotlinIosArm64 :phosphor-lumos:compileKotlinIosArm64 iosSimulatorArm64Test
