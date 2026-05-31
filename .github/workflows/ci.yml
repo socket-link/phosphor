@@ -55,4 +55,4 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Compile iOS device target and run simulator tests
-        run: ./gradlew :phosphor-core:compileKotlinIosArm64 :phosphor-lumos:compileKotlinIosArm64 iosSimulatorArm64Test
+        run: ./gradlew :phosphor-core:compileKotlinIosArm64 :phosphor-lumos:compileKotlinIosArm64 :phosphor-lumos-compose:compileKotlinIosArm64 iosSimulatorArm64Test
