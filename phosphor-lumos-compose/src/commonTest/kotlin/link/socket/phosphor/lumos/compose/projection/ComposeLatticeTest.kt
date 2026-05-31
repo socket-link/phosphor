@@ -20,7 +20,7 @@ import link.socket.phosphor.signal.CognitivePhase
 
 class ComposeLatticeTest {
     @Test
-    fun `constructor rejects non-positive dimensions, radius, and aspect ratio`() {
+    fun `constructor rejects non-positive dimensions and radius and aspect ratio`() {
         assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = 0, heightPx = 600) }
         assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = -1, heightPx = 600) }
         assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = 800, heightPx = 0) }
@@ -56,7 +56,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `voxel at (1,0,0) with no rotation projects to right edge`() {
+    fun `voxel at 1 0 0 with no rotation projects to right edge`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 1f, y = 0f, z = 0f)))
         val canvas = lattice.project(frame)
@@ -67,7 +67,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `voxel at (-1,0,0) with no rotation projects to left edge`() {
+    fun `voxel at neg1 0 0 with no rotation projects to left edge`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = -1f, y = 0f, z = 0f)))
         val canvas = lattice.project(frame)
@@ -81,7 +81,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `voxel at (0,1,0) with no rotation projects to top edge (Y-flip)`() {
+    fun `voxel at 0 1 0 with no rotation projects to top edge Y-flip`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 0f, y = 1f, z = 0f)))
         val canvas = lattice.project(frame)
@@ -148,7 +148,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `voxel at (1,0,0) with orbRotationY pi over 2 projects near canvas center with negative z`() {
+    fun `voxel at 1 0 0 with orbRotationY pi over 2 projects near canvas center with negative z`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val ambient = DEFAULT_AMBIENT.copy(orbRotationY = (PI / 2).toFloat())
         val frame = voxelFrame(cells = listOf(voxelAt(x = 1f, y = 0f, z = 0f)), ambient = ambient)
@@ -166,7 +166,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `identity rotation (all zero angles) produces same output as unrotated projection`() {
+    fun `identity rotation with all zero angles produces same output as unrotated projection`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val cells =
             listOf(
