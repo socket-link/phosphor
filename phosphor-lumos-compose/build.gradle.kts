@@ -78,6 +78,7 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
                 implementation(compose.runtime)
                 implementation(compose.ui)
+                implementation(compose.foundation)
             }
         }
         val commonTest by getting {
