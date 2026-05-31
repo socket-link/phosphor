@@ -45,6 +45,7 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | `:phosphor-core` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
 | `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state, scaffolded for downstream Lumos frame APIs |
 | `:phosphor-lumos-cli` | JVM terminal DTO and future CLI renderer surface for projected Lumos voxel frames |
+| `:phosphor-lumos-compose` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
 
 ---
 

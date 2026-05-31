@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Phosphor is a Kotlin Multiplatform rendering library that translates cognitive state into visible light — ASCII luminance, color ramps, particle physics, 3D waveform surfaces, and the Lumos voxel-orb companion visualization. Read [SOUL.md](SOUL.md) for project philosophy and values.
+Phosphor is a Kotlin Multiplatform rendering library that translates cognitive state into visible light — ASCII luminance, color ramps, particle physics, 3D waveform surfaces, and the Lumos voxel-orb companion visualization with Compose Canvas support. Read [SOUL.md](SOUL.md) for project philosophy and values.
 
 ## Development Commands
 
@@ -46,6 +46,7 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-core/` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
 | `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core` |
 | `phosphor-lumos-cli/` | JVM terminal DTO and future CLI renderer surface for projected Lumos voxel frames |
+| `phosphor-lumos-compose/` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
 
 ### Future / Aspirational Modules
 
@@ -67,6 +68,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-lumos/src/commonTest/` | Lumos smoke tests and future voxel-frame API tests |
 | `phosphor-lumos-cli/src/commonMain/` | JVM CLI-facing Lumos terminal frame DTOs |
 | `phosphor-lumos-cli/src/commonTest/` | CLI DTO serialization and shape-contract tests |
+| `phosphor-lumos-compose/src/commonMain/` | Compose Multiplatform Canvas-facing Lumos frame DTOs |
+| `phosphor-lumos-compose/src/commonTest/` | Compose DTO serialization and shape-contract tests |
 
 ## Before You Change Anything
 
