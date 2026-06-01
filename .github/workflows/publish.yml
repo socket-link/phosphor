@@ -57,6 +57,20 @@ jobs:
           :phosphor-lumos:compileKotlinIosArm64
           :phosphor-lumos-compose:compileKotlinIosArm64
 
+      - name: Check documentation for Dokka warnings
+        run: |
+          ./gradlew \
+            :phosphor-core:dokkaGeneratePublicationHtml \
+            :phosphor-lumos:dokkaGeneratePublicationHtml \
+            :phosphor-lumos-cli:dokkaGeneratePublicationHtml \
+            :phosphor-lumos-compose:dokkaGeneratePublicationHtml 2>&1 | tee dokka-output.log
+          if grep -q "Couldn't resolve link" dokka-output.log; then
+            echo "❌ Dokka link resolution warnings found:"
+            grep "Couldn't resolve link" dokka-output.log
+            exit 1
+          fi
+          echo "✓ No Dokka link resolution warnings found"
+
       - name: Decode signing key
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:

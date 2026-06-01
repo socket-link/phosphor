@@ -9,19 +9,18 @@ import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
 /**
  * Orthographic projection of a [VoxelFrame] to a [LumosCanvasFrame] for Compose Canvas rendering.
  *
- * Mirrors [link.socket.phosphor.lumos.cli.projection.CliLattice] with three structural differences:
+ * Mirrors CliLattice with three structural differences:
  * 1. **No aspect compression** — pixel cells are 1:1, so [aspectRatio] defaults to 1.0.
  * 2. **No per-cell winner aggregation** — every visible voxel is emitted as its own [CanvasVoxel].
  *    The output list is unsorted by z. Painter's-algorithm depth sorting is the composable's
  *    responsibility, keeping this projector pure.
  * 3. **Orb rotation applied here** — each voxel's `(x, y, z)` lattice position is rotated by
- *    Euler angles from [link.socket.phosphor.lumos.VoxelAmbient.orbRotationX],
- *    [link.socket.phosphor.lumos.VoxelAmbient.orbRotationY], and
- *    [link.socket.phosphor.lumos.VoxelAmbient.orbRotationZ] before projection.
+ *    Euler angles from the [VoxelAmbient.orbRotationX], [VoxelAmbient.orbRotationY], and
+ *    [VoxelAmbient.orbRotationZ] properties before projection.
  *    **Rotation order: X first, then Y, then Z.**
  *
  * Input lattice positions are in `[-1, 1]` on all axes, following the same convention as
- * `CliLattice`. Y is flipped: `y = +1` maps to the top of the canvas (`screenY = 0`).
+ * CliLattice. Y is flipped: `y = +1` maps to the top of the canvas (`screenY = 0`).
  *
  * @param widthPx Output canvas width in pixels; must be > 0.
  * @param heightPx Output canvas height in pixels; must be > 0.

@@ -5,11 +5,11 @@ import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
 
 /**
- * Serializable 2D projection of a [link.socket.phosphor.lumos.VoxelFrame] shaped for Compose Canvas rendering.
+ * Serializable 2D projection of a [VoxelFrame] shaped for Compose Canvas rendering.
  *
- * Differs from [link.socket.phosphor.lumos.cli.LumosTerminalFrame] in coordinate system
- * (pixel-based, Compose-friendly) and color representation (sRGB, not OKLab). Renderers
- * can paint [voxels] directly using Compose's `Canvas.drawRect` with sRGB color values.
+ * Differs from LumosTerminalFrame in coordinate system (pixel-based, Compose-friendly)
+ * and color representation (sRGB, not OKLab). Renderers can paint [voxels] directly
+ * using Compose's `Canvas.drawRect` with sRGB color values.
  *
  * @property width Pixel width of the canvas the projector was sized for.
  * @property height Pixel height of the canvas the projector was sized for.

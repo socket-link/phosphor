@@ -8,7 +8,7 @@ import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
 
 /**
- * Orthographic projection of a [VoxelFrame] to a [LumosTerminalFrame].
+ * Orthographic projection of a VoxelFrame to a [LumosTerminalFrame].
  *
  * Each voxel's `(x, y)` lattice position maps to a character cell, ignoring
  * `z` for placement but using `z` for occlusion priority (closer voxels win
@@ -19,7 +19,7 @@ import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
  * Orthographic, not perspective: at typical terminal resolutions (40x20 to
  * 60x30) foreshortening barely reads and the simpler projection halves the
  * code volume. Color quantization is deliberately not done here — the
- * winning voxel's sRGB triplet is forwarded as [OklabColor] for the renderer
+ * winning voxel's sRGB triplet is forwarded as OklabColor for the renderer
  * (CliOrb / AnsiColorMap) to quantize.
  *
  * The projection is pure: it allocates one [LumosTerminalFrame] plus two
@@ -55,7 +55,7 @@ class CliLattice(
      *    orthographic mapping of normalized lattice position.
      * 2. Per cell, keep the voxel with the largest `z` (closest to camera).
      * 3. Map each winning voxel's scale to a luminance-ramp character and
-     *    pass its sRGB color through as [OklabColor].
+     *    pass its sRGB color through as OklabColor.
      * 4. Empty cells become transparent blanks.
      *
      * Ambient and glyph state pass through unchanged.
