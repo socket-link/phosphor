@@ -57,7 +57,7 @@ class CognitiveColorRampTest {
                 CognitiveColorRamp.RECALL,
                 CognitiveColorRamp.PLAN,
                 CognitiveColorRamp.EXECUTE,
-                CognitiveColorRamp.EVALUATE,
+                CognitiveColorRamp.LEARN,
                 CognitiveColorRamp.NEUTRAL,
             )
         ramps.forEach { ramp ->
@@ -74,7 +74,7 @@ class CognitiveColorRampTest {
         assertEquals(CognitivePhase.RECALL, CognitiveColorRamp.forPhase(CognitivePhase.RECALL).phase)
         assertEquals(CognitivePhase.PLAN, CognitiveColorRamp.forPhase(CognitivePhase.PLAN).phase)
         assertEquals(CognitivePhase.EXECUTE, CognitiveColorRamp.forPhase(CognitivePhase.EXECUTE).phase)
-        assertEquals(CognitivePhase.EVALUATE, CognitiveColorRamp.forPhase(CognitivePhase.EVALUATE).phase)
+        assertEquals(CognitivePhase.LEARN, CognitiveColorRamp.forPhase(CognitivePhase.LEARN).phase)
     }
 
     @Test
@@ -99,7 +99,7 @@ class CognitiveColorRampTest {
                 CognitiveColorRamp.RECALL,
                 CognitiveColorRamp.PLAN,
                 CognitiveColorRamp.EXECUTE,
-                CognitiveColorRamp.EVALUATE,
+                CognitiveColorRamp.LEARN,
                 CognitiveColorRamp.NEUTRAL,
             )
         allRamps.forEach { ramp ->

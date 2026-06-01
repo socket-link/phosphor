@@ -100,9 +100,10 @@ If both point to the same word, that's the name. If they diverge, prefer the ter
 |-------|---------------|------------|
 | PERCEIVE | Sparse, circular, floating (` ·∙.:∘○◌◯`) | Cool blues → white |
 | RECALL | Warm, solid, crystallizing (` .·*✦⬡◆●`) | Dark amber → warm gold |
+| OBSERVE | Sparse, scanning, circular (` ·∙.·:∘○◌◯`) | Cool blues → white |
 | PLAN | Structured, branching, grid-like (` ░▒▓│├┤┬┴┼`) | Teal → cyan |
 | EXECUTE | Dense, aggressive, lightning (` .:;+=*#%@█⚡`) | Red → yellow → white |
-| EVALUATE | Diffuse, reflective, fading (` .·:*∘○◌`) | Purple → dim lavender |
+| LEARN | Diffuse, reflective, fading (` .·:*∘○◌`) | Purple → dim lavender |
 
 ### Principles
 

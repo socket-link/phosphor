@@ -79,6 +79,9 @@ data class CognitiveColorRamp(
         /** Dark amber -> warm gold (memory, warmth) */
         val RECALL = fromModel(CognitivePhase.RECALL)
 
+        /** Cool blues -> white (perception-adjacent, pattern recognition) */
+        val OBSERVE = fromModel(phase = CognitivePhase.OBSERVE, modelPhase = CognitivePhase.PERCEIVE)
+
         /** Teal -> cyan (structured, deliberate) */
         val PLAN = fromModel(CognitivePhase.PLAN)
 
@@ -86,7 +89,7 @@ data class CognitiveColorRamp(
         val EXECUTE = fromModel(CognitivePhase.EXECUTE)
 
         /** Purple -> dim lavender (reflection, settling) */
-        val EVALUATE = fromModel(CognitivePhase.EVALUATE)
+        val LEARN = fromModel(CognitivePhase.LEARN)
 
         /** Neutral gray ramp for LOOP/NONE phases */
         val NEUTRAL = fromModel(phase = CognitivePhase.NONE, modelPhase = CognitivePhase.NONE)
@@ -98,9 +101,10 @@ data class CognitiveColorRamp(
             when (phase) {
                 CognitivePhase.PERCEIVE -> PERCEIVE
                 CognitivePhase.RECALL -> RECALL
+                CognitivePhase.OBSERVE -> OBSERVE
                 CognitivePhase.PLAN -> PLAN
                 CognitivePhase.EXECUTE -> EXECUTE
-                CognitivePhase.EVALUATE -> EVALUATE
+                CognitivePhase.LEARN -> LEARN
                 CognitivePhase.LOOP -> NEUTRAL
                 CognitivePhase.NONE -> NEUTRAL
             }

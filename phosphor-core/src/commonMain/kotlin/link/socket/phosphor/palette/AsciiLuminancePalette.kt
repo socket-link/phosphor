@@ -177,11 +177,18 @@ data class AsciiLuminancePalette(
                 name = "execute",
             )
 
-        /** Diffuse, reflective — for EVALUATE phase (afterglow, fading) */
-        val EVALUATE =
+        /** Sparse, circular — for OBSERVE phase (pattern recognition, perception-adjacent) */
+        val OBSERVE =
+            AsciiLuminancePalette(
+                characters = " \u00B7\u2219.\u00B7:\u2218\u25CB\u25CC\u25EF",
+                name = "observe",
+            )
+
+        /** Diffuse, reflective — for LEARN phase (afterglow, fading) */
+        val LEARN =
             AsciiLuminancePalette(
                 characters = " .\u00B7:*\u2218\u25CB\u25CC ",
-                name = "evaluate",
+                name = "learn",
             )
     }
 }

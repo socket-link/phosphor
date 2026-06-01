@@ -45,9 +45,10 @@ object CognitiveColorModel {
         mapOf(
             CognitivePhase.PERCEIVE to phaseRamp(listOf(17, 18, 24, 31, 38, 74, 110, 117, 153, 189, 231)),
             CognitivePhase.RECALL to phaseRamp(listOf(52, 94, 130, 136, 172, 178, 214, 220, 221)),
+            CognitivePhase.OBSERVE to phaseRamp(listOf(17, 18, 24, 31, 38, 74, 110, 117, 153, 189, 231)),
             CognitivePhase.PLAN to phaseRamp(listOf(23, 29, 30, 36, 37, 43, 79, 115, 159)),
             CognitivePhase.EXECUTE to phaseRamp(listOf(52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 231)),
-            CognitivePhase.EVALUATE to phaseRamp(listOf(53, 54, 91, 97, 134, 140, 141, 183, 189)),
+            CognitivePhase.LEARN to phaseRamp(listOf(53, 54, 91, 97, 134, 140, 141, 183, 189)),
             CognitivePhase.LOOP to phaseRamp(listOf(232, 236, 240, 244, 248, 252, 255)),
             CognitivePhase.NONE to phaseRamp(listOf(232, 236, 240, 244, 248, 252, 255)),
         )

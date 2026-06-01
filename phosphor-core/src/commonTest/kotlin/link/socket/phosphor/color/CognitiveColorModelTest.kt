@@ -43,9 +43,10 @@ class CognitiveColorModelTest {
             mapOf(
                 CognitivePhase.PERCEIVE to listOf(17, 18, 24, 31, 38, 74, 110, 117, 153, 189, 231),
                 CognitivePhase.RECALL to listOf(52, 94, 130, 136, 172, 178, 214, 220, 221),
+                CognitivePhase.OBSERVE to listOf(17, 18, 24, 31, 38, 74, 110, 117, 153, 189, 231),
                 CognitivePhase.PLAN to listOf(23, 29, 30, 36, 37, 43, 79, 115, 159),
                 CognitivePhase.EXECUTE to listOf(52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 231),
-                CognitivePhase.EVALUATE to listOf(53, 54, 91, 97, 134, 140, 141, 183, 189),
+                CognitivePhase.LEARN to listOf(53, 54, 91, 97, 134, 140, 141, 183, 189),
                 CognitivePhase.LOOP to listOf(232, 236, 240, 244, 248, 252, 255),
                 CognitivePhase.NONE to listOf(232, 236, 240, 244, 248, 252, 255),
             )

@@ -166,7 +166,7 @@ class PhaseBlenderTest {
         assertEquals(AsciiLuminancePalette.RECALL, PhaseBlender.paletteForPhase(CognitivePhase.RECALL))
         assertEquals(AsciiLuminancePalette.PLAN, PhaseBlender.paletteForPhase(CognitivePhase.PLAN))
         assertEquals(AsciiLuminancePalette.EXECUTE, PhaseBlender.paletteForPhase(CognitivePhase.EXECUTE))
-        assertEquals(AsciiLuminancePalette.EVALUATE, PhaseBlender.paletteForPhase(CognitivePhase.EVALUATE))
+        assertEquals(AsciiLuminancePalette.LEARN, PhaseBlender.paletteForPhase(CognitivePhase.LEARN))
         assertEquals(AsciiLuminancePalette.STANDARD, PhaseBlender.paletteForPhase(CognitivePhase.LOOP))
         assertEquals(AsciiLuminancePalette.STANDARD, PhaseBlender.paletteForPhase(CognitivePhase.NONE))
     }

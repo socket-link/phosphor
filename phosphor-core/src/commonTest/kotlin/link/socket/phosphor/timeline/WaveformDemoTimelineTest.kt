@@ -163,7 +163,7 @@ class WaveformDemoTimelineTest {
     }
 
     @Test
-    fun `reflection phase sets EVALUATE cognitive phase`() {
+    fun `reflection phase sets LEARN cognitive phase`() {
         val (agents, flow, emitters) = createComponents()
         val timeline = WaveformDemoTimeline.build(agents, flow, emitters)
 
@@ -174,8 +174,8 @@ class WaveformDemoTimelineTest {
         // Fire reflection onStart
         timeline.phases[7].onStart?.invoke()
 
-        assertEquals(CognitivePhase.EVALUATE, agents.getAgent("spark")?.cognitivePhase)
-        assertEquals(CognitivePhase.EVALUATE, agents.getAgent("jazz")?.cognitivePhase)
+        assertEquals(CognitivePhase.LEARN, agents.getAgent("spark")?.cognitivePhase)
+        assertEquals(CognitivePhase.LEARN, agents.getAgent("jazz")?.cognitivePhase)
     }
 
     @Test
