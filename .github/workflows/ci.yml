@@ -37,6 +37,16 @@ jobs:
       - name: Verify formatting
         run: ./gradlew ktlintCheck
 
+      - name: Generate documentation and check for Dokka warnings
+        run: |
+          ./gradlew dokkaHtml 2>&1 | tee dokka-output.log
+          if grep -q "Couldn't resolve link" dokka-output.log; then
+            echo "❌ Dokka link resolution warnings found:"
+            grep "Couldn't resolve link" dokka-output.log
+            exit 1
+          fi
+          echo "✓ No Dokka link resolution warnings found"
+
   ios:
     name: iOS Compile And Test
     runs-on: macos-latest

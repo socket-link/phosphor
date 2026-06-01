@@ -42,7 +42,7 @@ class WaveformRasterizer(
      * @param camera Current camera position/orientation
      * @param palette The character palette to use (phase-specific)
      * @param colorRamp The color ramp to use (phase-specific)
-     * @return 2D array of AsciiCells [row][col], screenHeight rows x screenWidth cols
+     * @return 2D array of AsciiCells, screenHeight rows x screenWidth cols
      */
     fun rasterize(
         waveform: CognitiveWaveform,
@@ -123,7 +123,7 @@ class WaveformRasterizer(
      * @param agents Agent layer for phase lookup
      * @param fallbackPalette Palette for regions with no nearby agents
      * @param fallbackRamp Color ramp for regions with no nearby agents
-     * @return 2D array of AsciiCells [row][col]
+     * @return 2D array of AsciiCells, screenHeight rows x screenWidth cols
      */
     fun rasterizeBlended(
         waveform: CognitiveWaveform,

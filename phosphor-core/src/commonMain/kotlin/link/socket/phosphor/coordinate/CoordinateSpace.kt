@@ -7,7 +7,7 @@ import link.socket.phosphor.math.Vector3
  * Defines the two coordinate spaces used by Phosphor's rendering pipeline.
  *
  * - [WORLD_CENTERED]: Origin at center of the world. Coordinates range from
- *   `-size/2` to `+size/2`. Used by [CognitiveWaveform.worldPosition] and
+ *   `-size/2` to `+size/2`. Used by the waveform's worldPosition query and
  *   the 3D camera/projection pipeline.
  *
  * - [WORLD_POSITIVE]: Origin at the corner (minimum). Coordinates range from
