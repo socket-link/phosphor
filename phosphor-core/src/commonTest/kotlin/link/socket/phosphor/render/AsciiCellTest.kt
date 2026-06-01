@@ -116,7 +116,7 @@ class AsciiCellTest {
                 normalX = 0f,
                 normalY = 0f,
                 palette = AsciiLuminancePalette.STANDARD,
-                colorRamp = CognitiveColorRamp.EVALUATE,
+                colorRamp = CognitiveColorRamp.LEARN,
             )
         assertNull(cell.bgColor)
     }

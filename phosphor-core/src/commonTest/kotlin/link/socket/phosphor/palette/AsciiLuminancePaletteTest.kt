@@ -97,9 +97,10 @@ class AsciiLuminancePaletteTest {
                 AsciiLuminancePalette.STANDARD,
                 AsciiLuminancePalette.PERCEIVE,
                 AsciiLuminancePalette.RECALL,
+                AsciiLuminancePalette.OBSERVE,
                 AsciiLuminancePalette.PLAN,
                 AsciiLuminancePalette.EXECUTE,
-                AsciiLuminancePalette.EVALUATE,
+                AsciiLuminancePalette.LEARN,
             )
         palettes.forEach { palette ->
             assertTrue(

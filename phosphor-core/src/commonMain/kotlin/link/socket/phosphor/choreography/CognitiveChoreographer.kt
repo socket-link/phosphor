@@ -26,7 +26,8 @@ import link.socket.phosphor.signal.CognitivePhase
  * - RECALL: Existing particles near agent brighten and cluster (memory activation)
  * - PLAN: Particles form tentative structures, testing arrangements (strategy formation)
  * - EXECUTE: Particles align and accelerate outward (discharge/committed action)
- * - EVALUATE: Particles slow, some fade, some persist as new anchors (reflection)
+ * - OBSERVE: Particles slow and spread, gentle outward drift (pattern recognition)
+ * - LEARN: Particles slow, some fade, some persist as new anchors (reflection)
  * - LOOP: Brief stillness, then subtle pulse (cycle reset)
  *
  * The choreographer observes phase transitions on agents and orchestrates particle
@@ -68,8 +69,8 @@ class CognitiveChoreographer(
         /** Radius for LOOP despawn area */
         private const val LOOP_DESPAWN_RADIUS = 3f
 
-        /** Radius for EVALUATE fade effect */
-        private const val EVALUATE_FADE_RADIUS = 10f
+        /** Radius for LEARN/OBSERVE fade effect */
+        private const val LEARN_FADE_RADIUS = 10f
 
         /** Particle count per PERCEIVE stream direction */
         private const val PERCEIVE_PARTICLES_PER_DIR = 2
@@ -154,8 +155,8 @@ class CognitiveChoreographer(
             spawnSparkBurst(agent.position, TRANSITION_SPARK_COUNT)
         }
 
-        // EXECUTE → EVALUATE: Trail particles along the executed flow connection
-        if (from == CognitivePhase.EXECUTE && to == CognitivePhase.EVALUATE) {
+        // EXECUTE → LEARN: Trail particles along the executed flow connection
+        if (from == CognitivePhase.EXECUTE && to == CognitivePhase.LEARN) {
             spawnTrailFromAgent(agent.position)
         }
 
@@ -180,9 +181,10 @@ class CognitiveChoreographer(
         return when (phase) {
             CognitivePhase.PERCEIVE -> applyPerceive(agent, substrate, deltaTime)
             CognitivePhase.RECALL -> applyRecall(agent, substrate, deltaTime)
+            CognitivePhase.OBSERVE -> applyObserve(agent, substrate, deltaTime)
             CognitivePhase.PLAN -> applyPlan(agent, substrate, deltaTime)
             CognitivePhase.EXECUTE -> applyExecute(agent, substrate, deltaTime)
-            CognitivePhase.EVALUATE -> applyEvaluate(agent, substrate, deltaTime)
+            CognitivePhase.LEARN -> applyLearn(agent, substrate, deltaTime)
             CognitivePhase.LOOP -> applyLoop(agent, substrate, deltaTime)
             CognitivePhase.NONE -> substrate
         }
@@ -243,7 +245,7 @@ class CognitiveChoreographer(
             particles.getParticlesNear(
                 agent.position.x.roundToInt(),
                 agent.position.y.roundToInt(),
-                radius = EVALUATE_FADE_RADIUS,
+                radius = LEARN_FADE_RADIUS,
             )
         nearbyParticles.forEach { p ->
             p.life = (p.life + 0.3f * deltaTime).coerceAtMost(1f)
@@ -352,9 +354,38 @@ class CognitiveChoreographer(
         )
     }
 
-    // ── EVALUATE: Afterglow, particles slow and persist (reflection) ──
+    // ── OBSERVE: Pattern recognition, gentle outward drift ──
 
-    private fun applyEvaluate(
+    private fun applyObserve(
+        agent: AgentVisualState,
+        substrate: SubstrateState,
+        deltaTime: Float,
+    ): SubstrateState {
+        // Gentle outward drift of nearby particles (spreading awareness)
+        val nearbyParticles =
+            particles.getParticlesNear(
+                agent.position.x.roundToInt(),
+                agent.position.y.roundToInt(),
+                radius = LEARN_FADE_RADIUS,
+            )
+        nearbyParticles.forEach { p ->
+            p.life = (p.life + 0.1f * deltaTime).coerceAtMost(1f)
+        }
+
+        // Substrate: subtle ripple outward (attention scanning)
+        val center = Point(agent.position.x.roundToInt(), agent.position.y.roundToInt())
+        return substrateAnimator.ripple(
+            state = substrate,
+            center = center,
+            phase = 0.05f,
+            maxRadius = 6f,
+            intensity = 0.15f,
+        )
+    }
+
+    // ── LEARN: Afterglow, particles slow and persist (reflection) ──
+
+    private fun applyLearn(
         agent: AgentVisualState,
         substrate: SubstrateState,
         deltaTime: Float,
@@ -364,7 +395,7 @@ class CognitiveChoreographer(
             particles.getParticlesNear(
                 agent.position.x.roundToInt(),
                 agent.position.y.roundToInt(),
-                radius = EVALUATE_FADE_RADIUS,
+                radius = LEARN_FADE_RADIUS,
             )
         nearbyParticles.forEach { p ->
             // Slow particles down (drag effect)

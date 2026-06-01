@@ -29,7 +29,7 @@ import link.socket.phosphor.signal.CognitivePhase
  *    EXECUTE palette (red to yellow to white). Dense characters, high energy.
  * 7. **Completion** (2s): Task completes. Confetti at both agents.
  *    Surface gradually settles.
- * 8. **Reflection** (2s): EVALUATE phase. EVALUATE palette (purple, diffuse).
+ * 8. **Reflection** (2s): LEARN phase. LEARN palette (purple, diffuse).
  *    Surface returns to gentle undulation. Camera continues orbiting.
  *
  * Suitable for recording the demo GIF showing the 3D cognitive waveform in action.
@@ -244,19 +244,19 @@ object WaveformDemoTimeline {
                 }
             }
 
-            // Phase 8: Reflection — EVALUATE palette, surface returns to gentle undulation
+            // Phase 8: Reflection — LEARN palette, surface returns to gentle undulation
             phase("reflection", 2.0) {
                 onStart {
-                    agents.updateAgentCognitivePhase("spark", CognitivePhase.EVALUATE)
-                    agents.updateAgentCognitivePhase("jazz", CognitivePhase.EVALUATE)
+                    agents.updateAgentCognitivePhase("spark", CognitivePhase.LEARN)
+                    agents.updateAgentCognitivePhase("jazz", CognitivePhase.LEARN)
                     agents.updateAgentState("spark", AgentActivityState.IDLE)
                     agents.updateAgentState("jazz", AgentActivityState.IDLE)
-                    // ColorWash with EVALUATE palette (purple, diffuse)
+                    // ColorWash with LEARN palette (purple, diffuse)
                     emitters.emit(
                         EmitterEffect.ColorWash(
                             duration = 2.0f,
                             radius = 12f,
-                            colorRamp = CognitiveColorRamp.EVALUATE,
+                            colorRamp = CognitiveColorRamp.LEARN,
                             waveFrontSpeed = 4f,
                         ),
                         Vector3(

@@ -173,7 +173,7 @@ class CognitiveChoreographerTest {
     }
 
     @Test
-    fun `EVALUATE slows particles and creates anchors`() {
+    fun `LEARN slows particles and creates anchors`() {
         val (choreographer, particles, _) = createChoreographer()
         val substrate = SubstrateState.create(40, 20)
 
@@ -187,19 +187,19 @@ class CognitiveChoreographerTest {
         choreographer.update(executeAgents, substrate, 0.1f)
         assertTrue(particles.count > 0)
 
-        // Transition to EVALUATE
+        // Transition to LEARN
         val evaluateAgents =
             createAgentLayer(
                 40,
                 20,
-                Triple("agent-1", Vector2(20f, 10f), CognitivePhase.EVALUATE),
+                Triple("agent-1", Vector2(20f, 10f), CognitivePhase.LEARN),
             )
         choreographer.update(evaluateAgents, substrate, 0.1f)
 
         // Some particles should now have attractors (anchored)
         val anchored = particles.getParticles().filter { it.attractor != null }
         // At least some high-life particles get anchored
-        assertTrue(particles.count > 0, "EVALUATE should not despawn all particles")
+        assertTrue(particles.count > 0, "LEARN should not despawn all particles")
     }
 
     @Test

@@ -12,7 +12,7 @@ import link.socket.phosphor.signal.CognitivePhase
  *
  * When two agents in different phases are near each other, the palette
  * blends at the boundary -- you can see EXECUTE's hot discharge meeting
- * EVALUATE's cool afterglow as a gradient in character density and color.
+ * LEARN's cool afterglow as a gradient in character density and color.
  *
  * @param influenceRadius Maximum distance (in world units) at which an agent
  *        affects the palette selection. Beyond this, returns null (use fallback).
@@ -79,9 +79,10 @@ class PhaseBlender(
             when (phase) {
                 CognitivePhase.PERCEIVE -> AsciiLuminancePalette.PERCEIVE
                 CognitivePhase.RECALL -> AsciiLuminancePalette.RECALL
+                CognitivePhase.OBSERVE -> AsciiLuminancePalette.OBSERVE
                 CognitivePhase.PLAN -> AsciiLuminancePalette.PLAN
                 CognitivePhase.EXECUTE -> AsciiLuminancePalette.EXECUTE
-                CognitivePhase.EVALUATE -> AsciiLuminancePalette.EVALUATE
+                CognitivePhase.LEARN -> AsciiLuminancePalette.LEARN
                 CognitivePhase.LOOP -> AsciiLuminancePalette.STANDARD
                 CognitivePhase.NONE -> AsciiLuminancePalette.STANDARD
             }

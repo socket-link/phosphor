@@ -57,9 +57,10 @@ Each cognitive phase has a distinct visual texture. The eye reads the shift inst
 |-------|-----------|------------|
 | PERCEIVE | Sparse, circular, floating (` ·∙.:∘○◌◯`) | Cool blues → white |
 | RECALL | Warm, solid, crystallizing (` .·*✦⬡◆●`) | Dark amber → warm gold |
+| OBSERVE | Sparse, scanning, circular (` ·∙.·:∘○◌◯`) | Cool blues → white |
 | PLAN | Structured, branching, grid-like (` ░▒▓│├┤┬┴┼`) | Teal → cyan |
 | EXECUTE | Dense, aggressive, lightning (` .:;+=*#%@█⚡`) | Red → yellow → white |
-| EVALUATE | Diffuse, reflective, fading (` .·:*∘○◌`) | Purple → dim lavender |
+| LEARN | Diffuse, reflective, fading (` .·:*∘○◌`) | Purple → dim lavender |
 
 ---
 

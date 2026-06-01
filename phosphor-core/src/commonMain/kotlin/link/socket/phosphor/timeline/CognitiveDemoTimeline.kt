@@ -15,7 +15,7 @@ import link.socket.phosphor.signal.CognitivePhase
  * 2. Spark transitions to RECALL (memory activation)
  * 3. Spark enters PLAN, Jazz spawns (strategy + delegation)
  * 4. Jazz enters EXECUTE (committed action)
- * 5. Both enter EVALUATE (reflection)
+ * 5. Both enter LEARN (reflection)
  * 6. Cycle completes
  *
  * Suitable for recording the demo GIF showing "you can watch AI think."
@@ -91,10 +91,10 @@ object CognitiveDemoTimeline {
                 }
             }
 
-            phase("evaluate", 2.0) {
+            phase("learn", 2.0) {
                 onStart {
-                    agents.updateAgentCognitivePhase("spark", CognitivePhase.EVALUATE)
-                    agents.updateAgentCognitivePhase("jazz", CognitivePhase.EVALUATE)
+                    agents.updateAgentCognitivePhase("spark", CognitivePhase.LEARN)
+                    agents.updateAgentCognitivePhase("jazz", CognitivePhase.LEARN)
                 }
             }
 
@@ -116,7 +116,7 @@ object CognitiveDemoTimeline {
             "recall",
             "plan-and-delegate",
             "execute",
-            "evaluate",
+            "learn",
             "complete",
         )
 
