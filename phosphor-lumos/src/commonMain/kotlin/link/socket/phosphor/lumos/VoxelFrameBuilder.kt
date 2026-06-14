@@ -7,6 +7,9 @@ import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.field.Voxel
 import link.socket.phosphor.field.VoxelSphere
 import link.socket.phosphor.field.facingCamera
+import link.socket.phosphor.lumos.probe.FramePhase
+import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.lumos.probe.measure
 import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmospherePattern
@@ -30,10 +33,14 @@ import link.socket.phosphor.signal.AtmosphereTransition
  * @param initialResolution Starting resolution for the underlying
  *  [VoxelSphere]. Rebuilt when [AtmosphereState.resolution] changes.
  * @param config Optional embedder knobs; see [LumosRenderConfig].
+ * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
+ *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
+ *  to capture BUILD timings.
  */
 class VoxelFrameBuilder(
     initialResolution: Int,
     private val config: LumosRenderConfig = LumosRenderConfig(),
+    private val probe: FrameProbe = FrameProbe.Disabled,
 ) {
     /**
      * Continuous breath-pulse phase in radians.
@@ -104,6 +111,11 @@ class VoxelFrameBuilder(
      *  (`SceneConfiguration.enableAtmosphere = false`).
      */
     fun build(
+        snapshot: SceneSnapshot,
+        dt: Float,
+    ): VoxelFrame = probe.measure(FramePhase.BUILD) { buildFrame(snapshot, dt) }
+
+    private fun buildFrame(
         snapshot: SceneSnapshot,
         dt: Float,
     ): VoxelFrame {

@@ -62,6 +62,19 @@ kotlin {
     }
 }
 
+// PHO-34: run the FrameProbe baseline harness against the CLI Lumos path.
+// Usage: ./gradlew :phosphor-lumos-cli:runFrameProbeBenchmark            (60s default)
+//        ./gradlew :phosphor-lumos-cli:runFrameProbeBenchmark -Pduration=120
+tasks.register<JavaExec>("runFrameProbeBenchmark") {
+    group = "verification"
+    description = "Run the FrameProbe build/project/draw baseline harness (PHO-34, Task C)."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.bench.FrameProbeBenchmarkKt")
+    (project.findProperty("duration") as String?)?.let { args(it) }
+}
+
 mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()

@@ -6,6 +6,9 @@ import link.socket.phosphor.color.OklabColor
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
+import link.socket.phosphor.lumos.probe.FramePhase
+import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.lumos.probe.measure
 
 /**
  * Orthographic projection of a VoxelFrame to a [LumosTerminalFrame].
@@ -31,11 +34,15 @@ import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
  * @param characterAspectRatio Ratio of character cell height to width.
  *  Defaults to 2.0 because most monospace fonts render characters at ~1:2
  *  width:height. Configurable for high-DPI terminals or custom fonts.
+ * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
+ *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
+ *  to capture PROJECT timings.
  */
 class CliLattice(
     val width: Int,
     val height: Int,
     val characterAspectRatio: Float = 2.0f,
+    private val probe: FrameProbe = FrameProbe.Disabled,
 ) {
     init {
         require(width > 0) { "width must be > 0, got $width" }
@@ -60,7 +67,9 @@ class CliLattice(
      *
      * Ambient and glyph state pass through unchanged.
      */
-    fun project(frame: VoxelFrame): LumosTerminalFrame {
+    fun project(frame: VoxelFrame): LumosTerminalFrame = probe.measure(FramePhase.PROJECT) { projectFrame(frame) }
+
+    private fun projectFrame(frame: VoxelFrame): LumosTerminalFrame {
         val winningIndex = IntArray(cellCount) { -1 }
         val winningZ = FloatArray(cellCount)
         val cells = frame.cells

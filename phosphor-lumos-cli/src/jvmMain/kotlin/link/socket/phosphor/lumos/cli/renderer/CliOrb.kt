@@ -10,6 +10,9 @@ import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.glyph.CliGlyph
 import link.socket.phosphor.lumos.cli.projection.CliLattice
+import link.socket.phosphor.lumos.probe.FramePhase
+import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.lumos.probe.measure
 
 /**
  * JVM terminal renderer for [LumosTerminalFrame].
@@ -46,6 +49,9 @@ import link.socket.phosphor.lumos.cli.projection.CliLattice
  *  disable polling entirely (useful in tests that drive resize manually).
  * @param lattice Optional projection lattice. Required only when callers use
  *  the [LumosRenderer] interface method `render(VoxelFrame)` directly.
+ * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
+ *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
+ *  to capture DRAW timings (the terminal write).
  */
 class CliOrb(
     private val out: PrintStream = System.out,
@@ -55,6 +61,7 @@ class CliOrb(
     private val terminalSize: TerminalSize = DefaultTerminalSize(),
     private val resizePollFrames: Int = DEFAULT_RESIZE_POLL_FRAMES,
     private val lattice: CliLattice? = null,
+    private val probe: FrameProbe = FrameProbe.Disabled,
 ) : LumosRenderer<LumosTerminalFrame> {
     init {
         require(targetFps > 0) { "targetFps must be > 0, got $targetFps" }
@@ -104,7 +111,10 @@ class CliOrb(
      */
     fun render(frame: LumosTerminalFrame) {
         if (stopped) return
+        probe.measure(FramePhase.DRAW) { renderFrame(frame) }
+    }
 
+    private fun renderFrame(frame: LumosTerminalFrame) {
         var forceFull = clearMode == ClearMode.FULL
         if (!initialized) {
             out.print(CURSOR_HIDE)

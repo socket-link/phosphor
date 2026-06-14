@@ -5,6 +5,9 @@ import kotlin.math.sin
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
+import link.socket.phosphor.lumos.probe.FramePhase
+import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.lumos.probe.measure
 
 /**
  * Orthographic projection of a [VoxelFrame] to a [LumosCanvasFrame] for Compose Canvas rendering.
@@ -27,12 +30,16 @@ import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
  * @param voxelRadiusPx Base voxel half-size in pixels at `scale = 1.0`; must be > 0.
  * @param aspectRatio Pixel aspect ratio applied to the Y axis; defaults to 1.0 for square pixels.
  *  Must be > 0.
+ * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
+ *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
+ *  to capture PROJECT timings.
  */
 class ComposeLattice(
     val widthPx: Int,
     val heightPx: Int,
     val voxelRadiusPx: Float = 4f,
     val aspectRatio: Float = 1.0f,
+    private val probe: FrameProbe = FrameProbe.Disabled,
 ) {
     init {
         require(widthPx > 0) { "widthPx must be > 0, got $widthPx" }
@@ -56,7 +63,9 @@ class ComposeLattice(
      *
      * Ambient and glyph state pass through unchanged.
      */
-    fun project(frame: VoxelFrame): LumosCanvasFrame {
+    fun project(frame: VoxelFrame): LumosCanvasFrame = probe.measure(FramePhase.PROJECT) { projectFrame(frame) }
+
+    private fun projectFrame(frame: VoxelFrame): LumosCanvasFrame {
         val cells = frame.cells
         val ambient = frame.ambient
 
