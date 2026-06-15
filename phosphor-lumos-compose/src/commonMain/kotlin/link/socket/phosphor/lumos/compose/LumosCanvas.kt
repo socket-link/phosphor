@@ -22,6 +22,9 @@ import kotlin.math.sin
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
+import link.socket.phosphor.lumos.probe.FramePhase
+import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.lumos.probe.measure
 
 /**
  * Renders a [LumosCanvasFrame] as a Compose Canvas.
@@ -39,6 +42,8 @@ import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
  * @param backgroundColor Optional opaque background drawn before halo and voxels. Transparent by default.
  * @param showHalo    Paint the ambient breath-ring gradient behind the orb. Defaults to true.
  * @param showGlyphOverlay Overlay the active glyph when [LumosCanvasFrame.glyph] is non-null. Defaults to true.
+ * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which adds no per-paint
+ *  cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe] to capture DRAW timings.
  */
 @Stable
 @Composable
@@ -48,21 +53,24 @@ fun LumosCanvas(
     backgroundColor: Color = Color.Transparent,
     showHalo: Boolean = true,
     showGlyphOverlay: Boolean = true,
+    probe: FrameProbe = FrameProbe.Disabled,
 ) {
     Canvas(modifier = modifier) {
-        if (backgroundColor != Color.Transparent) {
-            drawRect(backgroundColor)
-        }
-        if (showHalo) drawHalo(frame.ambient)
-        for (voxel in frame.voxels.sortedBy { it.z }) {
-            drawRect(
-                color = Color(voxel.red, voxel.green, voxel.blue, voxel.alpha),
-                topLeft = Offset(voxel.screenX - voxel.radiusPx, voxel.screenY - voxel.radiusPx),
-                size = Size(voxel.radiusPx * 2f, voxel.radiusPx * 2f),
-            )
-        }
-        if (showGlyphOverlay) {
-            frame.glyph?.let { drawGlyph(it) }
+        probe.measure(FramePhase.DRAW) {
+            if (backgroundColor != Color.Transparent) {
+                drawRect(backgroundColor)
+            }
+            if (showHalo) drawHalo(frame.ambient)
+            for (voxel in frame.voxels.sortedBy { it.z }) {
+                drawRect(
+                    color = Color(voxel.red, voxel.green, voxel.blue, voxel.alpha),
+                    topLeft = Offset(voxel.screenX - voxel.radiusPx, voxel.screenY - voxel.radiusPx),
+                    size = Size(voxel.radiusPx * 2f, voxel.radiusPx * 2f),
+                )
+            }
+            if (showGlyphOverlay) {
+                frame.glyph?.let { drawGlyph(it) }
+            }
         }
     }
 }
