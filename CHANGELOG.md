@@ -4,6 +4,14 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+#### `Oscilloscope` headless capture in `:phosphor-trace` (PHO-36 / #72)
+
+`Oscilloscope.capture(config: CaptureConfig): Result<VoxelTrace>` drives `CognitiveSceneRuntime` and `VoxelFrameBuilder` with no renderer and no UI clock, stepping the simulation at exactly `1f / fps`, and assembles the frames into a `VoxelTrace`. Equal configs produce byte-identical `.vxt` payloads; this is verified by tests. `CaptureConfig` carries the tuning `CaptureParams`, the seed, duration, fps, `TraceSegment`s, optional `AtmosphereCue`s for scripted transitions, and the header timestamp and version, so nothing is read from the environment during capture. Failures are Result-typed via `CaptureError`.
+
+`:phosphor-trace` now declares `api(project(":phosphor-core"))` because `CaptureParams` exposes `AtmosphereState`.
+
 ### Breaking Changes
 
 #### `CognitivePhase` enum updated to canonical PROPEL vocabulary
