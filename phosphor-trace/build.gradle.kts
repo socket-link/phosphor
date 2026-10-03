@@ -59,6 +59,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(project(":phosphor-core"))
                 api(project(":phosphor-lumos"))
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.7.3")
