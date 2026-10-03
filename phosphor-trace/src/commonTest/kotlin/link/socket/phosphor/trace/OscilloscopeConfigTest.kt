@@ -73,7 +73,7 @@ class OscilloscopeConfigTest {
     }
 
     @Test
-    fun `header fields come from the config, not the environment`() {
+    fun `header fields come from the config rather than the environment`() {
         val config =
             CaptureConfig(
                 params = CaptureParams(small, LumosRenderConfig(omitBelowScale = 0.01f)),
