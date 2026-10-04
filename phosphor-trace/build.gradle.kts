@@ -61,6 +61,7 @@ kotlin {
             dependencies {
                 api(project(":phosphor-core"))
                 api(project(":phosphor-lumos"))
+                api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.7.3")
             }
@@ -68,6 +69,7 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
             }
         }
     }

@@ -2,18 +2,16 @@ package link.socket.phosphor.trace
 
 import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrame
-import link.socket.phosphor.lumos.VoxelFrameBuilder
-import link.socket.phosphor.runtime.CognitiveSceneRuntime
 import link.socket.phosphor.runtime.SceneConfiguration
 import link.socket.phosphor.signal.AtmosphereState
 
 /**
  * Headless recorder for `VoxelFrame` streams.
  *
- * An oscilloscope captures a signal over time as a trace. This one drives
- * [CognitiveSceneRuntime] and [VoxelFrameBuilder] with no renderer and no UI
- * clock, stepping the simulation at exactly `1f / fps` seconds per frame, and
- * assembles the frames into a [VoxelTrace].
+ * An oscilloscope captures a signal over time as a trace. This one drives a
+ * [SignalGenerator] with no renderer and no UI clock, stepping the simulation at
+ * exactly `1f / fps` seconds per frame, and assembles the frames into a
+ * [VoxelTrace]. [TracePlayer] plays the result back.
  *
  * Determinism contract: [capture] reads nothing from the environment. Equal
  * [CaptureConfig]s produce equal traces, and `TraceCodec.encode` of those traces
@@ -91,37 +89,37 @@ object Oscilloscope {
     }
 
     private fun captureFrames(config: CaptureConfig): List<VoxelFrame> {
-        val runtime =
-            CognitiveSceneRuntime(
-                SceneConfiguration(
-                    width = HEADLESS_SUBSTRATE_SIZE,
-                    height = HEADLESS_SUBSTRATE_SIZE,
-                    enableWaveform = false,
-                    enableParticles = false,
-                    enableFlow = false,
-                    enableEmitters = false,
-                    enableCamera = false,
-                    enableAtmosphere = true,
-                    initialAtmosphere = config.params.atmosphere,
-                    seed = config.seed,
-                ),
-            )
-        val builder =
-            VoxelFrameBuilder(
-                initialResolution = config.params.atmosphere.resolution,
-                config = config.params.renderConfig,
+        // The same generator LumosSource.Live drives, stepped by a loop instead
+        // of a clock. Capture and live playback share this path on purpose: it
+        // is what makes a replay frame-identical to the simulation it recorded
+        // rather than merely similar to it.
+        val generator =
+            SignalGenerator(
+                configuration =
+                    SceneConfiguration(
+                        width = HEADLESS_SUBSTRATE_SIZE,
+                        height = HEADLESS_SUBSTRATE_SIZE,
+                        enableWaveform = false,
+                        enableParticles = false,
+                        enableFlow = false,
+                        enableEmitters = false,
+                        enableCamera = false,
+                        enableAtmosphere = true,
+                        initialAtmosphere = config.params.atmosphere,
+                        seed = config.seed,
+                    ),
+                renderConfig = config.params.renderConfig,
+                fps = config.fps,
             )
         // groupBy preserves list order within each frame bucket, so cues on the
         // same frame apply in declaration order.
         val cuesByFrame = config.cues.groupBy(AtmosphereCue::atFrame)
-        val dt = 1f / config.fps
         val frameCount = config.frameCount
 
         val frames = ArrayList<VoxelFrame>(frameCount)
         for (frameIndex in 0 until frameCount) {
-            cuesByFrame[frameIndex]?.forEach { cue -> runtime.setAtmosphere(cue.atmosphere) }
-            val snapshot = runtime.update(dt)
-            frames += builder.build(snapshot, dt)
+            cuesByFrame[frameIndex]?.forEach { cue -> generator.setAtmosphere(cue.atmosphere) }
+            frames += generator.nextFrame()
         }
         return frames
     }

@@ -53,6 +53,14 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
             }
         }
+        val jvmMain by getting {
+            dependencies {
+                // Demo-only, and only on the JVM: the trace module is where
+                // TracePlayer and LumosSource live. Nothing in the published CLI
+                // surface depends on it, so this stays out of commonMain.
+                implementation(project(":phosphor-trace"))
+            }
+        }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
@@ -73,6 +81,22 @@ tasks.register<JavaExec>("runFrameProbeBenchmark") {
     classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
     mainClass.set("link.socket.phosphor.lumos.cli.bench.FrameProbeBenchmarkKt")
     (project.findProperty("duration") as String?)?.let { args(it) }
+}
+
+// PHO-37: play a recorded .vxt through the CLI render path with a live glyph on top.
+// Usage: ./gradlew :phosphor-lumos-cli:runTracePlayerDemo                 (12s, fresh capture)
+//        ./gradlew :phosphor-lumos-cli:runTracePlayerDemo -Pseconds=30
+//        ./gradlew :phosphor-lumos-cli:runTracePlayerDemo -Ptrace=clip.vxt
+tasks.register<JavaExec>("runTracePlayerDemo") {
+    group = "application"
+    description = "Replay a VoxelTrace through CliOrb with a live glyph overlay (PHO-37, Task E)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.demo.TracePlayerDemoKt")
+    // The orb draws ANSI straight to the terminal, so the task must own stdin/stdout.
+    standardInput = System.`in`
+    args((project.findProperty("seconds") as String?) ?: "", (project.findProperty("trace") as String?) ?: "")
 }
 
 mavenPublishing {
