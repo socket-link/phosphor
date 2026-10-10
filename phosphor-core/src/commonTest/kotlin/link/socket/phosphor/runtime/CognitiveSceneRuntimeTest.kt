@@ -7,6 +7,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import link.socket.phosphor.choreography.AgentLayoutOrientation
+import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.emitter.EmitterEffect
 import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
@@ -82,6 +83,52 @@ class CognitiveSceneRuntimeTest {
         assertEquals(AtmospherePresets.THINKING, runtime.currentAtmosphere)
         assertEquals(AtmospherePresets.THINKING, finalSnapshot.atmosphere)
         assertNull(finalSnapshot.atmosphereTransition)
+    }
+
+    @Test
+    fun `setAtmosphere with the immediate spec lands in one update and leaves no transition`() {
+        val runtime =
+            CognitiveSceneRuntime(
+                SceneConfiguration(
+                    width = 8,
+                    height = 6,
+                    enableAtmosphere = true,
+                ),
+            )
+        val tuned = AtmospherePresets.IDLE.copy(pulseAmplitude = 0.28f, surfaceBump = 0.33f)
+
+        runtime.setAtmosphere(tuned, spec = AtmosphereTransitionSpec.Immediate)
+        val snapshot = runtime.update(1f / 60f)
+
+        assertEquals(tuned, snapshot.atmosphere)
+        assertEquals(tuned, runtime.currentAtmosphere)
+        assertNull(
+            snapshot.atmosphereTransition,
+            "an immediate set must not leave a transition for the frame builder to crossfade",
+        )
+    }
+
+    @Test
+    fun `setAtmospherePreset forwards an explicit spec instead of the tabled one`() {
+        val runtime =
+            CognitiveSceneRuntime(
+                SceneConfiguration(
+                    width = 8,
+                    height = 6,
+                    enableAtmosphere = true,
+                ),
+            )
+
+        runtime.setAtmospherePreset(
+            "listening",
+            spec = AtmosphereTransitionSpec(durationSeconds = 3f, easingName = "settled"),
+        )
+        val snapshot = runtime.update(0f)
+
+        val transition = requireNotNull(snapshot.atmosphereTransition)
+        assertEquals(3f, transition.durationSeconds)
+        assertEquals("settled", transition.easingName)
+        assertEquals("listening", transition.toPresetName)
     }
 
     @Test

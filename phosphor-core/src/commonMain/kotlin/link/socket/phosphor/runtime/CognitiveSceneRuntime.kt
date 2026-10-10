@@ -4,6 +4,7 @@ import kotlin.random.Random
 import link.socket.phosphor.choreography.AgentLayer
 import link.socket.phosphor.choreography.AgentLayoutOrientation
 import link.socket.phosphor.choreography.AtmosphereChoreographer
+import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.choreography.CognitiveChoreographer
 import link.socket.phosphor.emitter.EmitterEffect
 import link.socket.phosphor.emitter.EmitterManager
@@ -132,14 +133,23 @@ class CognitiveSceneRuntime(
      * to-preset name is also inferred (so callers using a known preset value
      * still get a tabled transition). Callers that need to bind a specific
      * preset name should use [setAtmospherePreset].
+     *
+     * @param state New atmosphere value.
+     * @param spec Overrides the tabled duration and easing. Null consults the
+     *  table. Pass [AtmosphereTransitionSpec.Immediate] to apply [state] on the
+     *  next [update] without interpolating — what a live tuning surface needs,
+     *  since it re-sets the atmosphere on every slider change.
      */
-    fun setAtmosphere(state: AtmosphereState) {
+    fun setAtmosphere(
+        state: AtmosphereState,
+        spec: AtmosphereTransitionSpec? = null,
+    ) {
         val choreographer =
             checkNotNull(atmosphereChoreographer) {
                 "Atmosphere subsystem not enabled in SceneConfiguration. " +
                     "Set enableAtmosphere = true to use setAtmosphere."
             }
-        choreographer.setAtmosphere(state, targetPresetName = null)
+        choreographer.setAtmosphere(state, targetPresetName = null, spec = spec)
     }
 
     /**
@@ -149,9 +159,14 @@ class CognitiveSceneRuntime(
      * preset name is forwarded to the choreographer so transition specs can be
      * looked up in the default table.
      *
+     * @param name Registered preset name, matched case-insensitively.
+     * @param spec Overrides the tabled duration and easing; null consults the table.
      * @throws IllegalArgumentException when [name] does not match any registered preset.
      */
-    fun setAtmospherePreset(name: String) {
+    fun setAtmospherePreset(
+        name: String,
+        spec: AtmosphereTransitionSpec? = null,
+    ) {
         val choreographer =
             checkNotNull(atmosphereChoreographer) {
                 "Atmosphere subsystem not enabled in SceneConfiguration. " +
@@ -161,7 +176,7 @@ class CognitiveSceneRuntime(
             requireNotNull(AtmospherePresets.byName(name)) {
                 "Unknown atmosphere preset: '$name'"
             }
-        choreographer.setAtmosphere(state, targetPresetName = name)
+        choreographer.setAtmosphere(state, targetPresetName = name, spec = spec)
     }
 
     /**

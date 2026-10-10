@@ -22,7 +22,9 @@ import kotlinx.serialization.Serializable
  * @property rotationX Continuous spin rate around the X axis.
  * @property surfaceBump Surface deformation amplitude.
  * @property noise Per-voxel position jitter scale.
- * @property voxelGap Voxel scale-down amount used by renderers that show lattice gaps.
+ * @property voxelGap Fraction of a lattice cell left empty between neighbouring voxels,
+ *  expected in 0..1. A cube fills `1 - voxelGap` of its cell, so 0 packs the lattice solid
+ *  and 0.4 leaves wide channels between cubes.
  * @property ySquash Vertical squash ratio.
  * @property resolution Lattice resolution.
  * @property glow Renderer-interpreted atmospheric glow intensity.

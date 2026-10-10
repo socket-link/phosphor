@@ -44,7 +44,9 @@ data class VoxelFrame(
  * @property y Voxel y position in lattice space, post-noise post-bump post-pulse.
  * @property z Voxel z position in lattice space, post-noise post-bump post-pulse.
  * @property scale Scale multiplier applied to the voxel cube. 1.0 = full size, 0.0 = invisible.
- *  Combines voxel-gap, breath pulse, bipolar boundary thinning, and glyph carving.
+ *  Combines the voxel fill (`1 - AtmosphereState.voxelGap`), breath pulse, bipolar boundary
+ *  thinning, and glyph carving. A renderer multiplies its own full-cell size by this value,
+ *  so the orb's apparent density is this number and its apparent size is the renderer's.
  * @property red Final rendered red channel in sRGB, 0..1.
  * @property green Final rendered green channel in sRGB, 0..1.
  * @property blue Final rendered blue channel in sRGB, 0..1.

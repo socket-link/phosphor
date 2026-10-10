@@ -41,7 +41,11 @@ import kotlinx.serialization.Serializable
  * @property fromPresetName Preset name for [from], or null when [from] is not a known preset.
  * @property toPresetName Preset name for [to], or null when [to] is not a known preset.
  * @property progressLinear Time-based progress, expected in 0..1.
- * @property progressEased Easing-adjusted progress, expected in 0..1.
+ * @property progressEased Easing-adjusted progress. In 0..1 for monotone easings;
+ *  the overshoot family (`overshoot`, `easeOutBack`, `easeOutElastic`) exceeds 1
+ *  near the end of its window, which is how an arrival overshoots its target
+ *  before settling. Consumers that index a table or a ramp by this value must
+ *  clamp it themselves.
  * @property easingName Easing identifier used for diagnostics.
  * @property durationSeconds Transition duration in seconds.
  */

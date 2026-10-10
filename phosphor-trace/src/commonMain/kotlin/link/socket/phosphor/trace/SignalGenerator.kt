@@ -6,6 +6,7 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrame
@@ -73,18 +74,33 @@ class SignalGenerator(
     var frameCount: Long = 0L
         private set
 
-    /** Transition the scene toward [state]. Takes effect on the next step. */
-    fun setAtmosphere(state: AtmosphereState) {
-        runtime.setAtmosphere(state)
+    /**
+     * Transition the scene toward [state]. Takes effect on the next step.
+     *
+     * @param state New atmosphere value.
+     * @param spec Overrides the tabled duration and easing; null consults the
+     *  table. [AtmosphereTransitionSpec.Immediate] snaps instead of interpolating,
+     *  which is how a tuning surface drives a live preview from a slider.
+     */
+    fun setAtmosphere(
+        state: AtmosphereState,
+        spec: AtmosphereTransitionSpec? = null,
+    ) {
+        runtime.setAtmosphere(state, spec)
     }
 
     /**
      * Transition the scene toward the named preset.
      *
+     * @param name Registered preset name, matched case-insensitively.
+     * @param spec Overrides the tabled duration and easing; null consults the table.
      * @throws IllegalArgumentException when no preset carries that name.
      */
-    fun setAtmospherePreset(name: String) {
-        runtime.setAtmospherePreset(name)
+    fun setAtmospherePreset(
+        name: String,
+        spec: AtmosphereTransitionSpec? = null,
+    ) {
+        runtime.setAtmospherePreset(name, spec)
     }
 
     /**
