@@ -71,7 +71,7 @@ class VoxelFrameBuilderTest {
     }
 
     @Test
-    fun `voxel gap is the empty fraction of a cell, not the cube size`() {
+    fun `voxel gap is the empty fraction of a cell rather than the cube size`() {
         // A gap is what is left out, so the cube fills what remains. Asserted at
         // dt = 0 and pulseAmplitude = 0 so `scale` is the fill and nothing else.
         val resting = AtmospherePresets.IDLE.copy(pulseAmplitude = 0f, resolution = 4)
