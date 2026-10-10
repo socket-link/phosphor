@@ -133,6 +133,11 @@ class VoxelFrameBuilder(
         advancePhases(atmosphere, dt)
 
         val pulse = 1f + sin(pulsePhase) * atmosphere.pulseAmplitude
+        // voxelGap is the fraction of a lattice cell left empty between cubes, so the
+        // cube itself fills what remains. Clamped because an overshoot easing can carry
+        // an interpolated gap briefly past its endpoints, and a negative fill would
+        // invert the cube.
+        val voxelFill = (1f - atmosphere.voxelGap).coerceIn(0f, 1f)
         val effectiveYSquash = atmosphere.ySquash * (config.globalYSquashOverride ?: 1f)
         val glyphColor =
             glyphLifecycle
@@ -165,7 +170,7 @@ class VoxelFrameBuilder(
                 } else {
                     1f
                 }
-            val scale = atmosphere.voxelGap * pulse * boundaryShrink * glyphShrink
+            val scale = voxelFill * pulse * boundaryShrink * glyphShrink
 
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 

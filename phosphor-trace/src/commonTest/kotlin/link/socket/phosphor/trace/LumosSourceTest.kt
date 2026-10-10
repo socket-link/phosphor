@@ -1,5 +1,6 @@
 package link.socket.phosphor.trace
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
+import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
@@ -118,6 +120,24 @@ class LumosSourceTest {
         assertTrue(trace.glyphs.all { it == null })
         assertNull(TracePlayer(trace).currentFrame.glyph)
     }
+
+    @Test
+    fun anImmediateAtmosphereSetOnALiveArmLandsInTheNextFrame() =
+        runTest {
+            // The tuning-surface path: a slider re-sets the atmosphere every frame,
+            // so a tabled transition would leave the preview chasing the pointer.
+            // Asserted through the frame stream because that is what a panel sees.
+            val source = LumosSource.Live(configuration = scene(), fps = FPS)
+            val solid = AtmospherePresets.THINKING.copy(voxelGap = 0f, pulseAmplitude = 0f)
+            source.generator.setAtmosphere(solid, spec = AtmosphereTransitionSpec.Immediate)
+
+            val frame = source.frames(testTimeSource).take(1).toList().single()
+
+            assertTrue(
+                frame.cells.all { abs(it.scale - 1f) < 1e-5f },
+                "a closed gap set immediately should reach full fill on the next frame",
+            )
+        }
 
     @Test
     fun aLiveStreamAdvancesTheSimulation() =

@@ -71,6 +71,48 @@ class VoxelFrameBuilderTest {
     }
 
     @Test
+    fun `voxel gap is the empty fraction of a cell, not the cube size`() {
+        // A gap is what is left out, so the cube fills what remains. Asserted at
+        // dt = 0 and pulseAmplitude = 0 so `scale` is the fill and nothing else.
+        val resting = AtmospherePresets.IDLE.copy(pulseAmplitude = 0f, resolution = 4)
+
+        listOf(0f, 0.05f, 0.25f, 0.4f).forEach { gap ->
+            val builder = VoxelFrameBuilder(initialResolution = 4)
+            val frame = builder.build(snapshot(atmosphere = resting.copy(voxelGap = gap)), dt = 0f)
+
+            assertTrue(frame.cells.isNotEmpty())
+            frame.cells.forEach { cell ->
+                assertEquals(1f - gap, cell.scale, 1e-5f, "voxelGap $gap should fill ${1f - gap}")
+            }
+        }
+    }
+
+    @Test
+    fun `a closed gap fills the lattice solid`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        val solid = AtmospherePresets.IDLE.copy(voxelGap = 0f, pulseAmplitude = 0f, resolution = 4)
+
+        val frame = builder.build(snapshot(atmosphere = solid), dt = 0f)
+
+        frame.cells.forEach { cell ->
+            assertEquals(1f, cell.scale, 1e-5f, "a zero gap should leave voxels at full size")
+        }
+    }
+
+    @Test
+    fun `a gap beyond a full cell clamps to invisible rather than inverting the cube`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        val overshot = AtmospherePresets.IDLE.copy(voxelGap = 1.4f, pulseAmplitude = 0f, resolution = 4)
+
+        val frame = builder.build(snapshot(atmosphere = overshot), dt = 0f)
+
+        assertTrue(frame.cells.isNotEmpty())
+        frame.cells.forEach { cell ->
+            assertEquals(0f, cell.scale, 1e-5f, "an over-full gap should clamp to 0, got ${cell.scale}")
+        }
+    }
+
+    @Test
     fun `bipolar strength collapses voxels at the pattern boundary`() {
         val solidBipolar =
             AtmospherePresets.IDLE.copy(
@@ -82,10 +124,16 @@ class VoxelFrameBuilderTest {
         val frame = builder.build(snapshot(atmosphere = solidBipolar), dt = 0f)
 
         assertTrue(frame.cells.isNotEmpty())
+        // SOLID holds every voxel at mix = 0.5, which is the centre of the bipolar
+        // band, so the whole lattice thins to nothing. Compared against the
+        // un-thinned fill rather than a bare constant: a threshold below the
+        // baseline would pass even if no thinning happened at all.
+        val unthinned = 1f - solidBipolar.voxelGap
         frame.cells.forEach { cell ->
             assertTrue(
-                cell.scale < 0.1f,
-                "voxel at SOLID pattern boundary should be thinned, got scale=${cell.scale}",
+                cell.scale < unthinned * 0.1f,
+                "voxel at SOLID pattern boundary should be thinned, got scale=${cell.scale} " +
+                    "against un-thinned fill $unthinned",
             )
         }
     }
@@ -101,7 +149,7 @@ class VoxelFrameBuilderTest {
 
         val frame = builder.build(snapshot(atmosphere = patternBipolar), dt = 0f)
 
-        val baseline = patternBipolar.voxelGap * (1f + 0f)
+        val baseline = (1f - patternBipolar.voxelGap) * (1f + 0f)
         val unthinnedCount = frame.cells.count { abs(it.scale - baseline) < 1e-5f }
         assertTrue(
             unthinnedCount > 0,

@@ -3,6 +3,7 @@ package link.socket.phosphor.choreography
 import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -217,5 +218,121 @@ class AtmosphereChoreographerTest {
         val transition = assertNotNull(choreographer.activeTransition)
         assertEquals(AtmosphereChoreographer.DefaultSpec.durationSeconds, transition.durationSeconds, tolerance)
         assertEquals(AtmosphereChoreographer.DefaultSpec.easingName, transition.easingName)
+    }
+
+    @Test
+    fun `an explicit spec overrides the tabled one`() {
+        val choreographer = AtmosphereChoreographer(AtmospherePresets.IDLE)
+
+        choreographer.setAtmosphere(
+            AtmospherePresets.LISTENING,
+            targetPresetName = "listening",
+            spec = AtmosphereTransitionSpec(durationSeconds = 2.5f, easingName = "settled"),
+        )
+
+        val transition = assertNotNull(choreographer.activeTransition)
+        assertEquals(2.5f, transition.durationSeconds, tolerance)
+        assertEquals("settled", transition.easingName)
+    }
+
+    @Test
+    fun `the immediate spec snaps to the target on the next update`() {
+        val choreographer = AtmosphereChoreographer(AtmospherePresets.IDLE)
+        val tuned = AtmospherePresets.IDLE.copy(pulseAmplitude = 0.31f, noise = 0.07f)
+
+        choreographer.setAtmosphere(tuned, spec = AtmosphereTransitionSpec.Immediate)
+        val state = choreographer.update(1f / 60f)
+
+        assertEquals(tuned, state, "an immediate set should land the target whole")
+        assertNull(choreographer.activeTransition, "an immediate set should leave no transition behind")
+        assertEquals(0f, choreographer.colorBlend, tolerance)
+        assertEquals(0f, choreographer.patternBlend, tolerance)
+    }
+
+    @Test
+    fun `repeated immediate sets track each value without lag`() {
+        // What a slider drag looks like: a new target every frame. Each one must
+        // land on the frame after it was set, or the preview trails the pointer.
+        val choreographer = AtmosphereChoreographer(AtmospherePresets.IDLE)
+
+        listOf(0.05f, 0.12f, 0.28f, 0.33f).forEach { amplitude ->
+            val target = AtmospherePresets.IDLE.copy(pulseAmplitude = amplitude)
+            choreographer.setAtmosphere(target, spec = AtmosphereTransitionSpec.Immediate)
+
+            val state = choreographer.update(1f / 60f)
+
+            assertEquals(amplitude, state.pulseAmplitude, tolerance)
+            assertNull(choreographer.activeTransition)
+        }
+    }
+
+    @Test
+    fun `an immediate set still advances phase accumulators`() {
+        val choreographer = AtmosphereChoreographer(AtmospherePresets.IDLE)
+
+        choreographer.setAtmosphere(AtmospherePresets.READY, spec = AtmosphereTransitionSpec.Immediate)
+        choreographer.update(0.25f)
+
+        assertTrue(choreographer.pulsePhase > 0f, "phase must keep integrating across an immediate set")
+        assertTrue(choreographer.patternPhase > 0f)
+    }
+
+    @Test
+    fun `a spec with a negative duration is rejected`() {
+        assertFailsWith<IllegalArgumentException> {
+            AtmosphereTransitionSpec(durationSeconds = -0.1f, easingName = "linear")
+        }
+    }
+
+    @Test
+    fun `an overshoot transition carries a parameter past its target before settling`() {
+        // idle→ready is authored `overshoot`, and an overshoot arrival is supposed
+        // to exceed the target briefly. Clamping eased progress to 1 would make
+        // this land flat, so the assertion is that it does not.
+        val choreographer = AtmosphereChoreographer(AtmospherePresets.IDLE)
+        val from = AtmospherePresets.IDLE.rotationY
+        val to = AtmospherePresets.READY.rotationY
+        assertTrue(to > from, "fixture assumes ready spins faster than idle")
+
+        choreographer.setAtmosphere(AtmospherePresets.READY, targetPresetName = "ready")
+        val transition = assertNotNull(choreographer.activeTransition)
+        assertEquals("overshoot", transition.easingName)
+
+        var peak = from
+        var peakEased = 0f
+        // Overruns the window so float accumulation cannot leave the transition a
+        // hair short of complete; updates past completion only advance phase.
+        val step = transition.durationSeconds / 40f
+        repeat(48) {
+            val state = choreographer.update(step)
+            peak = maxOf(peak, state.rotationY)
+            choreographer.activeTransition?.let { peakEased = maxOf(peakEased, it.progressEased) }
+        }
+
+        assertTrue(peakEased > 1f, "eased progress should exceed 1 mid-overshoot, peaked at $peakEased")
+        assertTrue(peak > to, "rotationY should overshoot $to before settling, peaked at $peak")
+        assertEquals(to, choreographer.currentState.rotationY, tolerance, "and must still settle on the target")
+        assertNull(choreographer.activeTransition)
+    }
+
+    @Test
+    fun `an overshooting transition never builds a lattice outside its endpoints`() {
+        // resolution is the one interpolated field that reallocates geometry, so it
+        // stays inside the endpoints even while eased progress runs past 1.
+        val low = AtmospherePresets.IDLE.copy(resolution = 4)
+        val high = AtmospherePresets.READY.copy(resolution = 12)
+        val choreographer = AtmosphereChoreographer(low)
+        val overshooting = AtmosphereTransitionSpec(durationSeconds = 1.1f, easingName = "overshoot")
+
+        choreographer.setAtmosphere(high, spec = overshooting)
+        val step = overshooting.durationSeconds / 40f
+
+        repeat(48) {
+            val state = choreographer.update(step)
+            assertTrue(
+                state.resolution in 4..12,
+                "resolution ${state.resolution} escaped the 4..12 endpoints",
+            )
+        }
     }
 }

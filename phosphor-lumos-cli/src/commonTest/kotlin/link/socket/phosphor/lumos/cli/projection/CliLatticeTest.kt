@@ -378,13 +378,11 @@ class CliLatticeTest {
         )
 
     private fun settledFrame(atmosphere: AtmosphereState): VoxelFrame {
-        // The canonical presets use voxelGap = 0.05 for 3D renderers that draw
-        // small cubes inside a larger lattice cell. ASCII projection has no
-        // cube-size analog — it just picks a luminance character — so for
-        // visual regression we lift voxelGap to 1.0 to exercise the full
-        // luminance ramp. CliOrb's runtime configuration is expected to make
-        // an equivalent adjustment so the orb is visible in a terminal.
-        val cliAtmosphere = atmosphere.copy(voxelGap = 1f)
+        // ASCII projection has no cube-size analog — it reads `scale` as luminance
+        // rather than as a cube edge — so the canonical 0.05 gap would dim every
+        // character by 5% for no visible gain. Closing the gap entirely puts the
+        // lattice at full fill and exercises the whole luminance ramp.
+        val cliAtmosphere = atmosphere.copy(voxelGap = 0f)
         val builder = VoxelFrameBuilder(initialResolution = cliAtmosphere.resolution)
         val snapshot =
             SceneSnapshot(
@@ -431,7 +429,7 @@ class CliLatticeTest {
         private const val SETTLE_DT: Float = 0.05f
 
         // Expected ASCII grids capture the projection at 40x20 after 60 ticks
-        // of 50 ms each, with voxelGap lifted to 1.0 (see [settledFrame] for
+        // of 50 ms each, with the voxel gap closed to 0 (see [settledFrame] for
         // why). Trailing whitespace per row is normalized away in
         // [assertAsciiSnapshot], so rows are listed by their visible content.
         // Each snapshot is 20 rows; the orb sits in the top half because of

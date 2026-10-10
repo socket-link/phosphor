@@ -33,13 +33,31 @@ data class AtmosphereColorSnapshot(
  * The easing identifier is resolved against [Easing.byName] at transition
  * start; unknown identifiers fall back to [Easing.easeInOut].
  *
- * @property durationSeconds Transition duration in seconds; must be > 0.
+ * @property durationSeconds Transition duration in seconds; must be >= 0. Zero
+ *  applies the target on the next [AtmosphereChoreographer.update] with no
+ *  interpolation — see [Immediate].
  * @property easingName Easing identifier resolved via [Easing.byName].
  */
 data class AtmosphereTransitionSpec(
     val durationSeconds: Float,
     val easingName: String,
-)
+) {
+    init {
+        require(durationSeconds >= 0f) { "durationSeconds must be >= 0, got $durationSeconds" }
+    }
+
+    companion object {
+        /**
+         * Snap to the target on the next update instead of interpolating toward it.
+         *
+         * This is what a tuning surface wants: a slider drag re-sets the atmosphere
+         * on every value change, and a transition per tick would leave the preview
+         * chasing the pointer rather than reading the parameter.
+         */
+        val Immediate: AtmosphereTransitionSpec =
+            AtmosphereTransitionSpec(durationSeconds = 0f, easingName = "linear")
+    }
+}
 
 /**
  * Continuous interpolator for [AtmosphereState] transitions.
@@ -54,8 +72,10 @@ data class AtmosphereTransitionSpec(
  *   phase discontinuities when [AtmosphereState.pulseFrequency] or
  *   [AtmosphereState.patternSpeed] changes during a transition.
  * - **Two-track easing.** Numeric amplitude parameters use eased progress
- *   (e = easingFn(t)). Crossfade weights ([colorBlend], [patternBlend]) use
- *   linear progress so the visible blend animates evenly across the window.
+ *   (e = easingFn(t)), which is left unclamped so an overshoot easing can carry
+ *   them past the target and settle back. Crossfade weights ([colorBlend],
+ *   [patternBlend]) use linear progress so the visible blend animates evenly
+ *   across the window.
  * - **Snapshot color crossfade.** When a transition involves a bipolar-strength
  *   change between distinct hues, [colorFromSnapshot] and [colorToSnapshot]
  *   capture both color configurations at transition start so renderers can
@@ -154,14 +174,19 @@ class AtmosphereChoreographer(
      *
      * @param target New atmosphere value.
      * @param targetPresetName Optional caller-supplied preset identifier for [target].
+     * @param spec Overrides the duration and easing the default table would have
+     *  resolved. Null consults the table, which is what a scene driven by cognitive
+     *  state wants. Pass [AtmosphereTransitionSpec.Immediate] to snap, or an explicit
+     *  spec to replay one authored transition regardless of which pair it names.
      */
     fun setAtmosphere(
         target: AtmosphereState,
         targetPresetName: String? = null,
+        spec: AtmosphereTransitionSpec? = null,
     ) {
         val resolvedTargetName = targetPresetName ?: reverseLookupPresetName(target)
         val resolvedFromName = reverseLookupPresetName(currentState) ?: sourcePresetName
-        val spec = resolveSpec(resolvedFromName, resolvedTargetName)
+        val resolvedSpec = spec ?: resolveSpec(resolvedFromName, resolvedTargetName)
         val source = currentState
 
         sourceState = source
@@ -169,9 +194,9 @@ class AtmosphereChoreographer(
         targetState = target
         targetPresetNameInternal = resolvedTargetName
         elapsedSeconds = 0f
-        durationSeconds = spec.durationSeconds
-        easingName = spec.easingName
-        easingFn = Easing.byName(spec.easingName) ?: Easing.easeInOut
+        durationSeconds = resolvedSpec.durationSeconds
+        easingName = resolvedSpec.easingName
+        easingFn = Easing.byName(resolvedSpec.easingName) ?: Easing.easeInOut
 
         patternFrom = if (source.pattern != target.pattern) source.pattern else null
         patternBlend = 0f
@@ -239,7 +264,12 @@ class AtmosphereChoreographer(
             } else {
                 (elapsedSeconds / durationSeconds).coerceIn(0f, 1f)
             }
-        val eased = easingFn(linear).coerceIn(0f, 1f)
+        // Deliberately unclamped: the overshoot family (overshoot, easeOutBack,
+        // easeOutElastic) exceeds 1 near the end of its window, and that excess is
+        // the effect — clamping it here would make an overshoot arrival land flat.
+        // Only `linear` is bounded, because it drives the crossfade weights and the
+        // completion test.
+        val eased = easingFn(linear)
 
         val interpolated = interpolate(sourceState, targetState, eased)
         currentState = interpolated
@@ -297,7 +327,13 @@ class AtmosphereChoreographer(
             noise = lerp(from.noise, to.noise, t),
             voxelGap = lerp(from.voxelGap, to.voxelGap, t),
             ySquash = lerp(from.ySquash, to.ySquash, t),
-            resolution = lerp(from.resolution.toFloat(), to.resolution.toFloat(), t).roundToInt(),
+            // Held inside the endpoints even when [t] overshoots: resolution is the
+            // one interpolated field that reallocates the voxel lattice, and a
+            // transition has no business building a lattice neither endpoint asked for.
+            resolution =
+                lerp(from.resolution.toFloat(), to.resolution.toFloat(), t)
+                    .roundToInt()
+                    .coerceIn(minOf(from.resolution, to.resolution), maxOf(from.resolution, to.resolution)),
             glow = lerp(from.glow, to.glow, t),
         )
 

@@ -4,7 +4,27 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+#### Prototype-parity defects in the Lumos renderer (PHO-38 Task A recon / #74)
+
+Three behavioral divergences from the original voxel-orb prototype, found while enumerating the tunable parameter surface for the Workbench. The parameters themselves were all present and the five atmosphere presets matched the prototype exactly; what diverged was how three of them were consumed.
+
+**`AtmosphereState.voxelGap` is now the empty fraction of a lattice cell, not the cube size.** `VoxelFrameBuilder` computed `scale = voxelGap * pulse * …`, so the canonical `voxelGap = 0.05` emitted every voxel at 5% of full size — a 0.2 px half-size through `ComposeLattice`'s stock `voxelRadiusPx`, and the blank end of the luminance ramp through `CliLattice`. A cube now fills `1 - voxelGap` of its cell, clamped to `0..1`. `VoxelSphere.worldScale` (`11f / resolution`, computed and tested but consumed by nothing) documents the convention this restores: a voxel's side is one lattice cell, minus the gap.
+
+Renderers that compensated for the old scale by inflating their own voxel size will now draw too large. The matching base radius for an orthographic projector is half a lattice cell — `widthPx / (4 * resolution)`.
+
+**`overshoot` easing is no longer clamped away.** `AtmosphereChoreographer.update` applied `coerceIn(0f, 1f)` to eased progress, which erased the excess that *is* the overshoot. Three authored transitions (`idle→ready`, `listening→ready`, `thinking→ready`) use it, and all three arrived flat. Only linear progress is bounded now, because it drives the crossfade weights and the completion test. `AtmosphereState.resolution` is held inside the transition's endpoints while eased progress runs past 1, since it is the one interpolated field that reallocates the voxel lattice.
+
 ### Added
+
+#### Optional transition specs on atmosphere changes (PHO-38 / #74)
+
+`AtmosphereChoreographer.setAtmosphere`, `CognitiveSceneRuntime.setAtmosphere`, `CognitiveSceneRuntime.setAtmospherePreset`, `SignalGenerator.setAtmosphere`, and `SignalGenerator.setAtmospherePreset` all accept an optional `spec: AtmosphereTransitionSpec?`. Null consults the default transition table, which is what a scene driven by cognitive state wants, so every existing call site is unaffected.
+
+`AtmosphereTransitionSpec.Immediate` applies the target on the next update with no interpolation. A tuning surface needs this: it re-sets the atmosphere on every slider change, and a 1.1 s tabled transition per tick would leave the preview chasing the pointer rather than reading the parameter. An explicit spec also lets a caller replay one authored transition regardless of which preset pair it names.
+
+`AtmosphereTransitionSpec` now requires `durationSeconds >= 0`.
 
 #### `TracePlayer` and sealed `LumosSource` in `:phosphor-trace` (PHO-37 / #73)
 
