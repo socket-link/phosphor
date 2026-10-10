@@ -83,6 +83,21 @@ tasks.register<JavaExec>("runFrameProbeBenchmark") {
     (project.findProperty("duration") as String?)?.let { args(it) }
 }
 
+// PHO-39: drive a recorded trace through state changes from the keyboard.
+// Usage: ./gradlew :phosphor-lumos-cli:runStateMachineDemo                 (45s)
+//        ./gradlew :phosphor-lumos-cli:runStateMachineDemo -Pseconds=90
+tasks.register<JavaExec>("runStateMachineDemo") {
+    group = "application"
+    description = "Switch a recorded orb between cognitive states from the keyboard (PHO-39, Task D)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.demo.StateMachineDemoKt")
+    // Keypresses drive the state changes, so the task must own stdin as well as stdout.
+    standardInput = System.`in`
+    args((project.findProperty("seconds") as String?) ?: "")
+}
+
 // PHO-37: play a recorded .vxt through the CLI render path with a live glyph on top.
 // Usage: ./gradlew :phosphor-lumos-cli:runTracePlayerDemo                 (12s, fresh capture)
 //        ./gradlew :phosphor-lumos-cli:runTracePlayerDemo -Pseconds=30
