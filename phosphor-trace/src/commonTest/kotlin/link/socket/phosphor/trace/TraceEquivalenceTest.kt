@@ -77,17 +77,19 @@ class TraceEquivalenceTest {
     }
 
     @Test
-    fun theCodecRoundTripDoesNotDisturbEquivalence() {
+    fun theCodecRoundTripStaysWithinTheV2Tolerance() {
+        // v2 quantizes cell channels, so a trace read back from bytes is no longer
+        // float-identical to the one recorded — it is within the PHO-42 tolerance,
+        // and the lattice modules check that tolerance down to pixels and glyphs.
         val trace = Oscilloscope.capture(captureConfig()).getOrThrow()
         val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
 
-        val fromMemory = TracePlayer(trace)
+        TraceTestData.assertV2Equivalent(trace, decoded)
+
+        // Playback over the decoded trace replays exactly what was decoded.
         val fromBytes = TracePlayer(decoded)
-
-        val replayedInMemory = List(trace.frameCount) { fromMemory.frameAt(fromMemory.frameDuration * it) }
-        val replayedFromBytes = List(trace.frameCount) { fromBytes.frameAt(fromBytes.frameDuration * it) }
-
-        assertEquals(replayedInMemory, replayedFromBytes)
+        val replayedFromBytes = List(decoded.frameCount) { fromBytes.frameAt(fromBytes.frameDuration * it) }
+        assertEquals(decoded.toFrames(), replayedFromBytes)
     }
 
     @Test

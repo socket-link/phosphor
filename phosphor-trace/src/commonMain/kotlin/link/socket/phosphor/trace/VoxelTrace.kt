@@ -36,14 +36,30 @@ data class StaticLattice(
  * explicitly because a producer may omit voxels frame-to-frame, so `cells.size`
  * is not constant.
  *
- * The format is **versioned from v1** via [formatVersion]; lossy compression
- * tricks (quantization, inter-frame deltas) are reserved for a later version and
- * the field exists so a decoder can reject payloads it does not understand.
+ * The format is **versioned** via [formatVersion], and the version decides how
+ * `TraceCodec` writes the cell channels:
+ *
+ * - **v1** stores them at full `Float` precision. Lossless, about 12.5–13.6 bytes
+ *   per voxel-frame on a real Lumos capture.
+ * - **v2** (current) quantizes them: positions to 16-bit multiples of a
+ *   power-of-two step (`2⁻¹²` lattice units for an orb, so at most `2⁻¹³` of
+ *   error), scale to 16-bit multiples of `1/6561`, and colour and alpha to the
+ *   8-bit sRGB byte Compose draws. Colour and scale project through
+ *   `ComposeLattice` and `CliLattice` exactly as the originals do; only position
+ *   moves, and by under an eighth of a pixel on a 1080 px canvas. About 3.4–4.3
+ *   bytes per voxel-frame on a real capture.
+ *
+ * In memory a trace always holds float columns, whichever version it decoded
+ * from, so playback code never sees the difference. A decoded v2 trace holds the
+ * quantized values, so `decode(encode(t))` equals `t` only up to quantization —
+ * and re-encodes to identical bytes. The field also lets a decoder reject
+ * payloads it does not understand rather than silently misread them.
  *
  * Build one from captured frames with [fromFrames] and project it back to a
  * `VoxelFrame` list with [toFrames]; serialize it with `TraceCodec`.
  *
- * @property formatVersion Format version of this trace. v1 is full-precision columnar CBOR + gzip.
+ * @property formatVersion Format version of this trace and the format `TraceCodec` writes it in:
+ *  v1 is full-precision columnar CBOR + gzip, v2 quantizes the cell channels.
  * @property fps Frames per second the trace was captured at.
  * @property frameCount Number of frames in the trace.
  * @property phosphorVersion Phosphor library version that produced the trace.
@@ -186,8 +202,8 @@ class VoxelTrace(
     }
 
     companion object {
-        /** Current trace [formatVersion] written by [fromFrames]. */
-        const val CURRENT_FORMAT_VERSION: Int = 1
+        /** Current trace [formatVersion], stamped by [fromFrames]: v2, quantized cell channels. */
+        const val CURRENT_FORMAT_VERSION: Int = 2
 
         /**
          * Record [frames] into a columnar [VoxelTrace].

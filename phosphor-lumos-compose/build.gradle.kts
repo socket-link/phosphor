@@ -88,6 +88,13 @@ kotlin {
                 implementation(project(":phosphor-core"))
             }
         }
+        val jvmTest by getting {
+            dependencies {
+                // Test-only, and only on the JVM (phosphor-trace has no wasm target):
+                // the PHO-42 pixel-equivalence test projects real v2 traces.
+                implementation(project(":phosphor-trace"))
+            }
+        }
     }
 }
 
