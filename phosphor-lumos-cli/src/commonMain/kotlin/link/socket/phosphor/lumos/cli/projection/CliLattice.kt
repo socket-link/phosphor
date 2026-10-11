@@ -34,9 +34,8 @@ import link.socket.phosphor.lumos.probe.measure
  * @param characterAspectRatio Ratio of character cell height to width.
  *  Defaults to 2.0 because most monospace fonts render characters at ~1:2
  *  width:height. Configurable for high-DPI terminals or custom fonts.
- * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
- *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
- *  to capture PROJECT timings.
+ * @param probe Per-phase timing sink. Defaults to FrameProbe.Disabled, which
+ *  adds no per-frame cost; pass a RingBufferFrameProbe to capture PROJECT timings.
  */
 class CliLattice(
     val width: Int,

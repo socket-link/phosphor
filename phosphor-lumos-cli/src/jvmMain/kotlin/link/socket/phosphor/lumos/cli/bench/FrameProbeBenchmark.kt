@@ -65,7 +65,7 @@ fun main(args: Array<String>) {
     printOverheadComparison()
 }
 
-/** One pipeline instance: a runtime plus the three measured stages, all sharing [probe]. */
+/** One pipeline instance: a runtime plus the three measured stages, all sharing one probe. */
 private class Pipeline(
     private val runtime: CognitiveSceneRuntime,
     private val builder: VoxelFrameBuilder,
