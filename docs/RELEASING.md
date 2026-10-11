@@ -93,11 +93,12 @@ publishing module appears in both workflows' Apple-target lists. Then it runs
 one Gradle build.
 
 **Do not skip this and lean on PR CI.** CI covers this repository's *source*
-surface well — `jvmTest`, `jsTest`, `wasmJsTest`, `ktlintCheck`, `dokkaHtml` and
-`iosSimulatorArm64Test` all run on every pull request, and no module declares a
-target-specific Apple source set, so the simulator job compiles the same code
-the device and x64 targets do. What CI does not cover is everything about a
-release that is not source, and a tag cannot take those back:
+surface well — `jvmTest`, `jsTest`, `wasmJsTest`, `ktlintCheck`,
+`dokkaGeneratePublicationHtml` and `iosSimulatorArm64Test` all run on every pull
+request, and no module declares a target-specific Apple source set, so the
+simulator job compiles the same code the device and x64 targets do. What CI does
+not cover is everything about a release that is not source, and a tag cannot
+take those back:
 
 - **A module can declare `mavenPublishing { }` and be absent from
   `publish.yml`'s command line.** Nothing fails when those two drift.
@@ -126,9 +127,9 @@ reason this repository has no "JVM-only API in `commonMain`" hole — every
 module's `commonMain` is compiled for at least one target with no JVM stdlib on
 every pull request),
 `iosSimulatorArm64Test` (on every PR, across every module), and
-`dokkaGeneratePublicationHtml` (on every PR as `dokkaHtml` with the same link
-grep, and `publish.yml` runs it *before* the publish step, so a failure there
-costs a tag rather than a version).
+`dokkaGeneratePublicationHtml` (on every PR with the same link grep, and
+`publish.yml` runs it *before* the publish step, so a failure there costs a tag
+rather than a version).
 
 If the pre-flight fails: fix it on a normal PR, merge, and start again from step
 1 on the new `main`. Do not tag a tree you had to patch locally.

@@ -17,7 +17,7 @@ Phosphor is a Kotlin Multiplatform rendering library that translates cognitive s
 ```bash
 ./gradlew ktlintFormat                 # Auto-format code
 ./gradlew ktlintCheck                  # Check formatting
-./gradlew dokkaHtml                    # Generate API documentation
+./gradlew dokkaGeneratePublicationHtml # Generate API documentation
 ```
 
 ### Release
