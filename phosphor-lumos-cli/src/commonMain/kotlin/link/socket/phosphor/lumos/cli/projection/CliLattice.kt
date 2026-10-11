@@ -5,7 +5,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.color.OklabColor
-import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
@@ -17,8 +16,8 @@ import link.socket.phosphor.lumos.probe.measure
  * Orthographic projection of a VoxelFrame to a [LumosTerminalFrame].
  *
  * Each voxel's lattice position is first rotated by the frame's orb rotation
- * ([VoxelAmbient.orbRotationX], [VoxelAmbient.orbRotationY],
- * [VoxelAmbient.orbRotationZ]; **X first, then Y, then Z**), exactly as
+ * (`VoxelAmbient.orbRotationX`, `orbRotationY`, `orbRotationZ`;
+ * **X first, then Y, then Z**), exactly as
  * ComposeLattice does, so the two surfaces agree on what a frame looks like.
  * The rotated `(x, y)` maps to a character cell, ignoring `z` for placement
  * but using the rotated `z` for occlusion priority (closer voxels win the
