@@ -5,7 +5,7 @@ import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
 
 /**
- * Serializable 2D projection of a [VoxelFrame] shaped for Compose Canvas rendering.
+ * Serializable 2D projection of a VoxelFrame shaped for Compose Canvas rendering.
  *
  * Differs from LumosTerminalFrame in coordinate system (pixel-based, Compose-friendly)
  * and color representation (sRGB, not OKLab). Renderers can paint [voxels] directly
@@ -14,7 +14,7 @@ import link.socket.phosphor.lumos.VoxelGlyphState
  * @property width Pixel width of the canvas the projector was sized for.
  * @property height Pixel height of the canvas the projector was sized for.
  * @property voxels Visible voxels only (zero-scale cells dropped during projection).
- * @property ambient Per-frame parameters passed through from the source [VoxelFrame]
+ * @property ambient Per-frame parameters passed through from the source VoxelFrame
  *  for halo and glow rendering.
  * @property glyph Active glyph state, if any. Passed through for glyph-aware overlay rendering.
  * @property tick Monotonic frame counter passed through from source frame.
