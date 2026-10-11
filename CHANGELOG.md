@@ -4,6 +4,36 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+#### `VoxelTrace` format v2 — quantized cell channels, about 3.5× smaller (PHO-42 / #88)
+
+`TraceCodec` now writes **format v2** for every new trace: `VoxelTrace.CURRENT_FORMAT_VERSION` is `2`, and `VoxelTrace.fromFrames` and `Oscilloscope.capture` stamp it. v1 stored every cell channel as a full `Float`, which measured 12.5–13.6 bytes per voxel-frame on real Lumos captures (resolution 10, 4,801 voxels, 20 fps). That put a 4 s loop near 5 MB and Socket's five-loop asset set at 24.8 MB against SCKT-392's 10 MB budget. v2 measures **3.4–4.3 bytes per voxel-frame** on the same captures, and the five loops come to **7.4 MB**. The PHO-35 synthetic clip drops from 2.83 MB to 0.68 MB.
+
+The v2 layout keeps v1's header and per-frame metadata (ticks, timestamps, ambient, glyph) unchanged and quantizes the per-cell channels:
+- **Positions** become signed 16-bit multiples of a power-of-two step recorded in the header. For an orb the step is `2⁻¹²` lattice units; anything wider than ±8 gets a coarser step instead of overflowing.
+- **Scale** becomes unsigned 16-bit multiples of `1/6561`.
+- **Colour and alpha** become one byte each.
+
+Each 16-bit channel is stored as a plane of high bytes followed by a plane of low bytes. That layout, rather than the narrower integers, is what gzip rewards: for positions alone it is the difference between 5.2 and 3.1 bytes per voxel-frame.
+
+**What v2 changes on screen, and what it doesn't.** v2 is lossy, so `decode(encode(trace))` no longer equals `trace` for arbitrary floats. The quantization was chosen so the projected output only moves where it can't be avoided:
+- **Colour is drawn identically.** v2 stores the byte Compose itself packs an sRGB float into, so `LumosCanvas` draws the same colour, and `CliLattice`'s truecolor and 256-colour escapes are unchanged.
+- **Terminal characters from scale are unchanged.** `1/6561` puts every threshold of `CliLattice`'s ten-step luminance ramp on a grid edge, so a quantized scale never changes the ramp character. Every voxel of a Lumos orb shares one scale per frame, and IDLE's breath crosses a threshold, so a flip there would have changed the whole orb's character for a frame. A positive scale never quantizes to zero, so no voxel appears or disappears.
+- **Positions move by at most `2⁻¹³` lattice units**, which is under an eighth of a pixel on a 1080 px `ComposeLattice`. Because `CliLattice` floors each voxel to a character cell, voxels sitting exactly on a cell boundary can land in the neighbouring cell. That affected about 0.6 % of occupied cells per frame at 80×40, against several hundred cells the live orb changes from one frame to the next.
+
+Equivalence tests in `:phosphor-lumos-cli` and `:phosphor-lumos-compose` hold real captures to these bounds.
+
+Re-encoding a decoded v2 trace produces identical bytes. In memory a trace still holds `FloatArray` columns whichever version it came from, so `TracePlayer`, `FrameBlend` and `TraceStateMachine` are unchanged. Cell index `i` is still the same lattice voxel in every frame.
+
+**v1 still reads.** `TraceCodec.decode` reads v1 and v2 and still returns `TraceDecodeError.UnsupportedFormatVersion` for anything else; a frozen v1 payload in the test suite guards this. `TraceCodec.encode` now writes the format a trace's own `formatVersion` names: a decoded v1 trace re-encodes losslessly as v1 rather than being quantized behind its owner's back, and an unknown version throws `IllegalArgumentException`.
+
+For v2, `encode` also throws on a non-finite position or colour, an infinite alpha, or a scale above `65535/6561 ≈ 9.99`.
+
+`TraceCodec.SUPPORTED_FORMAT_VERSIONS` (`1..2`) is new. `TraceCodec.SUPPORTED_FORMAT_VERSION` and `UnsupportedFormatVersion.supportedVersion` now mean the newest version this build reads.
+
+Decoded RAM is unchanged: v2 shrinks the bundle, not the resident `FloatArray`s (about 61 MB for the five loops). Keeping quantized columns resident is tracked separately, as is previous-frame delta coding, which would take the full 25-segment set from about 17 MB to about 13 MB, still over SCKT-392's budget.
+
 ## [0.7.0] - 2026-10-11
 
 ### Fixed
