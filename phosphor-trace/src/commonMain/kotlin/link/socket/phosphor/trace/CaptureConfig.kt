@@ -51,6 +51,9 @@ data class AtmosphereCue(
  * @property phosphorVersion Library version stamped into the trace header.
  * @property createdAtEpochMs Creation timestamp stamped into the trace header. Defaults to `0`
  *  so captures are reproducible; callers that want a real timestamp supply one explicitly.
+ * @property seamBlendFrames Frames at the end of every `loop` segment that fade toward the
+ *  frames before its start, so the loop wraps continuously; see [Oscilloscope]. `0`, the
+ *  default, records the simulation untouched. Must be `>= 0` and shorter than every loop segment.
  */
 data class CaptureConfig(
     val params: CaptureParams = CaptureParams(),
@@ -61,6 +64,7 @@ data class CaptureConfig(
     val cues: List<AtmosphereCue> = emptyList(),
     val phosphorVersion: String = DEFAULT_PHOSPHOR_VERSION,
     val createdAtEpochMs: Long = 0L,
+    val seamBlendFrames: Int = 0,
 ) {
     /**
      * Number of frames the capture produces: `durationMs * fps / 1000`, truncated.
@@ -90,8 +94,8 @@ sealed class CaptureError(
     cause: Throwable? = null,
 ) : Exception(message, cause) {
     /**
-     * The [CaptureConfig] is inconsistent: non-positive fps or duration, or a
-     * segment or cue outside the clip.
+     * The [CaptureConfig] is inconsistent: non-positive fps or duration, a
+     * segment or cue outside the clip, or a seam blend that cannot fit or pair.
      */
     class InvalidConfig(
         message: String,

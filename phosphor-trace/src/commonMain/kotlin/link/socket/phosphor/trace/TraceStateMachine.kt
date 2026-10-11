@@ -23,8 +23,20 @@ sealed interface TransitionPolicy {
     /**
      * Let the outgoing loop finish its iteration, then switch at the seam.
      *
-     * Costs nothing and pops nothing: a loop is recorded to wrap, so its seam is
-     * already visually continuous, and the switch lands on exactly that frame.
+     * Costs nothing at runtime, and the switch lands exactly on the seam — so it
+     * pops no more than the seam does.
+     *
+     * **Precondition: the outgoing loop's content wraps continuously.** Capture
+     * does not guarantee it by default. `Oscilloscope` records whatever the
+     * simulation produced, and a loop whose phase accumulators do not complete
+     * together jumps at its seam — at the switch, and on every ordinary
+     * iteration as well. Capture with `CaptureConfig.seamBlendFrames` to bake the
+     * seam out, and check the recording with [seamErrors]: a
+     * [SeamError.contentRatio] near `1` wraps like one more frame, while a loop
+     * cut untouched from a canonical preset at a few seconds reads in the tens.
+     * Rotation is the machine's to keep continuous, not the recording's; see
+     * the class documentation.
+     *
      * The price is latency — up to one full loop iteration before the state
      * change is visible.
      */
@@ -80,6 +92,17 @@ sealed interface TransitionPolicy {
  * segments and applies no curve of its own; the crossfade weight is linear for
  * the same reason.
  *
+ * ### Rotation is carried, not replayed
+ *
+ * A recorded rotation only ever advances, so a loop shorter than a full turn
+ * cannot wrap it: replayed as recorded, every iteration would drop the orb back
+ * by the loop's whole travel. Cells are recorded unrotated and the angles ride
+ * in `VoxelAmbient`, so the machine offsets them instead. Each loop iteration,
+ * and each segment a head enters, starts where the last frame left off, one
+ * ordinary step on. The offset touches three floats in the ambient state; the
+ * cells are the recorded ones, and a frame whose offset is zero is the recorded
+ * instance. Pass `carryRotation = false` to emit recorded rotations untouched.
+ *
  * ### Time
  *
  * The machine owns the clock. It drives its heads through
@@ -94,6 +117,8 @@ sealed interface TransitionPolicy {
  * @param trace The recording to drive. Must carry the segment named by [initialState].
  * @param initialState Name of the segment to rest on at construction.
  * @param policy Fallback for state changes the recording has no transition segment for.
+ * @param carryRotation Whether to keep the orb's rotation continuous across loop seams and
+ *  segment changes; see "Rotation is carried, not replayed" above. On by default.
  * @throws TracePlaybackError.UnknownSegment when [initialState] names a segment
  *  the trace does not carry. Construction throws where [requestState] returns a
  *  failure, because an initial state is written by the caller while a request
@@ -103,6 +128,7 @@ class TraceStateMachine(
     private val trace: VoxelTrace,
     initialState: String,
     private val policy: TransitionPolicy = TransitionPolicy.FinishLoopThenSwitch,
+    private val carryRotation: Boolean = true,
 ) {
     /** Every name [requestState] accepts, in declaration order. */
     val stateNames: List<String> = trace.segments.map(TraceSegment::name)
@@ -118,6 +144,12 @@ class TraceStateMachine(
 
     private val frameNanos: Long = frameDuration.inWholeNanoseconds
 
+    // One carry per head, swapped with the heads when a crossfade lands.
+    private var primaryCarry: RotationCarry =
+        RotationCarry(trace, frameNanos, carryRotation).also { it.enter(primary.activeSegment, null) }
+    private var secondaryCarry: RotationCarry =
+        RotationCarry(trace, frameNanos, carryRotation).also { it.enter(secondary.activeSegment, null) }
+
     private var primaryNanos: Long = 0L
     private var secondaryNanos: Long = 0L
     private var fadeNanos: Long = 0L
@@ -125,12 +157,14 @@ class TraceStateMachine(
     private var phase: Phase = Phase.Settled(initialState)
     private var pendingTarget: String? = null
 
-    // Blend cache, keyed on both head indices and the quantized weight step —
-    // the three things a blended frame is a function of. Holding it means a
-    // display refreshing faster than the recording reuses the identical
+    // Blend cache, keyed on how many recorded frames each head has stepped and
+    // the quantized weight step — the three things a blended frame is a
+    // function of. A step count rather than a frame index, because a carried
+    // rotation differs between two passes over the same index. Holding it means
+    // a display refreshing faster than the recording reuses the identical
     // instance, exactly as TracePlayer does for a recorded frame.
-    private var cachedOutgoingIndex: Int = -1
-    private var cachedIncomingIndex: Int = -1
+    private var cachedOutgoingSteps: Long = -1L
+    private var cachedIncomingSteps: Long = -1L
     private var cachedStep: Long = -1L
     private var cachedBlend: VoxelFrame? = null
 
@@ -179,8 +213,8 @@ class TraceStateMachine(
         get() {
             val fade = phase as? Phase.Fade ?: return null
             return FrameBlend(
-                outgoing = primary.frameAt(primaryNanos.nanoseconds),
-                incoming = secondary.frameAt(secondaryNanos.nanoseconds),
+                outgoing = primaryFrame(),
+                incoming = secondaryFrame(),
                 weight = weightFor(fade),
             )
         }
@@ -190,7 +224,7 @@ class TraceStateMachine(
         get() =
             when (phase) {
                 is Phase.Fade -> blendedFrame()
-                else -> primary.frameAt(primaryNanos.nanoseconds)
+                else -> primaryFrame()
             }
 
     /**
@@ -307,8 +341,10 @@ class TraceStateMachine(
 
         val oneShot = trace.segments.firstOrNull { it.name == transitionName(from, target) }
         if (oneShot != null) {
+            val rotation = handoffRotation()
             primary.setSegment(oneShot.name)
             primaryNanos = 0L
+            primaryCarry.enter(primary.activeSegment, rotation)
             phase = Phase.OneShot(target, oneShot.frameCount.toLong() * frameNanos)
             return
         }
@@ -336,6 +372,9 @@ class TraceStateMachine(
     ) {
         secondary.setSegment(target)
         secondaryNanos = 0L
+        // The incoming head starts at the angle the outgoing one is showing, so
+        // the two blend from one orientation rather than across a turn.
+        secondaryCarry.enter(secondary.activeSegment, handoffRotation())
         fadeNanos = 0L
         invalidateBlend()
         // primaryNanos deliberately keeps running: the outgoing loop carries on
@@ -344,8 +383,10 @@ class TraceStateMachine(
     }
 
     private fun enterLoop(target: String) {
+        val rotation = handoffRotation()
         primary.setSegment(target)
         primaryNanos = 0L
+        primaryCarry.enter(primary.activeSegment, rotation)
         settle(target)
     }
 
@@ -353,6 +394,9 @@ class TraceStateMachine(
         val retired = primary
         primary = secondary
         secondary = retired
+        val retiredCarry = primaryCarry
+        primaryCarry = secondaryCarry
+        secondaryCarry = retiredCarry
         primaryNanos = secondaryNanos
         secondaryNanos = 0L
         fadeNanos = 0L
@@ -417,6 +461,28 @@ class TraceStateMachine(
     }
 
     // ------------------------------------------------------------------
+    // Rotation
+    // ------------------------------------------------------------------
+
+    private fun primaryFrame(): VoxelFrame = primaryCarry.apply(primary.frameAt(primaryNanos.nanoseconds), primaryNanos)
+
+    private fun secondaryFrame(): VoxelFrame =
+        secondaryCarry.apply(secondary.frameAt(secondaryNanos.nanoseconds), secondaryNanos)
+
+    /**
+     * The angle the outgoing head is at right now, for whichever head enters a
+     * segment next to start from — or null, to start it as recorded, when
+     * rotation is not being carried.
+     *
+     * Read on a boundary, this is already one step past the outgoing frame: a
+     * loop's next iteration has begun, and a finished one-shot carries on at
+     * its final rate. So the entering segment's first frame continues the
+     * motion rather than repeating the last angle.
+     */
+    private fun handoffRotation(): FloatArray? =
+        if (carryRotation) FloatArray(ROTATION_AXES).also { primaryCarry.rotationAt(primaryNanos, it) } else null
+
+    // ------------------------------------------------------------------
     // Blending
     // ------------------------------------------------------------------
 
@@ -444,14 +510,14 @@ class TraceStateMachine(
 
     private fun blendedFrame(): VoxelFrame {
         val fade = phase as Phase.Fade
-        val outgoingIndex = primary.frameIndexAt(primaryNanos.nanoseconds)
-        val incomingIndex = secondary.frameIndexAt(secondaryNanos.nanoseconds)
+        val outgoingSteps = primaryNanos / frameNanos
+        val incomingSteps = secondaryNanos / frameNanos
         val steps = fadeSteps(fade)
         val step = fadeStep(fade, steps)
 
         cachedBlend?.let { held ->
-            if (outgoingIndex == cachedOutgoingIndex &&
-                incomingIndex == cachedIncomingIndex &&
+            if (outgoingSteps == cachedOutgoingSteps &&
+                incomingSteps == cachedIncomingSteps &&
                 step == cachedStep
             ) {
                 return held
@@ -460,21 +526,21 @@ class TraceStateMachine(
 
         val blended =
             FrameBlend(
-                outgoing = primary.frameAt(primaryNanos.nanoseconds),
-                incoming = secondary.frameAt(secondaryNanos.nanoseconds),
+                outgoing = primaryFrame(),
+                incoming = secondaryFrame(),
                 weight = step.toFloat() / steps.toFloat(),
             ).transduce()
 
-        cachedOutgoingIndex = outgoingIndex
-        cachedIncomingIndex = incomingIndex
+        cachedOutgoingSteps = outgoingSteps
+        cachedIncomingSteps = incomingSteps
         cachedStep = step
         cachedBlend = blended
         return blended
     }
 
     private fun invalidateBlend() {
-        cachedOutgoingIndex = -1
-        cachedIncomingIndex = -1
+        cachedOutgoingSteps = -1L
+        cachedIncomingSteps = -1L
         cachedStep = -1L
         cachedBlend = null
     }
@@ -518,6 +584,8 @@ class TraceStateMachine(
         const val TRANSITION_ARROW: String = "→"
 
         private const val NANOS_PER_MILLI: Long = 1_000_000L
+
+        private const val ROTATION_AXES: Int = 3
 
         /** Name a recorded one-shot transition from [from] to [to] would carry. */
         fun transitionName(

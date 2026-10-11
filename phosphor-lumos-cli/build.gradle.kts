@@ -83,6 +83,18 @@ tasks.register<JavaExec>("runFrameProbeBenchmark") {
     (project.findProperty("duration") as String?)?.let { args(it) }
 }
 
+// PHO-43: measure how far each preset's loop jumps at its seam, under each candidate fix.
+// Usage: ./gradlew :phosphor-lumos-cli:runSeamRecon -Pout=/abs/path/to/dir
+tasks.register<JavaExec>("runSeamRecon") {
+    group = "verification"
+    description = "Measure preset loop seams through CliLattice and a Compose raster (PHO-43, Task A)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.bench.SeamReconKt")
+    args((project.findProperty("out") as String?) ?: "")
+}
+
 // PHO-39: drive a recorded trace through state changes from the keyboard.
 // Usage: ./gradlew :phosphor-lumos-cli:runStateMachineDemo                 (45s)
 //        ./gradlew :phosphor-lumos-cli:runStateMachineDemo -Pseconds=90
