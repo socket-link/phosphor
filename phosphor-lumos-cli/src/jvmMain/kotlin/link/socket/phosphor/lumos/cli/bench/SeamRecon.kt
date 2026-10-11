@@ -340,7 +340,7 @@ private fun channelDistances(pair: Pair<VoxelFrame, VoxelFrame>): Map<String, Fl
     return trace.seamError(TraceSegment("pair", 0, 1)).channels.associate { (name, channel) -> name to channel.jump }
 }
 
-/** What a truecolour terminal shows for [frame]: one glyph and one packed 8-bit RGB (or -1 for blank) per cell. */
+/** What a truecolour terminal shows for a frame: one glyph and one packed 8-bit RGB (or -1 for blank) per cell. */
 private class CliImage(
     val glyphs: CharArray,
     val rgb: IntArray,
