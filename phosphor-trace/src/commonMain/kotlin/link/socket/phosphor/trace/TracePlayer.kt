@@ -63,6 +63,11 @@ sealed class TracePlaybackError(
  * which materializes the whole recording at once (a 10 s capture at 60 fps and
  * resolution 10 is 600 × 4,801 cells — far too much to hold for playback).
  *
+ * **Rotation is replayed exactly as recorded**, so a looping segment shorter
+ * than a full turn drops the orb back by the loop's travel at every wrap.
+ * [LumosSource.Trace] and [TraceStateMachine] carry it across the seam instead;
+ * reach for one of them to put a looping orb on screen.
+ *
  * The player is stateful and single-threaded, like `VoxelFrameBuilder`: one
  * player per stream, driven from one coroutine. Collecting [frames] twice
  * concurrently makes two collectors fight over one playhead.
@@ -74,7 +79,7 @@ sealed class TracePlaybackError(
  *  segment the trace does not carry.
  */
 class TracePlayer(
-    private val trace: VoxelTrace,
+    internal val trace: VoxelTrace,
     initialSegment: String? = null,
 ) {
     /**
