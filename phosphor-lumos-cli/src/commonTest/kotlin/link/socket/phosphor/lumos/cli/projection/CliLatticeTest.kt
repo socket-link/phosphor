@@ -1,5 +1,6 @@
 package link.socket.phosphor.lumos.cli.projection
 
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -257,6 +258,91 @@ class CliLatticeTest {
     }
 
     @Test
+    fun `orb rotation moves a voxel before it is placed`() {
+        // Odd dimensions keep every expected position mid-cell, so the ~1e-8
+        // residue of a float cos(PI / 2) cannot floor it into a neighbour.
+        val lattice = CliLattice(width = 11, height = 7, characterAspectRatio = 1f)
+        val voxel = VoxelCell(x = 0.5f, y = 0f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f)
+
+        val unrotated = lattice.project(voxelFrame(cells = listOf(voxel)))
+        val rotated =
+            lattice.project(
+                voxelFrame(
+                    cells = listOf(voxel),
+                    ambient = DEFAULT_AMBIENT.copy(orbRotationY = (PI / 2).toFloat()),
+                ),
+            )
+
+        // Unrotated: x = 0.5 -> screenX = 1.5 * 0.5 * 11 = 8.25 -> column 8.
+        assertEquals(listOf(3 * 11 + 8), occupiedIndices(unrotated.cells))
+        // A quarter turn about Y carries (0.5, 0, 0) to (0, 0, -0.5): the centre cell.
+        assertEquals(listOf(3 * 11 + 5), occupiedIndices(rotated.cells))
+    }
+
+    @Test
+    fun `orb rotation applies X before Y before Z`() {
+        val lattice = CliLattice(width = 11, height = 7, characterAspectRatio = 1f)
+        val voxel = VoxelCell(x = 0f, y = 0.5f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f)
+        val quarter = (PI / 2).toFloat()
+
+        val terminal =
+            lattice.project(
+                voxelFrame(
+                    cells = listOf(voxel),
+                    ambient = DEFAULT_AMBIENT.copy(orbRotationX = quarter, orbRotationY = quarter),
+                ),
+            )
+
+        // X first carries (0, 0.5, 0) to (0, 0, 0.5); Y then carries it to
+        // (0.5, 0, 0) -> column 8 of the middle row. Y first would leave the
+        // voxel on the Y axis, and X would then fold it into the centre cell.
+        assertEquals(listOf(3 * 11 + 8), occupiedIndices(terminal.cells))
+    }
+
+    @Test
+    fun `occlusion follows rotated depth`() {
+        val lattice = CliLattice(width = 11, height = 7, characterAspectRatio = 1f)
+        val recordedNear = VoxelCell(x = 0f, y = 0f, z = 0.5f, scale = 0.5f, red = 0f, green = 1f, blue = 0f)
+        val recordedFar = VoxelCell(x = 0f, y = 0f, z = -0.5f, scale = 1f, red = 1f, green = 0f, blue = 0f)
+        val cells = listOf(recordedNear, recordedFar)
+        val center = 3 * 11 + 5
+
+        val unrotated = lattice.project(voxelFrame(cells = cells))
+        // Half a turn about Y swaps front and back, so the recorded far voxel
+        // is now the one facing the camera.
+        val halfTurn =
+            lattice.project(voxelFrame(cells = cells, ambient = DEFAULT_AMBIENT.copy(orbRotationY = PI.toFloat())))
+
+        assertEquals(CliLattice.luminanceChar(0.5f), unrotated.cells[center].char)
+        assertEquals('@', halfTurn.cells[center].char, "the rotated-nearer voxel should win the cell")
+    }
+
+    @Test
+    fun `zero rotation projects recorded positions unchanged`() {
+        // The pre-rotation goldens: what CliLattice drew for these frames
+        // before it applied orb rotation, when it read cell.x/y/z directly.
+        assertAsciiSnapshot(
+            name = "IDLE unrotated",
+            atmosphere = AtmospherePresets.IDLE,
+            expected = IDLE_UNROTATED_SNAPSHOT,
+            zeroRotation = true,
+        )
+        assertAsciiSnapshot(
+            name = "UNCERTAIN unrotated",
+            atmosphere = AtmospherePresets.UNCERTAIN,
+            expected = UNCERTAIN_UNROTATED_SNAPSHOT,
+            zeroRotation = true,
+        )
+    }
+
+    @Test
+    fun `settled frames carry the rotation the snapshots project`() {
+        // Guards the snapshots below against silently testing an unrotated orb.
+        val ambient = settledFrame(AtmospherePresets.IDLE).ambient
+        assertTrue(ambient.orbRotationY > 0f, "IDLE should have turned by its settle time, got $ambient")
+    }
+
+    @Test
     fun `projection is deterministic for identical inputs`() {
         val frame = settledFrame(AtmospherePresets.IDLE)
         val lattice = CliLattice(width = 40, height = 20)
@@ -317,8 +403,15 @@ class CliLatticeTest {
         name: String,
         atmosphere: AtmosphereState,
         expected: String,
+        zeroRotation: Boolean = false,
     ) {
-        val frame = settledFrame(atmosphere)
+        val settled = settledFrame(atmosphere)
+        val frame =
+            if (zeroRotation) {
+                settled.copy(ambient = settled.ambient.copy(orbRotationX = 0f, orbRotationY = 0f, orbRotationZ = 0f))
+            } else {
+                settled
+            }
         val lattice = CliLattice(width = 40, height = 20)
         val terminal = lattice.project(frame)
         val rendered = terminal.cells.toAsciiGrid(width = 40, height = 20)
@@ -344,6 +437,9 @@ class CliLatticeTest {
                 if (row < height - 1) append('\n')
             }
         }
+
+    private fun occupiedIndices(cells: List<TerminalCell>): List<Int> =
+        cells.indices.filter { cells[it].foreground != null }
 
     private fun nonEmptyRows(
         cells: List<TerminalCell>,
@@ -430,7 +526,9 @@ class CliLatticeTest {
 
         // Expected ASCII grids capture the projection at 40x20 after 60 ticks
         // of 50 ms each, with the voxel gap closed to 0 (see [settledFrame] for
-        // why). Trailing whitespace per row is normalized away in
+        // why) and the orb turned by the rotation those ticks integrated. The
+        // *_UNROTATED_SNAPSHOT grids are the same frames with rotation zeroed:
+        // what CliLattice drew before it applied orb rotation (PHO-48). Trailing whitespace per row is normalized away in
         // [assertAsciiSnapshot], so rows are listed by their visible content.
         // Each snapshot is 20 rows; the orb sits in the top half because of
         // the spec's aspect ratio compensation.
@@ -440,6 +538,126 @@ class CliLatticeTest {
         }
 
         private val IDLE_SNAPSHOT: String =
+            snapshotOf(
+                "    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@ @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "      @@@@@@@@@@@@@@@@@@@@@@@@@@@ @ @@",
+                "         @@@@@ @@@@@@@ @@  @@@@@     @",
+                "         @",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        private val LISTENING_SNAPSHOT: String =
+            snapshotOf(
+                "  @ @  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@ @@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "         @@@ @@@@@@@@@@@@@@ @@@@   @",
+                "               @             @",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        private val THINKING_SNAPSHOT: String =
+            snapshotOf(
+                "@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @    @",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                " @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "    @@ @@@@@@@@@@@@@@@@@@@ @@@@ @@",
+                "                     @    @",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        private val UNCERTAIN_SNAPSHOT: String =
+            snapshotOf(
+                "   . .* =@@=@@@@@@@#@@@#@@@ :@@@ @@@",
+                " @ :@=@@@#+%@@@@@@.@@@@@%@=@@@@@@@@@@@ @",
+                "@*@@=@-@ @*@@@@@@@@@@@@@ @@=@..@-=@@@@@@",
+                "@@@@@@@@%=:.@@@@@@@@@@@@@@@@@@@@@@@@=@@-",
+                "@@@@ @@#@.@:@@@@@-@@@@@@@@@@@@@@@*@@@@@.",
+                "@@@@@@@@=@@@=@@-:@ #@@@-@@:-@@@@@@@@@@@@",
+                "@@@@.@@@@@@@@#@@@@*+@@#@@@@@@@@#@@@@@@@@",
+                "+@@@@ @@@@@@@@@@@@*@@@-@ =.@@@@@=#+@@@@@",
+                "@@@@@@@@@@@*@#@@@@@@@@@@@@@@# @#@.@.@@@",
+                "@@   @%@@@@@@:@@. @:@@@@@@@@@@@@@@*",
+                "    @     @@ @@@@@@@@@@@@@@ @@    @",
+                "                @    @        @",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        private val READY_SNAPSHOT: String =
+            snapshotOf(
+                "    @  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@",
+                "@  @@ @ @@@@@@@@@@@@@@@@@@@@@@@@@@@ @",
+                "             @@ @@@@ @@@@@@ @ @",
+                "                  @    @",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        private val IDLE_UNROTATED_SNAPSHOT: String =
             snapshotOf(
                 "     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@@",
                 "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @",
@@ -463,55 +681,7 @@ class CliLatticeTest {
                 "",
             )
 
-        private val LISTENING_SNAPSHOT: String =
-            snapshotOf(
-                "   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@   @",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@ @   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "       @  @@@@@@@ @@@@@@@@@@@ @@",
-                "                 @",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            )
-
-        private val THINKING_SNAPSHOT: String =
-            snapshotOf(
-                "@ @@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                " @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @ @",
-                "      @ @@ @ @@@@@ @@@@ @@@@@@   @",
-                "                 @",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            )
-
-        private val UNCERTAIN_SNAPSHOT: String =
+        private val UNCERTAIN_UNROTATED_SNAPSHOT: String =
             snapshotOf(
                 "   @ @+@@=@@ @@@@@@ @=@@@@@@@@@@@.   @",
                 "=-:@@@@@@@@@@@@@@@@@@@@@@ @@=@@@@@@@@ @",
@@ -525,30 +695,6 @@ class CliLatticeTest {
                 "@ @  * @@@@@@@. @@@@@@@@@@@@@@@@@ -  @",
                 "       @%. @@@#@@ @@@@@@@@@@@ @ @",
                 "                 @",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            )
-
-        private val READY_SNAPSHOT: String =
-            snapshotOf(
-                "    @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ @@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "@  @  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-                "        @ @ @@@@@@@@@@@ @ @@@ @",
-                "               @",
                 "",
                 "",
                 "",
