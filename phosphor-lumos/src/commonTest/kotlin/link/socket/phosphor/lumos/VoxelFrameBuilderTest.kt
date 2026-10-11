@@ -421,6 +421,123 @@ class VoxelFrameBuilderTest {
         assertEquals(0f, glyph.progress, absoluteTolerance = 1e-5f)
     }
 
+    @Test
+    fun `phases advance exactly as FramePhases does`() {
+        val atmosphere = AtmospherePresets.THINKING.copy(resolution = 3)
+        val builder = VoxelFrameBuilder(initialResolution = atmosphere.resolution)
+        var expected = FramePhases.ZERO
+
+        repeat(10) {
+            builder.build(snapshot(atmosphere = atmosphere), dt = 0.05f)
+            expected = expected.advanced(atmosphere, 0.05f)
+            assertEquals(expected, builder.phases)
+        }
+        assertEquals(builder.phases.pulsePhase, builder.pulsePhase)
+        assertEquals(builder.phases.patternPhase, builder.patternPhase)
+        assertEquals(builder.phases.orbRotationX, builder.orbRotationX)
+        assertEquals(builder.phases.orbRotationY, builder.orbRotationY)
+    }
+
+    @Test
+    fun `buildSteadyState at the builder's own phases is the steady-state frame it just built`() {
+        val atmosphere = AtmospherePresets.THINKING.copy(resolution = 5)
+        val builder = VoxelFrameBuilder(initialResolution = atmosphere.resolution)
+        repeat(7) { builder.build(snapshot(atmosphere = atmosphere), dt = 0.04f) }
+        val live =
+            builder.build(
+                snapshot(atmosphere = atmosphere).copy(frameIndex = 8L, elapsedTimeSeconds = 0.32f),
+                dt = 0.04f,
+            )
+
+        val steady =
+            builder.buildSteadyState(
+                atmosphere = atmosphere,
+                phases = builder.phases,
+                tick = live.tick,
+                timestampEpochMillis = live.timestampEpochMillis,
+            )
+
+        assertEquals(live, steady)
+    }
+
+    @Test
+    fun `a rewound steady-state frame matches the frame the builder produced there`() {
+        // THINKING rather than a bipolar preset: its colour is continuous in the
+        // pattern mix, so a phase a few ulps off cannot flip a cell across a hue step.
+        val atmosphere = AtmospherePresets.THINKING.copy(resolution = 4)
+        val builder = VoxelFrameBuilder(initialResolution = atmosphere.resolution)
+        val dt = 1f / 24f
+        val produced =
+            List(40) { index ->
+                builder.build(snapshot(atmosphere = atmosphere).copy(frameIndex = index + 1L), dt = dt)
+            }
+
+        val rewound =
+            builder.buildSteadyState(
+                atmosphere = atmosphere,
+                phases = builder.phases.advanced(atmosphere, -12 * dt),
+                tick = 28L,
+                timestampEpochMillis = 0L,
+            )
+
+        val expected = produced[27]
+        val tolerance = 1e-4f
+        assertEquals(expected.tick, rewound.tick)
+        assertEquals(expected.cells.size, rewound.cells.size)
+        expected.cells.zip(rewound.cells).forEachIndexed { index, (want, got) ->
+            assertEquals(want.x, got.x, tolerance, "x of cell $index")
+            assertEquals(want.y, got.y, tolerance, "y of cell $index")
+            assertEquals(want.z, got.z, tolerance, "z of cell $index")
+            assertEquals(want.scale, got.scale, tolerance, "scale of cell $index")
+            assertEquals(want.red, got.red, tolerance, "red of cell $index")
+            assertEquals(want.green, got.green, tolerance, "green of cell $index")
+            assertEquals(want.blue, got.blue, tolerance, "blue of cell $index")
+        }
+        assertEquals(expected.ambient.glowRed, rewound.ambient.glowRed)
+        assertEquals(expected.ambient.glowGreen, rewound.ambient.glowGreen)
+        assertEquals(expected.ambient.glowBlue, rewound.ambient.glowBlue)
+        assertEquals(expected.ambient.orbRotationX, rewound.ambient.orbRotationX, tolerance)
+        assertEquals(expected.ambient.orbRotationY, rewound.ambient.orbRotationY, tolerance)
+    }
+
+    @Test
+    fun `buildSteadyState leaves the builder's phases and glyph where they were`() {
+        val atmosphere = AtmospherePresets.IDLE.copy(resolution = 4)
+        val builder = VoxelFrameBuilder(initialResolution = atmosphere.resolution)
+        builder.queueGlyph(LumosGlyph.CHECK, durationSeconds = 1.5f)
+        builder.build(snapshot(atmosphere = atmosphere), dt = 0.3f)
+        val phasesBefore = builder.phases
+
+        val steady =
+            builder.buildSteadyState(
+                atmosphere = atmosphere,
+                phases = builder.phases.advanced(atmosphere, -0.3f),
+                tick = 0L,
+                timestampEpochMillis = 0L,
+            )
+        val next = builder.build(snapshot(atmosphere = atmosphere), dt = 0f)
+
+        assertEquals(phasesBefore, builder.phases)
+        assertNull(steady.glyph, "a steady-state frame carries no glyph")
+        // The live glyph went on burning where it was: the zero-dt build finds it at the same age.
+        assertEquals(0.2f, assertNotNull(next.glyph).progress, absoluteTolerance = 1e-5f)
+    }
+
+    @Test
+    fun `buildSteadyState rejects an atmosphere at another resolution`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        builder.build(snapshot(atmosphere = AtmospherePresets.IDLE.copy(resolution = 4)), dt = 0f)
+
+        assertFailsWith<IllegalArgumentException> {
+            builder.buildSteadyState(
+                atmosphere = AtmospherePresets.IDLE.copy(resolution = 7),
+                phases = builder.phases,
+                tick = 0L,
+                timestampEpochMillis = 0L,
+            )
+        }
+    }
+
     private fun snapshot(
         atmosphere: AtmosphereState?,
         transition: AtmosphereTransition? = null,

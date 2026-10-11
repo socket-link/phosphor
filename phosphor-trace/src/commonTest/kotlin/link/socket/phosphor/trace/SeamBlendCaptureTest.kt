@@ -1,6 +1,7 @@
 package link.socket.phosphor.trace
 
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -14,11 +15,14 @@ import link.socket.phosphor.signal.AtmosphereState
 class SeamBlendCaptureTest {
     @Test
     fun `every canonical preset wraps like one more frame once its seam is baked`() {
+        // Started BLEND_FRAMES in, where #98's hidden warm-up used to place it, so
+        // the seam lands where the recon measured it. A loop at frame 0 straddles
+        // pulse phase 0 instead, the sine's steepest step; see the head-of-clip test.
         AtmospherePresets.ALL.forEach { (name, preset) ->
-            val raw = Oscilloscope.capture(loopAt(preset, start = 0)).getOrThrow().seamErrors().single()
+            val raw = Oscilloscope.capture(loopAt(preset, start = BLEND_FRAMES)).getOrThrow().seamErrors().single()
             val baked =
                 Oscilloscope
-                    .capture(loopAt(preset, start = 0, blendFrames = BLEND_FRAMES))
+                    .capture(loopAt(preset, start = BLEND_FRAMES, blendFrames = BLEND_FRAMES))
                     .getOrThrow()
                     .seamErrors()
                     .single()
@@ -34,10 +38,11 @@ class SeamBlendCaptureTest {
         // colour step is about one RGB8 quantum. The seam and its median step are
         // both means over every cell, so rounding barely moves either one. The codec
         // writes v3, which decodes to exactly v2's columns (PHO-44), so this covers both.
+        // Started BLEND_FRAMES in for the same reason as the presets test above.
         AtmospherePresets.ALL.forEach { (name, preset) ->
             val captured =
                 Oscilloscope
-                    .capture(loopAt(preset, start = 0, blendFrames = BLEND_FRAMES))
+                    .capture(loopAt(preset, start = BLEND_FRAMES, blendFrames = BLEND_FRAMES))
                     .getOrThrow()
             val decoded = TraceCodec.decode(TraceCodec.encode(captured)).getOrThrow()
 
@@ -69,7 +74,7 @@ class SeamBlendCaptureTest {
     }
 
     @Test
-    fun `only the loop's tail changes when the clip already holds its lead-in`() {
+    fun `only the loop's tail changes when a seam is baked`() {
         val config = loopAt(AtmospherePresets.IDLE, start = BLEND_FRAMES)
         val raw = Oscilloscope.capture(config).getOrThrow().toFrames()
         val baked = Oscilloscope.capture(config.copy(seamBlendFrames = BLEND_FRAMES)).getOrThrow().toFrames()
@@ -86,17 +91,65 @@ class SeamBlendCaptureTest {
     }
 
     @Test
-    fun `a loop at the head of the clip is given a hidden lead-in`() {
-        val trace =
-            Oscilloscope.capture(
-                loopAt(AtmospherePresets.IDLE, start = 0, blendFrames = BLEND_FRAMES),
-            ).getOrThrow()
+    fun `a loop at the head of the clip needs no warm-up`() {
+        val config = loopAt(AtmospherePresets.IDLE, start = 0)
+        val raw = Oscilloscope.capture(config).getOrThrow()
+        val baked = Oscilloscope.capture(config.copy(seamBlendFrames = BLEND_FRAMES)).getOrThrow()
 
-        // The simulation stepped BLEND_FRAMES times before the first recorded frame.
-        val unshifted = Oscilloscope.capture(loopAt(AtmospherePresets.IDLE, start = 0)).getOrThrow()
-        assertEquals(unshifted.ticks.first() + BLEND_FRAMES, trace.ticks.first())
-        assertEquals(BLEND_FRAMES.toString(), trace.paramSnapshot["capture.warmUpFrames"])
-        assertEquals(BLEND_FRAMES.toString(), trace.paramSnapshot["capture.seamBlendFrames"])
+        // The lead-in is synthesized, so nothing is stepped before frame 0 and the
+        // recorded ticks and timestamps are the simulation's own.
+        assertContentEquals(raw.ticks, baked.ticks)
+        assertContentEquals(raw.timestampsEpochMillis, baked.timestampsEpochMillis)
+        assertEquals(BLEND_FRAMES.toString(), baked.paramSnapshot["capture.seamBlendFrames"])
+        assertFalse("capture.warmUpFrames" in baked.paramSnapshot)
+
+        // A fresh builder starts at phase 0, so this seam straddles the pulse's
+        // steepest step and reads about 2 against the loop's median step, which
+        // the blend window has already halved. Against the loop's own largest
+        // step it is one more frame — within 5 %, since the first ordinary step
+        // sits one step past the steepest point.
+        val seam = baked.seamErrors().single()
+        val steps = (0 until LOOP_FRAMES - 1).map { baked.seamError(TraceSegment("step", it, it + 1)) }
+        assertTrue(seam.position.jump <= steps.maxOf { it.position.jump } * STEEPEST_STEP_SLACK, "position: $seam")
+        assertTrue(seam.scale.jump <= steps.maxOf { it.scale.jump } * STEEPEST_STEP_SLACK, "scale: $seam")
+        assertTrue(seam.color.jump <= steps.maxOf { it.color.jump } * STEEPEST_STEP_SLACK, "colour: $seam")
+        assertEquals(0f, seam.glow.jump)
+    }
+
+    @Test
+    fun `a loop may start the frame after a transition lands`() {
+        val thinking = AtmospherePresets.THINKING.copy(resolution = RESOLUTION)
+        // Neither endpoint is a registered preset at this resolution, so the cue
+        // takes the 1.1 s default spec: 22 steps at 20 fps, and one more so it has
+        // landed for certain inside its own segment.
+        val transitionFrames = 23
+        val loopStart = LEAD_FRAMES + transitionFrames
+        val config =
+            CaptureConfig(
+                params = CaptureParams(atmosphere = AtmospherePresets.IDLE.copy(resolution = RESOLUTION)),
+                durationMs = (loopStart + LOOP_FRAMES) * 1_000L / FPS,
+                fps = FPS,
+                segments =
+                    listOf(
+                        TraceSegment("idle→thinking", LEAD_FRAMES, loopStart - 1),
+                        TraceSegment("thinking", loopStart, loopStart + LOOP_FRAMES - 1, loop = true),
+                    ),
+                cues = listOf(AtmosphereCue(atFrame = LEAD_FRAMES, atmosphere = thinking)),
+                seamBlendFrames = BLEND_FRAMES,
+            )
+
+        val trace = Oscilloscope.capture(config).getOrThrow()
+
+        val seam = trace.seamErrors().single()
+        assertTrue(seam.contentRatio < BAKED_CEILING, "a loop straight after a transition should wrap, was $seam")
+        // The halo is the atmosphere's colour and nothing else, so a lean toward
+        // idle would show there first. The frames recorded before the loop were
+        // still mid-transition; the window holds the loop's own halo regardless.
+        val loopGlow = glowOf(trace, loopStart)
+        assertNotEquals(glowOf(trace, loopStart - BLEND_FRAMES), loopGlow)
+        for (frame in seam.segment.endFrame - BLEND_FRAMES + 1..seam.segment.endFrame) {
+            assertEquals(loopGlow, glowOf(trace, frame), "frame $frame in the blend window should hold the loop's halo")
+        }
     }
 
     @Test
@@ -104,7 +157,6 @@ class SeamBlendCaptureTest {
         val snapshot = Oscilloscope.capture(loopAt(AtmospherePresets.IDLE, start = 0)).getOrThrow().paramSnapshot
 
         assertFalse("capture.seamBlendFrames" in snapshot)
-        assertFalse("capture.warmUpFrames" in snapshot)
     }
 
     @Test
@@ -126,6 +178,11 @@ class SeamBlendCaptureTest {
         }
     }
 
+    private fun glowOf(
+        trace: VoxelTrace,
+        frame: Int,
+    ): List<Float> = trace.ambient[frame].let { listOf(it.glowRed, it.glowGreen, it.glowBlue, it.glowIntensity) }
+
     private fun loopAt(
         preset: AtmosphereState,
         start: Int,
@@ -145,6 +202,9 @@ class SeamBlendCaptureTest {
         const val LOOP_FRAMES = 80
         const val BLEND_FRAMES = 20
 
+        /** Frames of the starting atmosphere recorded before a cue fires. */
+        const val LEAD_FRAMES = 10
+
         // Three frame steps is already a visible pop; the coarse test lattice puts listening near four.
         const val RAW_FLOOR = 3f
 
@@ -153,5 +213,8 @@ class SeamBlendCaptureTest {
 
         // The PHO-50 recon moved no canonical loop's contentRatio by more than 0.13.
         const val QUANTIZATION_DRIFT = 0.25f
+
+        // How far a seam may exceed the loop's largest ordinary step and still be one of them.
+        const val STEEPEST_STEP_SLACK = 1.05f
     }
 }

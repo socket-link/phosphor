@@ -39,7 +39,10 @@ import link.socket.phosphor.trace.seamErrors
  * header is the layout the state machine is actually reading. It is captured
  * with a baked seam blend (PHO-43), so a loop left alone — idle, most of the
  * orb's life — iterates without popping too; the header prints each loop's
- * measured seam.
+ * measured seam. Each loop follows its transition directly: the blend fades
+ * toward a lead-in synthesized from the loop's own steady state (PHO-49), so no
+ * one-shot carries settle padding and `state` flips as soon as the authored
+ * motion lands.
  *
  * Not a test. Nothing here is asserted; it is meant to be watched.
  *
@@ -50,8 +53,11 @@ private const val DEFAULT_SECONDS = 45
 private const val CAPTURE_FPS = 24
 private const val CROSSFADE_MS = 600L
 
-/** Half a second of each loop's tail fades toward the frames before its start. */
-private const val SEAM_BLEND_FRAMES = 12
+/**
+ * Half a second of each loop's tail fades toward the loop's own steady state,
+ * synthesized at its first frame (PHO-49).
+ */
+internal const val SEAM_BLEND_FRAMES = 12
 
 // Terminal geometry. Clamped so the orb still reads on a cramped window.
 private const val MIN_WIDTH = 40
@@ -82,30 +88,30 @@ private data class Beat(
  * The capture script.
  *
  * Three resting loops and four of the six directed transitions between them.
- * Transition lengths are one frame longer than the authored durations in
- * `AtmosphereChoreographer`'s table — 0.8 s, 1.0 s, 1.4 s, 1.15 s at 24 fps —
- * so each one fully lands inside its own segment, plus [SEAM_BLEND_FRAMES] of
- * settled hold: the loop that follows fades its tail toward exactly those
- * frames, and they must already look like the loop. The two
- * `thinking↔uncertain` pairs are left out on purpose: they are what the
+ * Transition lengths are the authored durations in `AtmosphereChoreographer`'s
+ * table — 0.8 s, 1.0 s, 1.4 s, 1.15 s at 24 fps — rounded up to whole frames,
+ * so each one has landed by the time the loop that follows starts on the very
+ * next frame. Nothing is padded: the loop's tail fades toward a lead-in
+ * synthesized from its own steady state, not toward these frames (PHO-49). The
+ * two `thinking↔uncertain` pairs are left out on purpose: they are what the
  * crossfade covers.
  */
 private val SCRIPT =
     listOf(
         Beat(IDLE, frames = 48, loop = true),
-        Beat("$IDLE→$THINKING", frames = 20 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.THINKING),
+        Beat("$IDLE→$THINKING", frames = 20, loop = false, cue = AtmospherePresets.THINKING),
         Beat(THINKING, frames = 48, loop = true),
-        Beat("$THINKING→$IDLE", frames = 24 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.IDLE),
-        Beat("$IDLE→$UNCERTAIN", frames = 34 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.UNCERTAIN),
+        Beat("$THINKING→$IDLE", frames = 24, loop = false, cue = AtmospherePresets.IDLE),
+        Beat("$IDLE→$UNCERTAIN", frames = 34, loop = false, cue = AtmospherePresets.UNCERTAIN),
         Beat(UNCERTAIN, frames = 48, loop = true),
-        Beat("$UNCERTAIN→$IDLE", frames = 28 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.IDLE),
+        Beat("$UNCERTAIN→$IDLE", frames = 28, loop = false, cue = AtmospherePresets.IDLE),
     )
 
 fun main(args: Array<String>) {
     val runSeconds = args.getOrNull(0)?.toIntOrNull()?.coerceAtLeast(1) ?: DEFAULT_SECONDS
 
     val trace =
-        capture().getOrElse { error ->
+        captureDemoTrace().getOrElse { error ->
             System.err.println("Could not capture a trace to drive: ${error.message}")
             return
         }
@@ -114,7 +120,11 @@ fun main(args: Array<String>) {
     withRawKeys { play(trace, runSeconds) }
 }
 
-private fun capture(): Result<VoxelTrace> {
+/**
+ * Capture [SCRIPT] into a trace. [seamBlendFrames] is a parameter so a test can
+ * capture the same script unblended and measure what the blend changed.
+ */
+internal fun captureDemoTrace(seamBlendFrames: Int = SEAM_BLEND_FRAMES): Result<VoxelTrace> {
     val totalFrames = SCRIPT.sumOf(Beat::frames)
     val segments = ArrayList<TraceSegment>(SCRIPT.size)
     val cues = ArrayList<AtmosphereCue>()
@@ -134,7 +144,7 @@ private fun capture(): Result<VoxelTrace> {
             fps = CAPTURE_FPS,
             segments = segments,
             cues = cues,
-            seamBlendFrames = SEAM_BLEND_FRAMES,
+            seamBlendFrames = seamBlendFrames,
         ),
     )
 }

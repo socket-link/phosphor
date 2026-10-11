@@ -52,7 +52,8 @@ data class AtmosphereCue(
  * @property createdAtEpochMs Creation timestamp stamped into the trace header. Defaults to `0`
  *  so captures are reproducible; callers that want a real timestamp supply one explicitly.
  * @property seamBlendFrames Frames at the end of every `loop` segment that fade toward the
- *  frames before its start, so the loop wraps continuously; see [Oscilloscope]. `0`, the
+ *  loop's own steady state run backwards from its first frame, so the loop wraps continuously
+ *  even when a transition ends the frame before it starts; see [Oscilloscope]. `0`, the
  *  default, records the simulation untouched. Must be `>= 0` and shorter than every loop segment.
  */
 data class CaptureConfig(

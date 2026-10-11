@@ -1,6 +1,5 @@
 package link.socket.phosphor.lumos
 
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
@@ -19,12 +18,12 @@ import link.socket.phosphor.signal.AtmosphereTransition
 /**
  * Stateful translator from Phosphor's runtime state into a [VoxelFrame].
  *
- * The builder owns continuous phase accumulators and the current voxel
- * lattice so the surrounding pull-based runtime can call [build] each tick
- * without re-allocating geometry or resetting animation phase. Atmosphere
+ * The builder owns continuous phase accumulators ([phases]) and the current
+ * voxel lattice so the surrounding pull-based runtime can call [build] each
+ * tick without re-allocating geometry or resetting animation phase. Atmosphere
  * frequency changes can be interpolated through transitions without phase
- * discontinuities because [pulsePhase] and [patternPhase] persist across
- * calls and are advanced by the current state's rate.
+ * discontinuities because the accumulators persist across calls and are
+ * advanced by the current state's rate.
  *
  * The builder is intentionally mutable and single-threaded: one builder per
  * renderer, called from the render loop. Sharing across threads or sharing
@@ -43,38 +42,28 @@ class VoxelFrameBuilder(
     private val probe: FrameProbe = FrameProbe.Disabled,
 ) {
     /**
-     * Continuous breath-pulse phase in radians.
+     * The phase accumulators as of the most recent [build]: breath pulse,
+     * pattern, and the orb's two rotations.
      *
-     * Advanced each tick by `dt * pulseFrequency * 2 * PI` so the sine wave
-     * driving [VoxelCell.scale] modulation has no discontinuities when the
-     * atmosphere's frequency interpolates during a transition. Wrapped at
-     * 2π to preserve floating-point precision over long runs.
+     * Each persists across calls and is advanced by the current state's rate
+     * ([FramePhases.advanced]), so a frequency that interpolates through a
+     * transition produces no phase discontinuity. Read them to reconstruct
+     * frames the builder never produced; see [buildSteadyState].
      */
-    var pulsePhase: Float = 0f
+    var phases: FramePhases = FramePhases.ZERO
         private set
 
-    /**
-     * Continuous pattern-evaluation phase.
-     *
-     * Advanced each tick by `dt * patternSpeed`. Wrapped at `2π * 10` so
-     * non-integer pattern multipliers (1.2, 2.5, ...) still hit an integer
-     * multiple of 2π at the wrap boundary; this keeps each pattern's sine
-     * wave continuous when the accumulator resets.
-     */
-    var patternPhase: Float = 0f
-        private set
+    /** Continuous breath-pulse phase in radians; [FramePhases.pulsePhase]. */
+    val pulsePhase: Float get() = phases.pulsePhase
 
-    /**
-     * Integrated X-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationX].
-     */
-    var orbRotationX: Float = 0f
-        private set
+    /** Continuous pattern-evaluation phase; [FramePhases.patternPhase]. */
+    val patternPhase: Float get() = phases.patternPhase
 
-    /**
-     * Integrated Y-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationY].
-     */
-    var orbRotationY: Float = 0f
-        private set
+    /** Integrated X-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationX]. */
+    val orbRotationX: Float get() = phases.orbRotationX
+
+    /** Integrated Y-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationY]. */
+    val orbRotationY: Float get() = phases.orbRotationY
 
     /**
      * Current voxel lattice. Rebuilt when [AtmosphereState.resolution] changes.
@@ -115,6 +104,49 @@ class VoxelFrameBuilder(
         dt: Float,
     ): VoxelFrame = probe.measure(FramePhase.BUILD) { buildFrame(snapshot, dt) }
 
+    /**
+     * The frame this builder would produce in steady state: [atmosphere] with no
+     * transition and no glyph, at [phases]. Nothing the builder owns moves — its
+     * own accumulators, glyph, and lattice are left as they were.
+     *
+     * With [FramePhases.advanced] this reconstructs frames the builder never
+     * produced. A loop recorded straight after a transition fades its tail
+     * toward the frames it *would* have shown before it started had its
+     * atmosphere always been active: read [phases] at the loop's first frame,
+     * rewind by `k · dt`, and build here. In steady state the result is the frame
+     * [build] returned at those phases, up to float rounding; `Oscilloscope` in
+     * `:phosphor-trace` is the caller this exists for.
+     *
+     * Cells are ordered as in [voxelSphere], which [atmosphere] must match in
+     * resolution: the lattice is the one thing a steady-state frame shares with
+     * the live stream, and building a throwaway one here would hide a per-call
+     * allocation behind a method that promises none. Not measured by the probe,
+     * which times the live render loop.
+     *
+     * @param tick [VoxelFrame.tick] of the result.
+     * @param timestampEpochMillis [VoxelFrame.timestampEpochMillis] of the result.
+     * @throws IllegalArgumentException when [atmosphere]'s resolution differs from [voxelSphere]'s.
+     */
+    fun buildSteadyState(
+        atmosphere: AtmosphereState,
+        phases: FramePhases,
+        tick: Long,
+        timestampEpochMillis: Long,
+    ): VoxelFrame {
+        require(atmosphere.resolution == voxelSphere.resolution) {
+            "buildSteadyState renders on the builder's lattice: atmosphere resolution ${atmosphere.resolution} " +
+                "differs from the current ${voxelSphere.resolution}"
+        }
+        return frameAt(
+            atmosphere = atmosphere,
+            transition = null,
+            phases = phases,
+            glyphLifecycle = null,
+            tick = tick,
+            timestampEpochMillis = timestampEpochMillis,
+        )
+    }
+
     private fun buildFrame(
         snapshot: SceneSnapshot,
         dt: Float,
@@ -123,16 +155,38 @@ class VoxelFrameBuilder(
             checkNotNull(snapshot.atmosphere) {
                 "VoxelFrameBuilder requires SceneConfiguration.enableAtmosphere = true"
             }
-        val transition = snapshot.atmosphereTransition
 
         if (atmosphere.resolution != voxelSphere.resolution) {
             voxelSphere = voxelSphere.rebuild(atmosphere.resolution)
         }
 
         val glyphLifecycle = advanceGlyph(dt)
-        advancePhases(atmosphere, dt)
+        phases = phases.advanced(atmosphere, dt)
 
-        val pulse = 1f + sin(pulsePhase) * atmosphere.pulseAmplitude
+        return frameAt(
+            atmosphere = atmosphere,
+            transition = snapshot.atmosphereTransition,
+            phases = phases,
+            glyphLifecycle = glyphLifecycle,
+            tick = snapshot.frameIndex,
+            timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
+        )
+    }
+
+    /**
+     * The pure core of a build: every input named, nothing read from the
+     * builder but its lattice and [config]. [build] advances state and calls
+     * this; [buildSteadyState] calls it as it is.
+     */
+    private fun frameAt(
+        atmosphere: AtmosphereState,
+        transition: AtmosphereTransition?,
+        phases: FramePhases,
+        glyphLifecycle: GlyphLifecycle?,
+        tick: Long,
+        timestampEpochMillis: Long,
+    ): VoxelFrame {
+        val pulse = 1f + sin(phases.pulsePhase) * atmosphere.pulseAmplitude
         // voxelGap is the fraction of a lattice cell left empty between cubes, so the
         // cube itself fills what remains. Clamped because an overshoot easing can carry
         // an interpolated gap briefly past its endpoints, and a negative fill would
@@ -145,11 +199,11 @@ class VoxelFrameBuilder(
                 ?.let { NeutralColor.fromHsl(it.glyph.hue, it.glyph.saturation, it.glyph.lightness) }
         val glyphShape = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.let { GlyphShape.forGlyph(it.glyph) }
         val glyphVisibility = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.visibility ?: 0f
-        val glyphRotation = Vector3(orbRotationX, orbRotationY, 0f)
+        val glyphRotation = Vector3(phases.orbRotationX, phases.orbRotationY, 0f)
 
         val cells = ArrayList<VoxelCell>(voxelSphere.voxels.size)
         for (voxel in voxelSphere.voxels) {
-            val mix = computeMix(atmosphere, transition, voxel)
+            val mix = computeMix(atmosphere, transition, voxel, phases.patternPhase)
             val boundaryShrink = computeBoundaryShrink(atmosphere.bipolarStrength, mix)
             val baseColor = computeVoxelColor(atmosphere, transition, mix)
             val rotatedDirection = glyphShape?.let { voxel.unitDirection.rotatedBy(glyphRotation) }
@@ -179,7 +233,7 @@ class VoxelFrameBuilder(
             val pz = voxel.normalizedPos.z + voxel.jitter.z * atmosphere.noise * JITTER_GAIN
             val bumpAmount =
                 atmosphere.surfaceBump *
-                    sin(voxel.theta * BUMP_THETA + voxel.phi * BUMP_PHI + patternPhase * BUMP_PHASE)
+                    sin(voxel.theta * BUMP_THETA + voxel.phi * BUMP_PHI + phases.patternPhase * BUMP_PHASE)
 
             val ux = voxel.unitDirection.x
             val uy = voxel.unitDirection.y
@@ -201,11 +255,11 @@ class VoxelFrameBuilder(
                 )
         }
 
-        val ambient = computeAmbient(atmosphere)
+        val ambient = computeAmbient(atmosphere, phases)
 
         return VoxelFrame(
-            tick = snapshot.frameIndex,
-            timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
+            tick = tick,
+            timestampEpochMillis = timestampEpochMillis,
             resolution = voxelSphere.resolution,
             cells = cells,
             ambient = ambient,
@@ -231,20 +285,11 @@ class VoxelFrameBuilder(
         return activeGlyph
     }
 
-    private fun advancePhases(
-        atmosphere: AtmosphereState,
-        dt: Float,
-    ) {
-        pulsePhase = wrap(pulsePhase + dt * atmosphere.pulseFrequency * TWO_PI, TWO_PI)
-        patternPhase = wrap(patternPhase + dt * atmosphere.patternSpeed, PATTERN_WRAP)
-        orbRotationX = wrap(orbRotationX + dt * atmosphere.rotationX, TWO_PI)
-        orbRotationY = wrap(orbRotationY + dt * atmosphere.rotationY, TWO_PI)
-    }
-
     private fun computeMix(
         atmosphere: AtmosphereState,
         transition: AtmosphereTransition?,
         voxel: Voxel,
+        patternPhase: Float,
     ): Float {
         val toMix = evaluatePattern(atmosphere.pattern, voxel, patternPhase)
         if (transition == null || transition.from.pattern == transition.to.pattern) {
@@ -301,7 +346,10 @@ class VoxelFrameBuilder(
         return NeutralColor.fromHsl(hue, state.saturation, state.lightness)
     }
 
-    private fun computeAmbient(atmosphere: AtmosphereState): VoxelAmbient {
+    private fun computeAmbient(
+        atmosphere: AtmosphereState,
+        phases: FramePhases,
+    ): VoxelAmbient {
         val primary = NeutralColor.fromHsl(atmosphere.primaryHue, atmosphere.saturation, atmosphere.lightness)
         val secondary = NeutralColor.fromHsl(atmosphere.secondaryHue, atmosphere.saturation, atmosphere.lightness)
         val glow = NeutralColor.lerpOklab(primary, secondary, 0.5f)
@@ -310,16 +358,13 @@ class VoxelFrameBuilder(
             glowGreen = glow.green,
             glowBlue = glow.blue,
             glowIntensity = atmosphere.glow,
-            orbRotationX = orbRotationX,
-            orbRotationY = orbRotationY,
+            orbRotationX = phases.orbRotationX,
+            orbRotationY = phases.orbRotationY,
             orbRotationZ = 0f,
         )
     }
 
     companion object {
-        private const val TWO_PI: Float = (2.0 * PI).toFloat()
-        private const val PATTERN_WRAP: Float = (2.0 * PI * 10.0).toFloat()
-
         private const val JITTER_GAIN: Float = 2.4f
         private const val BUMP_THETA: Float = 3.0f
         private const val BUMP_PHI: Float = 2.5f
@@ -374,16 +419,6 @@ class VoxelFrameBuilder(
             while (hue < 0f) hue += 360f
             while (hue >= 360f) hue -= 360f
             return hue
-        }
-
-        private fun wrap(
-            value: Float,
-            limit: Float,
-        ): Float {
-            if (limit <= 0f) return value
-            var wrapped = value % limit
-            if (wrapped < 0f) wrapped += limit
-            return wrapped
         }
 
         private fun millisFromElapsed(elapsedSeconds: Float): Long = (elapsedSeconds * 1_000.0).toLong()

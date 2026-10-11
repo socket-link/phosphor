@@ -28,22 +28,27 @@ import link.socket.phosphor.signal.AtmosphereState
  * first. Call [seamErrors] on the result to see how far each loop jumps.
  *
  * [CaptureConfig.seamBlendFrames] bakes the seam out. Over the last *B* frames
- * of every `loop` segment, each cell fades toward the frame that preceded the
- * segment's start by the same distance, so the final frame *is* the one before
- * the first and wrapping reads as one more step. The fade reads from the
- * unblended capture, so loops whose windows touch do not feed each other. It
- * blends cells and the halo but **not** orb rotation: rotation is monotonic, a
- * short loop cannot give it back, and blending it would spin the orb backwards
- * through the window. [TraceStateMachine] carries rotation across the seam at
- * playback instead.
+ * of every `loop` segment, each cell fades toward the loop's *lead-in*: the *B*
+ * frames the simulation would have produced before the segment's first had the
+ * loop's atmosphere always been active. The lead-in is synthesized, not
+ * recorded. At the loop's first frame capture reads the generator's atmosphere
+ * and phase accumulators, rewinds the accumulators a step at a time, and builds
+ * each frame there with no transition and no glyph
+ * (`SignalGenerator.steadyStateLeadIn`). The window's final frame fades all the
+ * way, so it *is* the frame one step before the first, and wrapping reads as
+ * one more step. The fade reads from the unblended capture, so loops whose
+ * windows touch do not feed each other. It blends cells and the halo but **not**
+ * orb rotation: rotation is monotonic, a short loop cannot give it back, and
+ * blending it would spin the orb backwards through the window.
+ * [TraceStateMachine] carries rotation across the seam at playback instead.
  *
- * The frames a loop fades toward are the *B* recorded before it. When a loop
- * starts closer than *B* frames to the start of the clip, capture first steps
- * the simulation through enough hidden warm-up frames to supply them, which
- * shifts every recorded frame's `tick` and timestamp by that many steps. When a
- * transition precedes a loop, those frames belong to the transition: give it
- * room to settle before the loop starts, or the loop's tail leans toward
- * whatever the transition was still carrying.
+ * Because the lead-in is the loop's own steady state, a loop may start on the
+ * frame after a transition lands with no settled hold between the two, and a
+ * loop at the head of the clip needs no hidden warm-up, so every recorded `tick`
+ * and timestamp is the simulation's own. The lead-in is built at the atmosphere
+ * of the loop's first frame with no transition, so a cue still in motion there
+ * makes the seam close onto a frame the loop never shows: start a loop where its
+ * transition has landed.
  */
 object Oscilloscope {
     /**
@@ -165,54 +170,52 @@ object Oscilloscope {
         // groupBy preserves list order within each frame bucket, so cues on the
         // same frame apply in declaration order.
         val cuesByFrame = config.cues.groupBy(AtmosphereCue::atFrame)
-        val frameCount = config.frameCount
-        val warmUp = warmUpFrames(config)
+        val blendFrames = config.seamBlendFrames
+        val loopStarts =
+            if (blendFrames == 0) {
+                emptySet()
+            } else {
+                config.segments.filter(TraceSegment::loop).map(TraceSegment::startFrame).toSet()
+            }
 
-        // Warm-up frames come first and are never recorded; they exist only
-        // as the frames a loop at the head of the clip fades toward.
-        val frames = ArrayList<VoxelFrame>(warmUp + frameCount)
-        repeat(warmUp) { frames += generator.nextFrame() }
-        for (frameIndex in 0 until frameCount) {
+        val frames = ArrayList<VoxelFrame>(config.frameCount)
+        val leadIns = HashMap<Int, List<VoxelFrame>>()
+        for (frameIndex in 0 until config.frameCount) {
             cuesByFrame[frameIndex]?.forEach { cue -> generator.setAtmosphere(cue.atmosphere) }
             frames += generator.nextFrame()
+            // A loop's lead-in is read the moment the loop starts: the generator
+            // is in the loop's atmosphere and its phases are the first frame's.
+            if (frameIndex in loopStarts) {
+                leadIns[frameIndex] = generator.steadyStateLeadIn(blendFrames)
+            }
         }
-        return if (config.seamBlendFrames == 0) frames else bakeSeams(frames, warmUp, config)
+        return if (blendFrames == 0) frames else bakeSeams(frames, leadIns, config)
     }
 
     /**
-     * Hidden steps needed before frame 0 so every `loop` segment has
-     * [CaptureConfig.seamBlendFrames] frames ahead of its start to fade toward.
-     */
-    private fun warmUpFrames(config: CaptureConfig): Int {
-        val blendFrames = config.seamBlendFrames
-        if (blendFrames == 0) return 0
-        val earliestLoop = config.segments.filter(TraceSegment::loop).minOfOrNull(TraceSegment::startFrame) ?: return 0
-        return (blendFrames - earliestLoop).coerceAtLeast(0)
-    }
-
-    /**
-     * Fade the tail of every `loop` segment toward the frames before its start.
+     * Fade the tail of every `loop` segment toward its lead-in.
      *
-     * [captured] holds [warmUp] hidden frames followed by the clip; the result
-     * is the clip alone. Reads always come from [captured], so a blend never
+     * [leadIns] is keyed by loop start frame, each list oldest first. Reads come
+     * from [captured] and [leadIns] and never from the result, so a blend never
      * reads another blend's output.
      */
     private fun bakeSeams(
         captured: List<VoxelFrame>,
-        warmUp: Int,
+        leadIns: Map<Int, List<VoxelFrame>>,
         config: CaptureConfig,
     ): List<VoxelFrame> {
         val blendFrames = config.seamBlendFrames
-        val baked = ArrayList(captured.subList(warmUp, captured.size))
+        val baked = ArrayList(captured)
         config.segments.filter(TraceSegment::loop).forEach { segment ->
+            val leadIn = leadIns.getValue(segment.startFrame)
             for (step in 0 until blendFrames) {
                 // The window's last frame takes weight 1 and so becomes the frame
-                // recorded just before the segment's first: the seam is one step.
+                // one step before the segment's first: the seam is one step.
                 val frameIndex = segment.endFrame - blendFrames + 1 + step
                 baked[frameIndex] =
                     bakeFrame(
-                        recorded = captured[warmUp + frameIndex],
-                        target = captured[warmUp + segment.startFrame - blendFrames + step],
+                        recorded = captured[frameIndex],
+                        target = leadIn[step],
                         weight = (step + 1).toFloat() / blendFrames,
                     )
             }
@@ -254,7 +257,6 @@ object Oscilloscope {
         // Only when set, so a capture without seam blending keeps its bytes.
         if (config.seamBlendFrames > 0) {
             snapshot["capture.seamBlendFrames"] = config.seamBlendFrames.toString()
-            snapshot["capture.warmUpFrames"] = warmUpFrames(config).toString()
         }
         putAtmosphere(snapshot, "atmosphere", config.params.atmosphere)
         putRenderConfig(snapshot, "render", config.params.renderConfig)
