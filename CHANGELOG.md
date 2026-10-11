@@ -4,6 +4,8 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-11
+
 ### Fixed
 
 #### Prototype-parity defects in the Lumos renderer (PHO-38 Task A recon / #74)
@@ -67,6 +69,30 @@ Ambient rotations blend on the **shortest arc**. `VoxelFrameBuilder` wraps its i
 `Oscilloscope.capture(config: CaptureConfig): Result<VoxelTrace>` drives `CognitiveSceneRuntime` and `VoxelFrameBuilder` with no renderer and no UI clock, stepping the simulation at exactly `1f / fps`, and assembles the frames into a `VoxelTrace`. Equal configs produce byte-identical `.vxt` payloads; this is verified by tests. `CaptureConfig` carries the tuning `CaptureParams`, the seed, duration, fps, `TraceSegment`s, optional `AtmosphereCue`s for scripted transitions, and the header timestamp and version, so nothing is read from the environment during capture. Failures are Result-typed via `CaptureError`.
 
 `:phosphor-trace` now declares `api(project(":phosphor-core"))` because `CaptureParams` exposes `AtmosphereState`.
+
+#### `FrameProbe` — per-phase frame timing in `:phosphor-lumos` (PHO-34 / #70)
+
+`FrameProbe` measures where a Lumos frame's milliseconds go, split across the three phases of the frame loop: `FramePhase.BUILD` (`VoxelFrameBuilder.build`), `FramePhase.PROJECT` (`ComposeLattice.project` and `CliLattice.project`), and `FramePhase.DRAW` (`LumosCanvas` and `CliOrb.render`). `RingBufferFrameProbe` is the enabled implementation: it keeps the most recent samples per phase in a preallocated ring (600 by default, `capacity` to change it), and `summary()` returns a `FrameProbeSummary` of p50, p95, and max nanoseconds per phase using nearest-rank percentiles. A phase with no samples reads as all zeros through `forPhase`, so a caller can render a full table without null checks.
+
+**It is off by default and costs nothing off.** `VoxelFrameBuilder`, `ComposeLattice`, `CliLattice`, `LumosCanvas`, and `CliOrb` each take a defaulted `probe: FrameProbe = FrameProbe.Disabled`, so every existing call site is unaffected. `FrameProbe.measure` is an `inline` extension: with a disabled probe it is the wrapped block behind one branch — no clock read, no lambda allocation, no per-frame garbage. Enabled, `record` writes into the preallocated ring, so the hot path still does not allocate; only `summary()` allocates (it copies and sorts the retained samples), and it is meant to run off the frame loop, once, for reporting. A phase's time is recorded even when its block throws.
+
+A probe is single-threaded by contract, matching the pull-based frame loop: drive it from the render thread only. `reset()` drops the retained samples, which is how a harness discards warm-up before a measured window.
+
+`./gradlew :phosphor-lumos-cli:runFrameProbeBenchmark` drives the CLI path for a fixed window (60 s by default; `-Pduration=<seconds>` to change it) and prints the p50/p95/max table per phase alongside a probe-off versus probe-on overhead comparison.
+
+#### `:phosphor-trace` — the recorded-trace format (PHO-35 / #71)
+
+A new published module, `link.socket:phosphor-trace`, and the contract the rest of the trace pipeline builds on: a versioned on-disk format for recording a `VoxelFrame` stream and reading it back. It is framework-free `commonMain` built on `:phosphor-lumos`, available on the JVM and iOS targets. `Oscilloscope` captures into it, and `TracePlayer` and `TraceStateMachine` replay from it.
+
+`VoxelTrace` is **columnar**: a small header — `formatVersion`, `fps`, `frameCount`, `phosphorVersion`, `seed`, a `paramSnapshot` of the tuning parameters in effect, a `StaticLattice(resolution)`, and the `segments` — followed by per-frame channel arrays. Every `VoxelCell` attribute is concatenated across all frames into one primitive array of its own (all the x's, then all the y's, and so on), which groups same-channel bytes so the gzip pass compresses far better than an interleaved array of structs would. Per-frame cell counts are stored explicitly because a producer may omit voxels from frame to frame, so a frame's cell count is not constant. `VoxelTrace.fromFrames(frames, fps, …)` builds a trace from captured frames, which must be non-empty and share one lattice resolution, and `toFrames()` projects it back.
+
+The only datum that is static across a recording is its lattice resolution. A `VoxelFrame` carries positions already transformed per frame — noise, surface bump, breath pulse, Y-squash — so the rest lattice that `VoxelSphere` builds cannot be recovered from a recording and is not part of the format. Every cell attribute, plus tick, timestamp, ambient parameters, and glyph state, is stored per frame.
+
+`TraceSegment(name, startFrame, endFrame, loop)` names an inclusive frame range that a player can loop or play once. Names follow the convention `TraceStateMachine` resolves against: `"idle"` for a resting beat, `"thinking"` for an active one, and `"idle→thinking"` for the transition between two.
+
+`TraceCodec` reads and writes `.vxt`: kotlinx.serialization CBOR, gzipped, with a versioned header. gzip is `java.util.zip` on the JVM and `platform.zlib` on Apple, both with standard RFC 1952 framing, so an encoded asset moves between platforms. `decode` is Result-typed and never throws: it fails with `TraceDecodeError.Corrupt` for a payload that cannot be un-gzipped or parsed, and `TraceDecodeError.UnsupportedFormatVersion` for a header declaring a version this build does not read — the version field exists so a newer payload is rejected cleanly rather than silently misread.
+
+Format v1 stores full-precision floats. A synthetic 5 s, 30 fps, 1500-voxel clip encodes to about 2.7 MiB, against 6.0 MiB of raw float channels. Quantization and inter-frame deltas are reserved for a later `formatVersion`.
 
 ## [0.6.2] - 2026-05-31
 
