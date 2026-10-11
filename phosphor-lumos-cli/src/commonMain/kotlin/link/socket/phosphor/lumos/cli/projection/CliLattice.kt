@@ -1,8 +1,11 @@
 package link.socket.phosphor.lumos.cli.projection
 
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.color.OklabColor
+import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
@@ -13,9 +16,14 @@ import link.socket.phosphor.lumos.probe.measure
 /**
  * Orthographic projection of a VoxelFrame to a [LumosTerminalFrame].
  *
- * Each voxel's `(x, y)` lattice position maps to a character cell, ignoring
- * `z` for placement but using `z` for occlusion priority (closer voxels win
- * the cell). Zero-scale voxels (those thinned away by bipolar boundary
+ * Each voxel's lattice position is first rotated by the frame's orb rotation
+ * ([VoxelAmbient.orbRotationX], [VoxelAmbient.orbRotationY],
+ * [VoxelAmbient.orbRotationZ]; **X first, then Y, then Z**), exactly as
+ * ComposeLattice does, so the two surfaces agree on what a frame looks like.
+ * The rotated `(x, y)` maps to a character cell, ignoring `z` for placement
+ * but using the rotated `z` for occlusion priority (closer voxels win the
+ * cell). A frame whose rotation is zero projects its recorded positions
+ * unchanged. Zero-scale voxels (those thinned away by bipolar boundary
  * compression or glyph carving) are skipped, so empty cells remain empty
  * instead of being overpainted by ghost cubes.
  *
@@ -57,9 +65,10 @@ class CliLattice(
      * Project [frame] to a terminal-cell grid.
      *
      * Algorithm:
-     * 1. For every voxel with nonzero scale, compute screen `(x, y)` via
-     *    orthographic mapping of normalized lattice position.
-     * 2. Per cell, keep the voxel with the largest `z` (closest to camera).
+     * 1. For every voxel with nonzero scale, apply Euler XYZ rotation
+     *    (X → Y → Z) using angles from [frame]'s ambient state, then compute
+     *    screen `(x, y)` via orthographic mapping of the rotated position.
+     * 2. Per cell, keep the voxel with the largest rotated `z` (closest to camera).
      * 3. Map each winning voxel's scale to a luminance-ramp character and
      *    pass its sRGB color through as OklabColor.
      * 4. Empty cells become transparent blanks.
@@ -72,23 +81,46 @@ class CliLattice(
         val winningIndex = IntArray(cellCount) { -1 }
         val winningZ = FloatArray(cellCount)
         val cells = frame.cells
+        val ambient = frame.ambient
         val invAspect = 1f / characterAspectRatio
+
+        val cosX = cos(ambient.orbRotationX.toDouble()).toFloat()
+        val sinX = sin(ambient.orbRotationX.toDouble()).toFloat()
+        val cosY = cos(ambient.orbRotationY.toDouble()).toFloat()
+        val sinY = sin(ambient.orbRotationY.toDouble()).toFloat()
+        val cosZ = cos(ambient.orbRotationZ.toDouble()).toFloat()
+        val sinZ = sin(ambient.orbRotationZ.toDouble()).toFloat()
 
         for (i in cells.indices) {
             val cell = cells[i]
             if (cell.scale <= 0f) continue
 
-            val screenXf = (cell.x + 1f) * 0.5f * width
-            val screenYf = (1f - (cell.y + 1f) * 0.5f) * height * invAspect
+            // Rotate around X axis
+            val x1 = cell.x
+            val y1 = cell.y * cosX - cell.z * sinX
+            val z1 = cell.y * sinX + cell.z * cosX
+
+            // Rotate around Y axis
+            val x2 = x1 * cosY + z1 * sinY
+            val y2 = y1
+            val z2 = -x1 * sinY + z1 * cosY
+
+            // Rotate around Z axis
+            val rx = x2 * cosZ - y2 * sinZ
+            val ry = x2 * sinZ + y2 * cosZ
+            val rz = z2
+
+            val screenXf = (rx + 1f) * 0.5f * width
+            val screenYf = (1f - (ry + 1f) * 0.5f) * height * invAspect
 
             val sx = screenXf.toInt()
             val sy = screenYf.toInt()
             if (sx < 0 || sx >= width || sy < 0 || sy >= height) continue
 
             val idx = sy * width + sx
-            if (winningIndex[idx] < 0 || cell.z > winningZ[idx]) {
+            if (winningIndex[idx] < 0 || rz > winningZ[idx]) {
                 winningIndex[idx] = i
-                winningZ[idx] = cell.z
+                winningZ[idx] = rz
             }
         }
 

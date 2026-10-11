@@ -18,7 +18,13 @@ A `loop` segment did not wrap, and nothing said so. `Oscilloscope.capture` recor
 
 `FinishLoopThenSwitch`'s KDoc no longer says loops are recorded to wrap. It states content continuity as a precondition and points at `seamBlendFrames` and `contentRatio`.
 
-`./gradlew :phosphor-lumos-cli:runStateMachineDemo` captures with a 12-frame seam blend and prints each loop's measured seam. `CliLattice` applies no orb rotation, so the terminal shows the content seam only; the rotation carry is visible through `ComposeLattice`. `./gradlew :phosphor-lumos-cli:runSeamRecon` reproduces the measurements above.
+`./gradlew :phosphor-lumos-cli:runStateMachineDemo` captures with a 12-frame seam blend and prints each loop's measured seam; since PHO-48 the terminal turns the orb too, so the rotation carry shows there as well as through `ComposeLattice`. `./gradlew :phosphor-lumos-cli:runSeamRecon` reproduces the measurements above.
+
+### Fixed
+
+#### `CliLattice` turns the orb by `VoxelAmbient.orbRotation*` (PHO-48 / #94)
+
+`VoxelFrameBuilder` records cells unrotated and leaves the orb's integrated rotation in `VoxelAmbient.orbRotationX/Y/Z` for the surface adapter to apply. `ComposeLattice` applied it; `CliLattice` read `cell.x/y/z` directly, so the terminal orb never turned — every preset's 0.10–0.45 rad/s spin was invisible on the CLI, and the two surfaces disagreed about what the same frame looked like. `CliLattice.project` now rotates each voxel X → Y → Z by the frame's ambient angles, exactly as `ComposeLattice` does, before placing it. Occlusion follows the rotated depth: the voxel that ends up nearest the camera wins its character cell, not the one recorded nearest. On screen the silhouette barely changes, since the orb is a sphere; what moves is the colour pattern, UNCERTAIN's bipolar bands, and the glyph, which is carved on the face the rotation brings to the camera and now lands where the terminal can see it. A frame whose three angles are zero projects exactly as before. The ambient still passes through to `LumosTerminalFrame` unchanged.
 
 ### Changed
 
