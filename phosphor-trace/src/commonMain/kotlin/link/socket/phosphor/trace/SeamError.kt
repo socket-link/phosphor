@@ -54,7 +54,8 @@ data class SeamChannel(
  * shortest arc, as [FrameBlend] interpolates them, so a rotation that wraps 2π
  * between the two frames is not counted as a full turn.
  *
- * A decoded format-v2 trace measures the same as the capture it came from.
+ * A decoded format-v2 or v3 trace measures the same as the capture it came
+ * from; v3 decodes to exactly v2's columns.
  * Rounding to a quantum stalls a slow cell on some frames and ticks it a whole
  * quantum on others. Averaged over the frame, those come back to about the true
  * step, as long as different cells tick on different frames. For the canonical
@@ -187,7 +188,7 @@ private fun VoxelTrace.frameDelta(
     var scale = 0.0
     var color = 0.0
     if (paired && count > 0) {
-        // Read through the channel accessors so a decoded v2 trace is measured
+        // Read through the channel accessors so a quantized trace is measured
         // without expanding its float columns.
         val c = cells
         for (i in 0 until count) {

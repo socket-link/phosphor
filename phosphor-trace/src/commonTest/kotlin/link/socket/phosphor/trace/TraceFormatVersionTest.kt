@@ -11,10 +11,10 @@ import kotlinx.serialization.cbor.Cbor
 @OptIn(ExperimentalSerializationApi::class)
 class TraceFormatVersionTest {
     @Test
-    fun `this build reads v1 and v2 and writes v2 for new traces`() {
-        assertEquals(1..2, TraceCodec.SUPPORTED_FORMAT_VERSIONS)
-        assertEquals(2, TraceCodec.SUPPORTED_FORMAT_VERSION)
-        assertEquals(2, VoxelTrace.CURRENT_FORMAT_VERSION)
+    fun `this build reads v1 through v3 and writes v3 for new traces`() {
+        assertEquals(1..3, TraceCodec.SUPPORTED_FORMAT_VERSIONS)
+        assertEquals(3, TraceCodec.SUPPORTED_FORMAT_VERSION)
+        assertEquals(3, VoxelTrace.CURRENT_FORMAT_VERSION)
     }
 
     @Test
@@ -53,6 +53,16 @@ class TraceFormatVersionTest {
 
         assertTrue(result.isSuccess)
         TraceTestData.assertV2Equivalent(v2, result.getOrThrow())
+    }
+
+    @Test
+    fun `decode accepts v3`() {
+        val v3 = TraceTestData.sampleTrace(formatVersion = 3)
+
+        val result = TraceCodec.decode(TraceCodec.encode(v3))
+
+        assertTrue(result.isSuccess)
+        TraceTestData.assertV2Equivalent(v3, result.getOrThrow())
     }
 
     @Test

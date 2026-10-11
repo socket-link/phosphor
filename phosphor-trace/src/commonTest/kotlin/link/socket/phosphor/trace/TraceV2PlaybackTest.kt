@@ -12,10 +12,10 @@ import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
- * A decoded v2 trace stays quantized in memory and is dequantized a frame at a
- * time, but plays exactly as a float trace of the same values would. These pin
- * that down on traces that went through the v2 codec: held-frame identity, blend
- * alignment, and crossfades.
+ * A decoded v2 or v3 trace stays quantized in memory and is dequantized a frame
+ * at a time, but plays exactly as a float trace of the same values would. These
+ * pin that down on traces that went through the current codec (v3, which decodes
+ * to exactly v2's channels): held-frame identity, blend alignment, and crossfades.
  */
 class TraceV2PlaybackTest {
     @Test
@@ -31,8 +31,9 @@ class TraceV2PlaybackTest {
 
     @Test
     fun `cell index i is the same lattice voxel in every decoded v2 frame`() {
-        // A blend pairs cells by index. v2 stores positions absolutely, per cell,
-        // in lattice order, so decoded cell i sits within half a quantization step
+        // A blend pairs cells by index. v3's deltas pair cell i with cell i of the
+        // previous frame and decode to absolute positions in lattice order, so
+        // decoded cell i sits within half a quantization step
         // of the voxel it was recorded from — far inside half a lattice spacing.
         val trace = realCapture()
         val decoded = roundTrip(trace)

@@ -26,14 +26,21 @@ class TraceCodecRoundTripTest {
     }
 
     @Test
-    fun `a decoded v2 trace re-encodes to identical bytes`() {
+    fun `a decoded v2 or v3 trace re-encodes to identical bytes`() {
         val random = Random(0xBEEF)
-        repeat(20) { iteration ->
-            val encoded = TraceCodec.encode(randomTrace(random))
-            val decoded = TraceCodec.decode(encoded).getOrThrow()
+        for (version in 2..3) {
+            repeat(20) { iteration ->
+                val encoded = TraceCodec.encode(TraceTestData.withFormatVersion(randomTrace(random), version))
+                val decoded = TraceCodec.decode(encoded).getOrThrow()
 
-            assertContentEquals(encoded, TraceCodec.encode(decoded), "re-encode drifted on iteration $iteration")
-            assertEquals(decoded, TraceCodec.decode(TraceCodec.encode(decoded)).getOrThrow())
+                assertEquals(version, decoded.formatVersion)
+                assertContentEquals(
+                    encoded,
+                    TraceCodec.encode(decoded),
+                    "v$version re-encode drifted on iteration $iteration",
+                )
+                assertEquals(decoded, TraceCodec.decode(TraceCodec.encode(decoded)).getOrThrow())
+            }
         }
     }
 

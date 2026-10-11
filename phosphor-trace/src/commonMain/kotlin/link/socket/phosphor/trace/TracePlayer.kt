@@ -62,7 +62,7 @@ sealed class TracePlaybackError(
  * slicing the trace's columnar channels, never via [VoxelTrace.toFrames],
  * which materializes the whole recording at once (a 10 s capture at 60 fps and
  * resolution 10 is 600 × 4,801 cells — far too much to hold for playback). A
- * trace decoded from format v2 stays quantized in memory and the player
+ * trace decoded from format v2 or v3 stays quantized in memory and the player
  * dequantizes only the frame it slices, so it never expands the trace's float
  * columns.
  *
@@ -295,8 +295,8 @@ class TracePlayer(
 
     // Slice one frame out of the columnar channels. This is the only place in
     // playback that allocates, and it runs once per recorded frame rather than
-    // once per display refresh. A trace decoded from v2 is dequantized here, one
-    // frame's cells at a time, so its float columns are never materialized.
+    // once per display refresh. A trace decoded from v2 or v3 is dequantized here,
+    // one frame's cells at a time, so its float columns are never materialized.
     private fun reconstruct(index: Int): VoxelFrame {
         val base = cellOffsets[index]
         val count = trace.cellCounts[index]

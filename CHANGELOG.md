@@ -52,6 +52,26 @@ This is on by default and changes what the stream emits after a loop's first pas
 
 `./gradlew :phosphor-lumos-cli:runEntryRecon` reproduces the measurements. `runStateMachineDemo`'s status line now names a blend-in separately from a crossfade.
 
+#### `VoxelTrace` format v3 — positions delta-coded against the previous frame, about 25% smaller than v2 (PHO-44 / #90)
+
+`TraceCodec` now writes **format v3** for every new trace: `VoxelTrace.CURRENT_FORMAT_VERSION` is `3`, so v3 rather than v2 (below) is the format this release writes. v3 keeps v2's quantization and wire layout and changes one thing: each frame's 16-bit position codes are stored as the difference from the same cell in the previous frame. A Lumos voxel moves a few dozen `2⁻¹²` steps per frame, so the high byte plane of every position channel is almost constant and gzip stores it for close to nothing.
+
+On the same real captures as v2 (resolution 10, 4,801 voxels, 20 fps, one 4 s loop per preset):
+
+| Loop | v2 B/voxel-frame | v3 B/voxel-frame |
+|------|------------------|------------------|
+| IDLE | 3.41 | 2.07 |
+| LISTENING | 3.74 | 3.00 |
+| THINKING | 4.20 | 3.18 |
+| UNCERTAIN | 4.28 | 3.30 |
+| READY | 3.71 | 2.93 |
+
+The five loops come to **5.57 MB**, down from 7.43 MB, which leaves about 4.4 MB of SCKT-392's 10 MB budget for recorded transitions. The full 25-segment set would still be about 13 MB, so v3 alone does not fit it. The PHO-35 synthetic clip roughly halves, from 0.68 MB to 0.35 MB.
+
+**Nothing on screen changes.** The deltas are taken between integer codes after quantization, never between floats, and wrap modulo 2¹⁶. A v3 payload therefore decodes to exactly the columns a v2 payload of the same trace would, with v2's tolerance and no accumulated error, and a decoded v3 trace re-encodes to identical bytes. The deltas are undone once, on decode, so a decoded v3 trace keeps the same absolute quantized channels in memory as a decoded v2 trace (PHO-45, below): the same 11 bytes per voxel-frame, any frame readable on its own, and `TracePlayer`, `FrameBlend` and `TraceStateMachine` unchanged. Everything PHO-45 says of a decoded v2 trace holds for v3. The first frame stores absolute codes, as does any frame whose cell count differs from the one before it (`LumosRenderConfig.omitBelowScale > 0`). There are no periodic keyframes: decoding expands the whole trace up front, so keyframes would cost bytes without making seeking any faster.
+
+**v1 and v2 still read**, and a decoded v1 or v2 trace re-encodes in its own format. `TraceCodec.SUPPORTED_FORMAT_VERSIONS` is now `1..3`. A trace captured by this release needs a build that reads v3.
+
 #### `VoxelTrace` format v2 — quantized cell channels, about 3.5× smaller (PHO-42 / #88)
 
 `TraceCodec` now writes **format v2** for every new trace: `VoxelTrace.CURRENT_FORMAT_VERSION` is `2`, and `VoxelTrace.fromFrames` and `Oscilloscope.capture` stamp it. v1 stored every cell channel as a full `Float`, which measured 12.5–13.6 bytes per voxel-frame on real Lumos captures (resolution 10, 4,801 voxels, 20 fps). That put a 4 s loop near 5 MB and Socket's five-loop asset set at 24.8 MB against SCKT-392's 10 MB budget. v2 measures **3.4–4.3 bytes per voxel-frame** on the same captures, and the five loops come to **7.4 MB**. The PHO-35 synthetic clip drops from 2.83 MB to 0.68 MB.
@@ -78,7 +98,7 @@ For v2, `encode` also throws on a non-finite position or colour, an infinite alp
 
 `TraceCodec.SUPPORTED_FORMAT_VERSIONS` (`1..2`) is new. `TraceCodec.SUPPORTED_FORMAT_VERSION` and `UnsupportedFormatVersion.supportedVersion` now mean the newest version this build reads.
 
-v2 shrinks the bundle; decoded RAM is the next entry. Previous-frame delta coding is tracked separately; it would take the full 25-segment set from about 17 MB to about 13 MB, still over SCKT-392's budget.
+v2 shrinks the bundle; decoded RAM is the next entry. Previous-frame delta coding shipped as v3, above.
 
 #### Decoded v2 traces stay quantized in memory, about 3× less RAM (PHO-45 / #91)
 

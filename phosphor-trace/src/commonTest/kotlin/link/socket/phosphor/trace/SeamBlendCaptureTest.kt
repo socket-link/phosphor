@@ -32,7 +32,8 @@ class SeamBlendCaptureTest {
     fun `a baked seam survives v2 quantization`() {
         // PHO-50: v2 rounds every cell to a quantum, and a slow preset's per-frame
         // colour step is about one RGB8 quantum. The seam and its median step are
-        // both means over every cell, so rounding barely moves either one.
+        // both means over every cell, so rounding barely moves either one. The codec
+        // writes v3, which decodes to exactly v2's columns (PHO-44), so this covers both.
         AtmospherePresets.ALL.forEach { (name, preset) ->
             val captured =
                 Oscilloscope
@@ -43,7 +44,7 @@ class SeamBlendCaptureTest {
             val before = captured.seamErrors().single()
             val after = decoded.seamErrors().single()
 
-            assertEquals(2, decoded.formatVersion)
+            assertEquals(VoxelTrace.CURRENT_FORMAT_VERSION, decoded.formatVersion)
             assertTrue(after.contentRatio < BAKED_CEILING, "$name should still wrap after a v2 round trip, was $after")
             assertEquals(
                 before.contentRatio,

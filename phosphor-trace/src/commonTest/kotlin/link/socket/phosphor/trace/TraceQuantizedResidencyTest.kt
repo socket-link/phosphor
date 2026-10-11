@@ -16,13 +16,13 @@ import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
- * A trace decoded from v2 keeps its cell channels quantized (PHO-45). These pin
- * down that playback never expands them, and that what it plays is bit for bit
- * what PHO-42's float decode of the same bytes produced.
+ * A trace decoded from v2 or v3 keeps its cell channels quantized (PHO-45). These
+ * pin down that playback never expands them, and that what it plays is bit for
+ * bit what PHO-42's float decode of the same trace's v2 bytes produced.
  */
 class TraceQuantizedResidencyTest {
     @Test
-    fun `decoding v2 keeps the cell channels quantized at 11 bytes per voxel-frame`() {
+    fun `decoding v2 or v3 keeps the cell channels quantized at 11 bytes per voxel-frame`() {
         val decoded = roundTrip(realCapture())
 
         val cells = assertIs<CellChannels.Quantized>(decoded.cells)
@@ -67,16 +67,21 @@ class TraceQuantizedResidencyTest {
         val traces = listOf(realCapture(), StateMachineTraces.threeState()) + List(20) { randomTrace(random) }
 
         for ((index, trace) in traces.withIndex()) {
-            val bytes = TraceCodec.encode(trace)
-            val expected = legacyFloatDecode(bytes)
-            val decoded = TraceCodec.decode(bytes).getOrThrow()
-            val player = TracePlayer(decoded)
+            // The reference reads v2 only; v3 must play bit for bit what it does (PHO-44).
+            val v2Bytes = TraceCodec.encode(TraceTestData.withFormatVersion(trace, formatVersion = 2))
+            val expected = legacyFloatDecode(v2Bytes)
+            for (version in 2..3) {
+                val bytes = TraceCodec.encode(TraceTestData.withFormatVersion(trace, version))
+                val decoded = TraceCodec.decode(bytes).getOrThrow()
+                val player = TracePlayer(decoded)
+                val where = "trace $index via v$version"
 
-            for (frameIndex in 0 until decoded.frameCount) {
-                player.seek(frameIndex)
-                assertBitIdentical(expected[frameIndex], player.currentFrame, "trace $index frame $frameIndex")
+                for (frameIndex in 0 until decoded.frameCount) {
+                    player.seek(frameIndex)
+                    assertBitIdentical(expected[frameIndex], player.currentFrame, "$where frame $frameIndex")
+                }
+                assertEquals(expected, decoded.toFrames(), "toFrames drifted on $where")
             }
-            assertEquals(expected, decoded.toFrames(), "toFrames drifted on trace $index")
         }
     }
 
@@ -111,7 +116,7 @@ class TraceQuantizedResidencyTest {
     fun `equality and hash do not depend on how the channels are stored`() {
         val bytes = TraceCodec.encode(realCapture())
         val quantized = TraceCodec.decode(bytes).getOrThrow()
-        val floats = TraceTestData.withFormatVersion(TraceCodec.decode(bytes).getOrThrow(), formatVersion = 2)
+        val floats = asFloats(TraceCodec.decode(bytes).getOrThrow())
         assertIs<CellChannels.Floats>(floats.cells)
 
         assertEquals(floats, quantized)
@@ -127,12 +132,12 @@ class TraceQuantizedResidencyTest {
         val random = Random(0xBEEF)
         repeat(20) { iteration ->
             val encoded = TraceCodec.encode(randomTrace(random))
-            val asFloats = TraceTestData.withFormatVersion(TraceCodec.decode(encoded).getOrThrow(), formatVersion = 2)
+            val floats = asFloats(TraceCodec.decode(encoded).getOrThrow())
 
-            assertContentEquals(encoded, TraceCodec.encode(asFloats), "requantization drifted on iteration $iteration")
+            assertContentEquals(encoded, TraceCodec.encode(floats), "requantization drifted on iteration $iteration")
         }
         val capture = TraceCodec.encode(realCapture())
-        val captureFloats = TraceTestData.withFormatVersion(TraceCodec.decode(capture).getOrThrow(), formatVersion = 2)
+        val captureFloats = asFloats(TraceCodec.decode(capture).getOrThrow())
         assertContentEquals(capture, TraceCodec.encode(captureFloats))
     }
 
@@ -245,6 +250,10 @@ class TraceQuantizedResidencyTest {
     }
 
     private fun roundTrip(trace: VoxelTrace): VoxelTrace = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+
+    /** [decoded] rebuilt on float columns, in the format it was decoded from. */
+    private fun asFloats(decoded: VoxelTrace): VoxelTrace =
+        TraceTestData.withFormatVersion(decoded, formatVersion = decoded.formatVersion)
 
     private fun realCapture(): VoxelTrace =
         Oscilloscope

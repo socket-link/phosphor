@@ -156,7 +156,7 @@ internal object TraceTestData {
             glyphs = trace.glyphs,
         )
 
-    /** The position step a v2 encode of [trace] uses. */
+    /** The position step a v2 or v3 encode of [trace] uses. */
     fun positionStepOf(trace: VoxelTrace): Float {
         var maxAbs = 0f
         for (i in trace.cellX.indices) {
@@ -175,8 +175,9 @@ internal object TraceTestData {
     fun composeByte(channel: Float): Int = (channel * 255.0f + 0.5f).toInt()
 
     /**
-     * Assert [decoded] is [original] after one v2 round trip: every header and
-     * per-frame field exact, and every cell within the v2 tolerance (PHO-42) —
+     * Assert [decoded] is [original] after one v2 or v3 round trip: every header
+     * and per-frame field exact, and every cell within the v2 tolerance (PHO-42),
+     * which v3 shares —
      * position within half a step, scale on the same luminance-ramp character and
      * the same side of zero, colour and alpha packing to the same Compose byte.
      */
@@ -184,7 +185,8 @@ internal object TraceTestData {
         original: VoxelTrace,
         decoded: VoxelTrace,
     ) {
-        assertEquals(2, decoded.formatVersion)
+        assertTrue(original.formatVersion >= 2, "v${original.formatVersion} is not a quantized format")
+        assertEquals(original.formatVersion, decoded.formatVersion)
         assertEquals(original.fps, decoded.fps)
         assertEquals(original.frameCount, decoded.frameCount)
         assertEquals(original.phosphorVersion, decoded.phosphorVersion)
