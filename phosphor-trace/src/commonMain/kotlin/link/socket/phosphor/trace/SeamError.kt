@@ -54,6 +54,17 @@ data class SeamChannel(
  * shortest arc, as [FrameBlend] interpolates them, so a rotation that wraps 2π
  * between the two frames is not counted as a full turn.
  *
+ * A decoded format-v2 trace measures the same as the capture it came from.
+ * Rounding to a quantum stalls a slow cell on some frames and ticks it a whole
+ * quantum on others. Averaged over the frame, those come back to about the true
+ * step, as long as different cells tick on different frames. For the canonical
+ * presets that holds even at 60 fps, where idle's colour moves about half an
+ * RGB8 quantum per frame: no loop's [contentRatio] moved by more than 0.13
+ * (PHO-50). The average breaks down for a field that moves in lockstep below a
+ * quantum. Every cell then ticks on the same frames, most steps change nothing,
+ * and the median step reads `0`. A seam that lands on a tick then reads
+ * [Float.POSITIVE_INFINITY].
+ *
  * Get one from [seamError] or [seamErrors], both extensions on [VoxelTrace].
  *
  * @property segment The segment measured.
