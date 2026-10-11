@@ -56,11 +56,16 @@ internal object StateMachineTraces {
      *
      * Every pair touching `uncertain` has no recorded transition, so this is the
      * fixture that drives the fallback policies.
+     *
+     * @param transitionCells Cells in each transition frame. Fewer than
+     *  [CELLS_PER_FRAME] makes the recording's cells unpaired, the shape a capture
+     *  with `omitBelowScale > 0` has.
      */
-    fun threeState(): VoxelTrace =
+    fun threeState(transitionCells: Int = CELLS_PER_FRAME): VoxelTrace =
         build(
             states = THREE_STATES,
             pairs = listOf("idle" to "thinking", "thinking" to "idle"),
+            transitionCells = transitionCells,
         )
 
     /**
@@ -95,12 +100,30 @@ internal object StateMachineTraces {
         return widestGap / shortestRamp
     }
 
+    /**
+     * Largest signature step a correct playback of [states] can produce when
+     * every recorded transition blends in over [blendSteps] recorded frames.
+     *
+     * Through the window the weight and the one-shot both move, so a step can
+     * reach `(2N - 1) / N` of the transition's own: weight `(N-1)/N` on frame
+     * `N-1` of the ramp, then frame `N` unblended. A blend-in as long as the
+     * one-shot is cut to it.
+     */
+    fun blendInEnvelope(
+        states: List<String>,
+        blendSteps: Int,
+    ): Float {
+        val steps = minOf(blendSteps, TRANSITION_FRAMES).toFloat()
+        return continuityEnvelope(states) * (2f * steps - 1f) / steps
+    }
+
     /** How many weight steps a [TransitionPolicy.Crossfade] of [durationMs] resolves to at [FPS]. */
     fun fadeSteps(durationMs: Long): Int = (durationMs * FPS / 1_000L).toInt().coerceAtLeast(1)
 
     private fun build(
         states: List<String>,
         pairs: List<Pair<String, String>>,
+        transitionCells: Int = CELLS_PER_FRAME,
     ): VoxelTrace {
         val frames = ArrayList<VoxelFrame>()
         val segments = ArrayList<TraceSegment>()
@@ -118,7 +141,7 @@ internal object StateMachineTraces {
             val ramp = (TRANSITION_FRAMES - 1).toFloat()
             for (step in 0 until TRANSITION_FRAMES) {
                 // Inclusive of both endpoints: frame 0 holds a, the last holds b.
-                frames += frameOf(frames.size, a + (b - a) * step / ramp)
+                frames += frameOf(frames.size, a + (b - a) * step / ramp, transitionCells)
             }
             segments +=
                 TraceSegment(
@@ -141,13 +164,14 @@ internal object StateMachineTraces {
     private fun frameOf(
         tick: Int,
         signature: Float,
+        cells: Int = CELLS_PER_FRAME,
     ): VoxelFrame =
         VoxelFrame(
             tick = tick.toLong(),
             timestampEpochMillis = tick * (1_000L / FPS),
             resolution = 2,
             cells =
-                List(CELLS_PER_FRAME) { cell ->
+                List(cells) { cell ->
                     VoxelCell(
                         x = signature,
                         y = cell.toFloat(),

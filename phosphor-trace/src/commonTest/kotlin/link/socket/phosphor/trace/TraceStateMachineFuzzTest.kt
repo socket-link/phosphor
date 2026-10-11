@@ -84,6 +84,24 @@ class TraceStateMachineFuzzTest {
     }
 
     @Test
+    fun blendedInPlaybackStaysInsideItsEnvelope() {
+        val fixture = AUTHORED_FIVE_STATE_BLEND_IN
+        val envelope = StateMachineTraces.blendInEnvelope(fixture.states, StateMachineTraces.fadeSteps(BLEND_IN_MS))
+
+        SEEDS.forEach { seed ->
+            val signatures = play(fixture, seed).log.map { it.signature }
+
+            signatures.zipWithNext().forEachIndexed { tick, (previous, next) ->
+                assertTrue(
+                    abs(next - previous) <= envelope + TOLERANCE,
+                    "seed=$seed tick=${tick + 1}: signature jumped $previous → $next, " +
+                        "past the $envelope envelope",
+                )
+            }
+        }
+    }
+
+    @Test
     fun recordedTransitionsAlwaysPlayToTheirLastFrame() {
         val fixture = AUTHORED_FIVE_STATE
         val bounds = fixture.trace.segments.associateBy(TraceSegment::name)
@@ -209,6 +227,10 @@ class TraceStateMachineFuzzTest {
         assertTrue(crossfaded.log.any { it.segment.contains(ARROW) }, "no recorded transition ran")
         assertTrue(recorded.log.any { it.segment.contains(ARROW) }, "no recorded transition ran")
         assertTrue(seamed.runs().size > 1, "nothing ever switched")
+        assertTrue(
+            play(AUTHORED_FIVE_STATE_BLEND_IN, SEEDS.first()).log.any { it.incoming?.contains(ARROW) == true },
+            "no recorded transition was ever blended into",
+        )
         assertTrue(crossfaded.rejectedRequests > 0, "no unknown state was ever requested")
     }
 
@@ -278,6 +300,8 @@ class TraceStateMachineFuzzTest {
         val policy: TransitionPolicy,
         /** Whether the clock steps by exactly one recorded frame or by ragged deltas. */
         val onGrid: Boolean,
+        /** Immediate unless a fixture says otherwise, so the other envelopes stay those of a direct entry. */
+        val entry: OneShotEntry = OneShotEntry.Immediate,
     )
 
     private fun play(
@@ -285,7 +309,8 @@ class TraceStateMachineFuzzTest {
         seed: Int,
     ): Playback {
         val random = Random(seed)
-        val machine = TraceStateMachine(fixture.trace, fixture.states.first(), fixture.policy)
+        val machine =
+            TraceStateMachine(fixture.trace, fixture.states.first(), fixture.policy, oneShotEntry = fixture.entry)
         val frameNanos = machine.frameDuration.inWholeNanoseconds
         val log = ArrayList<Tick>(TICKS)
         val requests = ArrayList<Pair<Int, String>>()
@@ -347,6 +372,7 @@ class TraceStateMachineFuzzTest {
         const val REQUEST_ODDS: Int = 7
         const val UNKNOWN_ODDS: Int = 23
         const val FADE_MS: Long = 500L
+        const val BLEND_IN_MS: Long = 200L
         const val TOLERANCE: Float = 1e-4f
         const val UNKNOWN_STATE: String = "no-such-state"
         const val ARROW: String = TraceStateMachine.TRANSITION_ARROW
@@ -379,6 +405,17 @@ class TraceStateMachineFuzzTest {
                 onGrid = true,
             )
 
+        /** Every pair recorded, and every recorded transition blended into from the loop. */
+        val AUTHORED_FIVE_STATE_BLEND_IN =
+            Fixture(
+                label = "authored-five-state/blend-in",
+                trace = StateMachineTraces.authoredFiveState(),
+                states = StateMachineTraces.FIVE_STATES,
+                policy = TransitionPolicy.FinishLoopThenSwitch,
+                onGrid = true,
+                entry = OneShotEntry.BlendIn(BLEND_IN_MS),
+            )
+
         /** Ragged deltas: the same machine driven by a clock that never lands on a frame. */
         val THREE_STATE_OFF_GRID =
             Fixture(
@@ -394,6 +431,7 @@ class TraceStateMachineFuzzTest {
                 THREE_STATE_CROSSFADE,
                 THREE_STATE_FINISH_LOOP,
                 AUTHORED_FIVE_STATE,
+                AUTHORED_FIVE_STATE_BLEND_IN,
                 THREE_STATE_OFF_GRID,
             )
     }

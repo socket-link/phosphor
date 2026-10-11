@@ -61,6 +61,77 @@ sealed interface TransitionPolicy {
 }
 
 /**
+ * How a [TraceStateMachine] starts a recorded `"from→to"` one-shot.
+ *
+ * A one-shot is continuous only with the frame recorded just before it. The
+ * request, though, arrives wherever the outgoing loop's playhead happens to be,
+ * and the loop's content — pattern, surface bump, breath pulse — has drifted
+ * from that frame by up to a whole loop's worth. Entered as is from a 4 s loop
+ * at 24 fps, the typical entry steps 29 to 45 times the loop's median frame step
+ * in its worst cell channel, and 6 to 21 times an ordinary frame's pixel change
+ * in a Compose raster. This chooses who pays for the difference.
+ *
+ * Waiting for the loop seam is deliberately not an option. A loop captured with
+ * `CaptureConfig.seamBlendFrames` ends on the frame before its *own* start, not
+ * on the frame before the one-shot, so its seam is no closer to the one-shot than
+ * the rest of the loop: measured, it still jumps 22 to 73 steps. Only a loop
+ * captured untouched, immediately before its one-shot, meets it at the seam, and
+ * that loop pops at every wrap instead. Nor is there a better frame to wait for:
+ * the closest frame of a baked loop is still ten or more steps away.
+ */
+sealed interface OneShotEntry {
+    /**
+     * Start the one-shot on its first recorded frame, the instant it is requested.
+     *
+     * Costs nothing and adds no latency. The entry jumps by however far the
+     * loop's content has drifted from the frame the one-shot was recorded after.
+     */
+    data object Immediate : OneShotEntry
+
+    /**
+     * Start the one-shot at once, but fade into it from the outgoing loop over
+     * its first [durationMs], the way [TransitionPolicy.Crossfade] fades
+     * between two loops.
+     *
+     * The outgoing loop keeps playing underneath, the one-shot plays from its
+     * first frame, and a linear weight moves from one to the other; the jump
+     * the entry would have made is spread across the window instead of landing
+     * on one frame. Its price is a [FrameBlend] per recorded frame inside the
+     * window, every time a recorded transition starts — about 35 µs each on a
+     * desktop JVM at 4,801 voxels, so 0.4 ms per switch at the default. The
+     * one-shot's own length is not changed, so the machine still arrives when it
+     * ends. A window longer than the one-shot is cut to the one-shot.
+     *
+     * Measured over every entry frame of 4 s baked loops, the default 500 ms
+     * brings the worst step anywhere in the window to 4 to 7 median steps, and
+     * the Compose raster's to 2.1 to 6.4 — in line with the one-shot's own
+     * authored motion and the loop's own largest step. Two moving sides add up, so through the
+     * window the frame can move up to about twice as fast as either side alone,
+     * as a [TransitionPolicy.Crossfade] does.
+     *
+     * **Precondition: the outgoing loop wraps continuously** — capture it with
+     * `CaptureConfig.seamBlendFrames`. The outgoing loop keeps playing through
+     * the window, so an entry close to an unbaked seam blends that seam's jump
+     * in too, at up to the weight the outgoing side still has.
+     *
+     * The blend pairs cells by index, so it needs every frame of the recording
+     * to carry every voxel — a capture with `LumosRenderConfig.omitBelowScale > 0`
+     * does not. On such a trace this enters immediately, as
+     * [OneShotEntry.Immediate] does, rather than holding the loop for half the
+     * window and then cutting.
+     *
+     * @property durationMs Length of the fade in milliseconds. Must be `> 0`.
+     */
+    data class BlendIn(
+        val durationMs: Long,
+    ) : OneShotEntry {
+        init {
+            require(durationMs > 0L) { "BlendIn durationMs must be > 0, was $durationMs" }
+        }
+    }
+}
+
+/**
  * Drives a recorded [VoxelTrace] through state changes without a visible pop.
  *
  * Traces are linear; cognition is not. A clip cannot anticipate the moment a
@@ -77,7 +148,8 @@ sealed interface TransitionPolicy {
  *
  * 1. A segment named `"$current→$target"` in the recording wins outright. It
  *    plays once, immediately — no loop boundary is waited for — and the target's
- *    loop is entered the instant it ends.
+ *    loop is entered the instant it ends. [OneShotEntry] decides whether it
+ *    starts on its first frame or fades in from the outgoing loop.
  * 2. Otherwise the configured [TransitionPolicy] decides:
  *    [TransitionPolicy.FinishLoopThenSwitch] waits out the current iteration,
  *    [TransitionPolicy.Crossfade] runs two heads and blends.
@@ -119,6 +191,9 @@ sealed interface TransitionPolicy {
  * @param policy Fallback for state changes the recording has no transition segment for.
  * @param carryRotation Whether to keep the orb's rotation continuous across loop seams and
  *  segment changes; see "Rotation is carried, not replayed" above. On by default.
+ * @param oneShotEntry How a recorded transition starts from wherever the outgoing loop is. A
+ *  500 ms [OneShotEntry.BlendIn] by default; pass [OneShotEntry.Immediate] for the
+ *  first-frame entry, which costs nothing and jumps.
  * @throws TracePlaybackError.UnknownSegment when [initialState] names a segment
  *  the trace does not carry. Construction throws where [requestState] returns a
  *  failure, because an initial state is written by the caller while a request
@@ -129,9 +204,13 @@ class TraceStateMachine(
     initialState: String,
     private val policy: TransitionPolicy = TransitionPolicy.FinishLoopThenSwitch,
     private val carryRotation: Boolean = true,
+    private val oneShotEntry: OneShotEntry = OneShotEntry.BlendIn(DEFAULT_BLEND_IN_MS),
 ) {
     /** Every name [requestState] accepts, in declaration order. */
     val stateNames: List<String> = trace.segments.map(TraceSegment::name)
+
+    // Whether cell i is the same voxel in every frame, which a blend-in needs.
+    private val cellsAligned: Boolean = trace.cellCounts.all { it == trace.cellCounts.first() }
 
     // Two heads over one recording. Both exist for the machine's lifetime and
     // swap roles when a crossfade lands, so a fade allocates no player and
@@ -192,18 +271,18 @@ class TraceStateMachine(
     /** Segment the outgoing head rests on. */
     val activeSegment: TraceSegment get() = primary.activeSegment
 
-    /** Segment the incoming head rests on during a crossfade, else null. */
+    /** Segment the incoming head rests on during a crossfade or a [OneShotEntry.BlendIn], else null. */
     val incomingSegment: TraceSegment? get() = if (phase is Phase.Fade) secondary.activeSegment else null
 
     /** Absolute trace index the outgoing head rests on. */
     val currentFrameIndex: Int get() = primary.frameIndexAt(primaryNanos.nanoseconds)
 
-    /** Absolute trace index the incoming head rests on during a crossfade, else null. */
+    /** Absolute trace index the incoming head rests on during a crossfade or a blend-in, else null. */
     val incomingFrameIndex: Int?
         get() = if (phase is Phase.Fade) secondary.frameIndexAt(secondaryNanos.nanoseconds) else null
 
     /**
-     * The two heads and the weight between them while a crossfade runs, else null.
+     * The two heads and the weight between them while a crossfade or a blend-in runs, else null.
      *
      * [currentFrame] already collapses this into a single frame. Read it
      * directly to blend somewhere cheaper — a shader, say — and ignore
@@ -219,7 +298,7 @@ class TraceStateMachine(
             )
         }
 
-    /** The frame the machine currently shows, blended if a crossfade is running. */
+    /** The frame the machine currently shows, blended while a crossfade or a blend-in runs. */
     val currentFrame: VoxelFrame
         get() =
             when (phase) {
@@ -341,11 +420,19 @@ class TraceStateMachine(
 
         val oneShot = trace.segments.firstOrNull { it.name == transitionName(from, target) }
         if (oneShot != null) {
+            val spanNanos = oneShot.frameCount.toLong() * frameNanos
+            val entry = oneShotEntry
+            if (entry is OneShotEntry.BlendIn && cellsAligned) {
+                // Cut to the one-shot: the fade must land while it is still playing.
+                val fadeNanos = minOf(entry.durationMs * NANOS_PER_MILLI, spanNanos)
+                beginFade(oneShot.name, target, fadeNanos, oneShotSpanNanos = spanNanos)
+                return
+            }
             val rotation = handoffRotation()
             primary.setSegment(oneShot.name)
             primaryNanos = 0L
             primaryCarry.enter(primary.activeSegment, rotation)
-            phase = Phase.OneShot(target, oneShot.frameCount.toLong() * frameNanos)
+            phase = Phase.OneShot(target, spanNanos)
             return
         }
 
@@ -356,7 +443,7 @@ class TraceStateMachine(
                 } else {
                     phase = Phase.AwaitLoop(from, target)
                 }
-            is TransitionPolicy.Crossfade -> beginFade(target, policy.durationMs)
+            is TransitionPolicy.Crossfade -> beginFade(target, target, policy.durationMs * NANOS_PER_MILLI)
         }
     }
 
@@ -366,11 +453,21 @@ class TraceStateMachine(
         mutableRequestedState.value = settledState
     }
 
+    /**
+     * Start the incoming head on [segment] and fade to it over [durationNanos].
+     *
+     * [target] is the state the fade is heading for. It names [segment] itself
+     * when the fade is between two loops; when the incoming segment is a
+     * recorded one-shot, [oneShotSpanNanos] is its length and the fade hands
+     * over to it rather than settling.
+     */
     private fun beginFade(
+        segment: String,
         target: String,
-        durationMs: Long,
+        durationNanos: Long,
+        oneShotSpanNanos: Long? = null,
     ) {
-        secondary.setSegment(target)
+        secondary.setSegment(segment)
         secondaryNanos = 0L
         // The incoming head starts at the angle the outgoing one is showing, so
         // the two blend from one orientation rather than across a turn.
@@ -379,7 +476,7 @@ class TraceStateMachine(
         invalidateBlend()
         // primaryNanos deliberately keeps running: the outgoing loop carries on
         // from where it was, which is half of what makes the fade read smoothly.
-        phase = Phase.Fade(target, durationMs * NANOS_PER_MILLI)
+        phase = Phase.Fade(target, durationNanos, oneShotSpanNanos)
     }
 
     private fun enterLoop(target: String) {
@@ -390,7 +487,7 @@ class TraceStateMachine(
         settle(target)
     }
 
-    private fun promoteIncoming(target: String) {
+    private fun promoteIncoming(fade: Phase.Fade) {
         val retired = primary
         primary = secondary
         secondary = retired
@@ -401,7 +498,16 @@ class TraceStateMachine(
         secondaryNanos = 0L
         fadeNanos = 0L
         invalidateBlend()
-        settle(target)
+        // A faded-into one-shot carries on from where the incoming head was;
+        // the machine arrives when it ends, as if it had been entered directly.
+        // A fade as long as the one-shot lands on its end, so arrive now rather
+        // than holding its last frame until the next advance.
+        val oneShotSpan = fade.oneShotSpanNanos
+        when {
+            oneShotSpan == null -> settle(fade.target)
+            primaryNanos >= oneShotSpan -> enterLoop(fade.target)
+            else -> phase = Phase.OneShot(fade.target, oneShotSpan)
+        }
     }
 
     private fun settle(settledState: String) {
@@ -442,7 +548,7 @@ class TraceStateMachine(
             is Phase.Settled -> Unit
             is Phase.OneShot -> enterLoop(current.target)
             is Phase.AwaitLoop -> enterLoop(current.target)
-            is Phase.Fade -> promoteIncoming(current.target)
+            is Phase.Fade -> promoteIncoming(current)
         }
     }
 
@@ -572,10 +678,16 @@ class TraceStateMachine(
             override val target: String,
         ) : Phase
 
-        /** Both heads running, [durationNanos] of linear weight from the outgoing frame to [target]'s. */
+        /**
+         * Both heads running, [durationNanos] of linear weight from the outgoing
+         * frame to the incoming one. The incoming head plays [target]'s loop,
+         * or — when [oneShotSpanNanos] is set — the recorded one-shot to
+         * [target], [oneShotSpanNanos] long, which carries on once the fade lands.
+         */
         data class Fade(
             override val target: String,
             val durationNanos: Long,
+            val oneShotSpanNanos: Long? = null,
         ) : Phase
     }
 
@@ -584,6 +696,9 @@ class TraceStateMachine(
         const val TRANSITION_ARROW: String = "→"
 
         private const val NANOS_PER_MILLI: Long = 1_000_000L
+
+        /** The default [OneShotEntry.BlendIn] length: half a second, measured in PHO-46. */
+        private const val DEFAULT_BLEND_IN_MS: Long = 500L
 
         private const val ROTATION_AXES: Int = 3
 
