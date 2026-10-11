@@ -49,13 +49,16 @@ jobs:
       - name: Run tests before publish
         run: >
           ./gradlew
+          verifyPublishWorkflowCoverage
           :phosphor-core:jvmTest
           :phosphor-lumos:jvmTest
           :phosphor-lumos-cli:jvmTest
           :phosphor-lumos-compose:jvmTest
+          :phosphor-trace:jvmTest
           :phosphor-core:compileKotlinIosArm64
           :phosphor-lumos:compileKotlinIosArm64
           :phosphor-lumos-compose:compileKotlinIosArm64
+          :phosphor-trace:compileKotlinIosArm64
 
       - name: Check documentation for Dokka warnings
         run: |
@@ -63,7 +66,8 @@ jobs:
             :phosphor-core:dokkaGeneratePublicationHtml \
             :phosphor-lumos:dokkaGeneratePublicationHtml \
             :phosphor-lumos-cli:dokkaGeneratePublicationHtml \
-            :phosphor-lumos-compose:dokkaGeneratePublicationHtml 2>&1 | tee dokka-output.log
+            :phosphor-lumos-compose:dokkaGeneratePublicationHtml \
+            :phosphor-trace:dokkaGeneratePublicationHtml 2>&1 | tee dokka-output.log
           if grep -q "Couldn't resolve link" dokka-output.log; then
             echo "❌ Dokka link resolution warnings found:"
             grep "Couldn't resolve link" dokka-output.log
@@ -90,7 +94,8 @@ jobs:
             :phosphor-core:publishAllPublicationsToMavenCentralRepository \
             :phosphor-lumos:publishAllPublicationsToMavenCentralRepository \
             :phosphor-lumos-cli:publishAllPublicationsToMavenCentralRepository \
-            :phosphor-lumos-compose:publishAllPublicationsToMavenCentralRepository
+            :phosphor-lumos-compose:publishAllPublicationsToMavenCentralRepository \
+            :phosphor-trace:publishAllPublicationsToMavenCentralRepository
 
       - name: Dry run publish
         if: ${{ github.event.inputs.dry_run == 'true' }}
@@ -100,7 +105,8 @@ jobs:
             :phosphor-core:publishToMavenLocal \
             :phosphor-lumos:publishToMavenLocal \
             :phosphor-lumos-cli:publishToMavenLocal \
-            :phosphor-lumos-compose:publishToMavenLocal
+            :phosphor-lumos-compose:publishToMavenLocal \
+            :phosphor-trace:publishToMavenLocal
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
