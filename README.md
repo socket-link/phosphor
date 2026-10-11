@@ -154,7 +154,7 @@ The `:phosphor-lumos-cli` module is JVM-only by design; non-terminal Lumos surfa
 ./gradlew jvmTest                  # Run JVM tests (fastest gate)
 ./gradlew allTests                 # Run tests on all platforms
 ./gradlew ktlintFormat             # Auto-format code
-./gradlew dokkaHtml                # Generate API documentation
+./gradlew dokkaGeneratePublicationHtml  # Generate API documentation
 ```
 
 ---

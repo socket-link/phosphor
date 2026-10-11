@@ -37,9 +37,17 @@ jobs:
       - name: Verify formatting
         run: ./gradlew ktlintCheck
 
+      # gradle.properties opts into Dokka V2, where the V1 `dokkaHtml` task only throws, so
+      # this step passed for months without Dokka ever running. Run the task the javadoc
+      # jars are built from, which publish.yml also gates on, in every module applying Dokka.
+      #
+      # pipefail: without it the pipeline's status is tee's, and a failed build passes.
+      # --no-build-cache: a task restored from the cache prints no warnings, so a cache hit
+      # on inputs that once warned would pass without Dokka running.
       - name: Generate documentation and check for Dokka warnings
         run: |
-          ./gradlew dokkaHtml 2>&1 | tee dokka-output.log
+          set -o pipefail
+          ./gradlew --no-build-cache dokkaGeneratePublicationHtml 2>&1 | tee dokka-output.log
           if grep -q "Couldn't resolve link" dokka-output.log; then
             echo "❌ Dokka link resolution warnings found:"
             grep "Couldn't resolve link" dokka-output.log

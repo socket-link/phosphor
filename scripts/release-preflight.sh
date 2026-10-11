@@ -15,10 +15,11 @@
 # gets checked on this side of it.
 #
 # PR CI covers phosphor's source surface well: jvmTest, jsTest, wasmJsTest,
-# ktlintCheck, dokkaHtml and the iOS simulator tests all run on every pull
-# request, and since no module declares a target-specific Apple source set, the
-# simulator job compiles the same code the device and x64 targets do. What it
-# does not cover is everything about a release that is not source:
+# ktlintCheck, dokkaGeneratePublicationHtml and the iOS simulator tests all run
+# on every pull request, and since no module declares a target-specific Apple
+# source set, the simulator job compiles the same code the device and x64
+# targets do. What it does not cover is everything about a release that is not
+# source:
 #
 #   1. A module can declare `mavenPublishing { }` and still be absent from the
 #      publish workflow's command line. Nothing fails when those two drift.
@@ -185,9 +186,9 @@ fi
 #   with no JVM stdlib before it ever reaches a release.
 # dokkaGeneratePublicationHtml — the javadoc jars need it and publish.yml gates
 #   on its link warnings, but that step runs BEFORE the publish step, so a
-#   failure there costs a tag and not a version. CI runs dokkaHtml with the same
-#   grep on every PR. Doubling the cost of this build to re-check a recoverable
-#   failure is not worth it on a 16GB machine.
+#   failure there costs a tag and not a version. CI runs the same task with the
+#   same grep on every PR. Doubling the cost of this build to re-check a
+#   recoverable failure is not worth it on a 16GB machine.
 # iosSimulatorArm64Test — CI runs it on every PR, across every module.
 TASKS="ktlintCheck verifyPublishWorkflowCoverage jvmTest$IOS_X64_TASKS"
 

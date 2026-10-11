@@ -60,9 +60,12 @@ jobs:
           :phosphor-lumos-compose:compileKotlinIosArm64
           :phosphor-trace:compileKotlinIosArm64
 
+      # pipefail stops a failed Dokka run here rather than partway through the publish step;
+      # --no-build-cache keeps a cache hit from hiding warnings. Same gate as ci.yml.
       - name: Check documentation for Dokka warnings
         run: |
-          ./gradlew \
+          set -o pipefail
+          ./gradlew --no-build-cache \
             :phosphor-core:dokkaGeneratePublicationHtml \
             :phosphor-lumos:dokkaGeneratePublicationHtml \
             :phosphor-lumos-cli:dokkaGeneratePublicationHtml \
