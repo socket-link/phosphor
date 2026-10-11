@@ -42,8 +42,9 @@ internal class FormatVersionProbe(
  * - **Alpha:** the same byte, or [TraceQuantization.ALPHA_NULL] for a null alpha.
  *   An empty [cellAlpha] means every alpha in the trace is null.
  *
- * Built and read only through [TraceQuantization]; the public type stays
- * [VoxelTrace] with float columns, so playback never sees this shape.
+ * Built and read only through [TraceQuantization]. A decoded trace keeps these
+ * channel arrays as its [CellChannels.Quantized] backing, so the public type
+ * stays [VoxelTrace] and playback never sees this shape.
  */
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -73,7 +74,7 @@ internal class VoxelTraceWireV2(
     val glyphs: List<VoxelGlyphState?>,
 )
 
-/** Converts between a float-column [VoxelTrace] and its [VoxelTraceWireV2] encoding. */
+/** Converts between a [VoxelTrace] and its [VoxelTraceWireV2] encoding, and dequantizes single cells. */
 internal object TraceQuantization {
     /** Finest position step a writer uses, in lattice units: `2⁻¹²`. */
     const val DEFAULT_POSITION_STEP: Float = 1f / 4096f
@@ -91,37 +92,91 @@ internal object TraceQuantization {
     private const val UINT16_MAX: Int = 0xFFFF
 
     /**
-     * Quantize [trace]'s float columns into the v2 wire shape.
+     * Quantize [trace]'s float columns into the v2 wire shape. A trace already
+     * holding [CellChannels.Quantized] channels writes them as they are.
      *
      * @throws IllegalArgumentException when a cell channel is not finite (a `NaN`
      *  alpha is the null sentinel and is allowed), or a scale exceeds [MAX_SCALE].
      */
-    fun toWire(trace: VoxelTrace): VoxelTraceWireV2 {
-        val n = trace.cellX.size
+    fun toWire(trace: VoxelTrace): VoxelTraceWireV2 =
+        when (val cells = trace.cells) {
+            is CellChannels.Floats -> quantize(trace, cells)
+            is CellChannels.Quantized ->
+                wireOf(
+                    trace,
+                    cells.positionStep,
+                    cells.cellX,
+                    cells.cellY,
+                    cells.cellZ,
+                    cells.cellScale,
+                    cells.cellRed,
+                    cells.cellGreen,
+                    cells.cellBlue,
+                    cells.cellAlpha,
+                )
+        }
+
+    private fun quantize(
+        trace: VoxelTrace,
+        cells: CellChannels.Floats,
+    ): VoxelTraceWireV2 {
+        val n = cells.size
         var maxAbsPosition = 0f
         for (i in 0 until n) {
-            val x = trace.cellX[i]
-            val y = trace.cellY[i]
-            val z = trace.cellZ[i]
+            val x = cells.cellX[i]
+            val y = cells.cellY[i]
+            val z = cells.cellZ[i]
             require(x.isFinite() && y.isFinite() && z.isFinite()) {
                 "VoxelTrace v2 cannot encode a non-finite position at cell $i"
             }
-            require(trace.cellScale[i].isFinite() && trace.cellScale[i] <= MAX_SCALE) {
-                "VoxelTrace v2 encodes scales in 0..$MAX_SCALE; cell $i has ${trace.cellScale[i]}"
+            require(cells.cellScale[i].isFinite() && cells.cellScale[i] <= MAX_SCALE) {
+                "VoxelTrace v2 encodes scales in 0..$MAX_SCALE; cell $i has ${cells.cellScale[i]}"
             }
-            require(trace.cellRed[i].isFinite() && trace.cellGreen[i].isFinite() && trace.cellBlue[i].isFinite()) {
+            require(cells.cellRed[i].isFinite() && cells.cellGreen[i].isFinite() && cells.cellBlue[i].isFinite()) {
                 "VoxelTrace v2 cannot encode a non-finite colour at cell $i"
             }
-            require(!trace.cellAlpha[i].isInfinite()) {
+            require(!cells.cellAlpha[i].isInfinite()) {
                 "VoxelTrace v2 cannot encode an infinite alpha at cell $i"
             }
             maxAbsPosition = maxOf(maxAbsPosition, abs(x), abs(y), abs(z))
         }
 
         val step = positionStepFor(maxAbsPosition)
-        val anyAlpha = trace.cellAlpha.any { !it.isNaN() }
+        val anyAlpha = cells.cellAlpha.any { !it.isNaN() }
 
-        return VoxelTraceWireV2(
+        return wireOf(
+            trace,
+            step,
+            cellX = planes16(n) { quantizePosition(cells.cellX[it], step) },
+            cellY = planes16(n) { quantizePosition(cells.cellY[it], step) },
+            cellZ = planes16(n) { quantizePosition(cells.cellZ[it], step) },
+            cellScale = planes16(n) { quantizeScale(cells.cellScale[it]) },
+            cellRed = ByteArray(n) { quantizeChannel(cells.cellRed[it]).toByte() },
+            cellGreen = ByteArray(n) { quantizeChannel(cells.cellGreen[it]).toByte() },
+            cellBlue = ByteArray(n) { quantizeChannel(cells.cellBlue[it]).toByte() },
+            cellAlpha =
+                if (anyAlpha) {
+                    planes16(n) { quantizeAlpha(cells.cellAlpha[it]) }
+                } else {
+                    ByteArray(0)
+                },
+        )
+    }
+
+    @Suppress("LongParameterList")
+    private fun wireOf(
+        trace: VoxelTrace,
+        positionStep: Float,
+        cellX: ByteArray,
+        cellY: ByteArray,
+        cellZ: ByteArray,
+        cellScale: ByteArray,
+        cellRed: ByteArray,
+        cellGreen: ByteArray,
+        cellBlue: ByteArray,
+        cellAlpha: ByteArray,
+    ): VoxelTraceWireV2 =
+        VoxelTraceWireV2(
             formatVersion = trace.formatVersion,
             fps = trace.fps,
             frameCount = trace.frameCount,
@@ -134,27 +189,23 @@ internal object TraceQuantization {
             ticks = trace.ticks,
             timestampsEpochMillis = trace.timestampsEpochMillis,
             cellCounts = trace.cellCounts,
-            positionStep = step,
-            cellX = planes16(n) { quantizePosition(trace.cellX[it], step) },
-            cellY = planes16(n) { quantizePosition(trace.cellY[it], step) },
-            cellZ = planes16(n) { quantizePosition(trace.cellZ[it], step) },
-            cellScale = planes16(n) { quantizeScale(trace.cellScale[it]) },
-            cellRed = ByteArray(n) { quantizeChannel(trace.cellRed[it]).toByte() },
-            cellGreen = ByteArray(n) { quantizeChannel(trace.cellGreen[it]).toByte() },
-            cellBlue = ByteArray(n) { quantizeChannel(trace.cellBlue[it]).toByte() },
-            cellAlpha =
-                if (anyAlpha) {
-                    planes16(n) { quantizeAlpha(trace.cellAlpha[it]) }
-                } else {
-                    ByteArray(0)
-                },
+            positionStep = positionStep,
+            cellX = cellX,
+            cellY = cellY,
+            cellZ = cellZ,
+            cellScale = cellScale,
+            cellRed = cellRed,
+            cellGreen = cellGreen,
+            cellBlue = cellBlue,
+            cellAlpha = cellAlpha,
             ambient = trace.ambient,
             glyphs = trace.glyphs,
         )
-    }
 
     /**
-     * Expand a v2 wire payload back into float columns.
+     * Read a v2 wire payload as a [VoxelTrace] that keeps the quantized channels
+     * as its backing. Nothing is expanded to floats here: playback dequantizes
+     * the cells of the one frame it builds.
      *
      * @throws IllegalArgumentException when the payload is internally inconsistent
      *  (channel lengths that disagree with the cell counts, a non-positive step).
@@ -191,8 +242,6 @@ internal object TraceQuantization {
             "cell alpha channel holds ${wire.cellAlpha.size} bytes for $n cells"
         }
 
-        val step = wire.positionStep
-        val alpha = wire.cellAlpha
         return VoxelTrace(
             formatVersion = wire.formatVersion,
             fps = wire.fps,
@@ -206,25 +255,53 @@ internal object TraceQuantization {
             ticks = wire.ticks,
             timestampsEpochMillis = wire.timestampsEpochMillis,
             cellCounts = wire.cellCounts,
-            cellX = FloatArray(n) { signed16(wire.cellX, n, it) * step },
-            cellY = FloatArray(n) { signed16(wire.cellY, n, it) * step },
-            cellZ = FloatArray(n) { signed16(wire.cellZ, n, it) * step },
-            cellScale = FloatArray(n) { unsigned16(wire.cellScale, n, it).toFloat() / SCALE_GRID },
-            cellRed = FloatArray(n) { (wire.cellRed[it].toInt() and 0xFF) / CHANNEL_MAX.toFloat() },
-            cellGreen = FloatArray(n) { (wire.cellGreen[it].toInt() and 0xFF) / CHANNEL_MAX.toFloat() },
-            cellBlue = FloatArray(n) { (wire.cellBlue[it].toInt() and 0xFF) / CHANNEL_MAX.toFloat() },
-            cellAlpha =
-                FloatArray(n) {
-                    if (alpha.isEmpty()) {
-                        Float.NaN
-                    } else {
-                        val code = unsigned16(alpha, n, it)
-                        if (code == ALPHA_NULL) Float.NaN else code / CHANNEL_MAX.toFloat()
-                    }
-                },
+            cells =
+                CellChannels.Quantized(
+                    positionStep = wire.positionStep,
+                    cellX = wire.cellX,
+                    cellY = wire.cellY,
+                    cellZ = wire.cellZ,
+                    cellScale = wire.cellScale,
+                    cellRed = wire.cellRed,
+                    cellGreen = wire.cellGreen,
+                    cellBlue = wire.cellBlue,
+                    cellAlpha = wire.cellAlpha,
+                ),
             ambient = wire.ambient,
             glyphs = wire.glyphs,
         )
+    }
+
+    // Dequantization. Each is the expression v2 decoding has always used, so a
+    // cell read through CellChannels.Quantized is bit-identical to the float
+    // column PHO-42's decoder built from the same bytes.
+
+    /** Position code [i] of an [n]-cell plane pair, in lattice units. */
+    fun dequantizePosition(
+        planes: ByteArray,
+        n: Int,
+        i: Int,
+        step: Float,
+    ): Float = signed16(planes, n, i) * step
+
+    /** Scale code [i] of an [n]-cell plane pair. */
+    fun dequantizeScale(
+        planes: ByteArray,
+        n: Int,
+        i: Int,
+    ): Float = unsigned16(planes, n, i).toFloat() / SCALE_GRID
+
+    /** An 8-bit sRGB colour byte. */
+    fun dequantizeChannel(code: Byte): Float = (code.toInt() and 0xFF) / CHANNEL_MAX.toFloat()
+
+    /** Alpha code [i] of an [n]-cell plane pair; `NaN` for [ALPHA_NULL]. */
+    fun dequantizeAlpha(
+        planes: ByteArray,
+        n: Int,
+        i: Int,
+    ): Float {
+        val code = unsigned16(planes, n, i)
+        return if (code == ALPHA_NULL) Float.NaN else code / CHANNEL_MAX.toFloat()
     }
 
     /**

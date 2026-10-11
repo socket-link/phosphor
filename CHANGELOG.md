@@ -48,7 +48,7 @@ Each 16-bit channel is stored as a plane of high bytes followed by a plane of lo
 
 Equivalence tests in `:phosphor-lumos-cli` and `:phosphor-lumos-compose` hold real captures to these bounds.
 
-Re-encoding a decoded v2 trace produces identical bytes. In memory a trace still holds `FloatArray` columns whichever version it came from, so `TracePlayer`, `FrameBlend` and `TraceStateMachine` are unchanged. Cell index `i` is still the same lattice voxel in every frame.
+Re-encoding a decoded v2 trace produces identical bytes. `VoxelTrace` still exposes `FloatArray` columns whichever version it came from, so `TracePlayer`, `FrameBlend` and `TraceStateMachine` are unchanged. Cell index `i` is still the same lattice voxel in every frame.
 
 **v1 still reads.** `TraceCodec.decode` reads v1 and v2 and still returns `TraceDecodeError.UnsupportedFormatVersion` for anything else; a frozen v1 payload in the test suite guards this. `TraceCodec.encode` now writes the format a trace's own `formatVersion` names: a decoded v1 trace re-encodes losslessly as v1 rather than being quantized behind its owner's back, and an unknown version throws `IllegalArgumentException`.
 
@@ -56,7 +56,15 @@ For v2, `encode` also throws on a non-finite position or colour, an infinite alp
 
 `TraceCodec.SUPPORTED_FORMAT_VERSIONS` (`1..2`) is new. `TraceCodec.SUPPORTED_FORMAT_VERSION` and `UnsupportedFormatVersion.supportedVersion` now mean the newest version this build reads.
 
-Decoded RAM is unchanged: v2 shrinks the bundle, not the resident `FloatArray`s (about 61 MB for the five loops). Keeping quantized columns resident is tracked separately, as is previous-frame delta coding, which would take the full 25-segment set from about 17 MB to about 13 MB, still over SCKT-392's budget.
+v2 shrinks the bundle; decoded RAM is the next entry. Previous-frame delta coding is tracked separately; it would take the full 25-segment set from about 17 MB to about 13 MB, still over SCKT-392's budget.
+
+#### Decoded v2 traces stay quantized in memory, about 3× less RAM (PHO-45 / #91)
+
+`TraceCodec.decode` used to expand a v2 payload into the same eight `FloatArray` columns as v1, 32 bytes per voxel-frame. Socket's five 4 s loops (1.92 M voxel-frames) came to about 61 MB resident. A decoded v2 trace now keeps the quantized channels it was stored with: 16-bit positions and scale, 8-bit colour, and no alpha channel when every alpha is null. That is **11 bytes per voxel-frame**, or 13 with alpha. The five loops now hold about 21 MB.
+
+`TracePlayer` dequantizes only the frame it slices, once per recorded frame. Its output is bit-identical to what the float decode produced from the same bytes; a test holds the old decoder as the reference. A held frame is still the identical instance, `FrameBlend.isAligned` is unchanged, and `TraceStateMachine`, `LumosSource.Trace`, `VoxelTrace.toFrames` and `seamError` all read the quantized channels directly.
+
+The public shape of `VoxelTrace` is unchanged, including its constructor. `cellX` … `cellAlpha` still read as `FloatArray`. On a decoded v2 trace, the first read of any of them expands all eight columns and holds them, which costs the RAM this change saves, so avoid them on device. Writing into those arrays no longer changes what a decoded v2 trace plays. Equality and `hashCode` compare channel values, not storage, so a decoded trace still equals a float trace holding the same values. Re-encoding a decoded v2 trace writes its stored codes back unchanged, rather than requantizing them. v1 traces and traces built with `fromFrames` keep float columns.
 
 ## [0.7.0] - 2026-10-11
 

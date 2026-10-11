@@ -60,6 +60,8 @@ class TraceSizeBudgetTest {
         // Socket's orb: resolution 10 (4,801 voxels) stepped at 20 fps. One 4 s loop
         // per preset is the loops-only asset set SCKT-392 budgets at 10 MB.
         var totalV2 = 0L
+        var totalResident = 0L
+        var totalVoxelFrames = 0L
         for ((name, preset) in LOOPS) {
             val trace =
                 Oscilloscope
@@ -75,8 +77,11 @@ class TraceSizeBudgetTest {
             assertEquals(LUMOS_VOXELS * trace.frameCount.toLong(), voxelFrames, "$name capture is not a full lattice")
 
             val v1Size = TraceCodec.encode(TraceTestData.withFormatVersion(trace, formatVersion = 1)).size
-            val v2Size = TraceCodec.encode(trace).size
+            val v2Bytes = TraceCodec.encode(trace)
+            val v2Size = v2Bytes.size
             totalV2 += v2Size
+            totalResident += TraceTestData.residentCellBytes(TraceCodec.decode(v2Bytes).getOrThrow())
+            totalVoxelFrames += voxelFrames
 
             println(
                 "[PHO-42] $name loop ${LOOP_MS / 1_000}s @ ${SOCKET_FPS}fps × $LUMOS_VOXELS voxels: " +
@@ -92,6 +97,14 @@ class TraceSizeBudgetTest {
         }
 
         println("[PHO-42] five loops total v2 $totalV2 B (SCKT-392 budget $SCKT_392_BUDGET_BYTES B)")
+        // PHO-45: decoded, the five loops hold their cell channels quantized rather
+        // than as 32 B/vf of floats.
+        println(
+            "[PHO-45] five loops decoded: cell channels resident $totalResident B " +
+                "(${perVoxelFrame(totalResident, totalVoxelFrames)} B/vf; " +
+                "${8L * Float.SIZE_BYTES * totalVoxelFrames} B as float columns)",
+        )
+        assertEquals(RESIDENT_BYTES_PER_VOXEL_FRAME * totalVoxelFrames, totalResident)
         assertTrue(totalV2 <= SCKT_392_BUDGET_BYTES, "Five loops total $totalV2 B exceeded the 10 MB budget")
     }
 
@@ -152,6 +165,11 @@ class TraceSizeBudgetTest {
     private fun perVoxelFrame(
         bytes: Int,
         voxelFrames: Long,
+    ): String = perVoxelFrame(bytes.toLong(), voxelFrames)
+
+    private fun perVoxelFrame(
+        bytes: Long,
+        voxelFrames: Long,
     ): String {
         val hundredths = (bytes * 100.0 / voxelFrames + 0.5).toLong()
         return "${hundredths / 100}.${(hundredths % 100).toString().padStart(2, '0')}"
@@ -167,6 +185,9 @@ class TraceSizeBudgetTest {
         // 4,801 voxels at 20 fps, that is 5.2 B per voxel-frame. Measured 3.4–4.2 on JVM.
         const val LOOPS_ONLY_TARGET_BYTES_PER_VOXEL_FRAME = 5.2
         const val SCKT_392_BUDGET_BYTES = 10_000_000L
+
+        // PHO-45: x/y/z and scale at two bytes, RGB at one, no alpha channel.
+        const val RESIDENT_BYTES_PER_VOXEL_FRAME = 11L
         const val TWO_MEBIBYTES = 2 * 1024 * 1024
 
         val LOOPS =
