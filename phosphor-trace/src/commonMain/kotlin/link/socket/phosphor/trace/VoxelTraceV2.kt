@@ -42,8 +42,18 @@ internal class FormatVersionProbe(
  * - **Alpha:** the same byte, or [TraceQuantization.ALPHA_NULL] for a null alpha.
  *   An empty [cellAlpha] means every alpha in the trace is null.
  *
+ * **Format v3 shares this shape** and changes only what [cellX], [cellY] and
+ * [cellZ] mean: in a *delta frame* each code is the difference from the same
+ * cell index in the previous frame, kept modulo 2¹⁶ so any difference between
+ * two 16-bit codes round-trips exactly. A frame is a delta frame when it is not
+ * the first and has the same cell count as the frame before it; every other
+ * frame stores absolute codes, which is the fallback for producers that omit
+ * voxels (`omitBelowScale > 0`). The deltas are taken between integer codes,
+ * never floats, so decoding is exact and accumulates no error, and a v3 payload
+ * decodes to the same channels as a v2 payload of the same trace.
+ *
  * Built and read only through [TraceQuantization]. A decoded trace keeps these
- * channel arrays as its [CellChannels.Quantized] backing, so the public type
+ * channel arrays, with positions made absolute, as its [CellChannels.Quantized] backing, so the public type
  * stays [VoxelTrace] and playback never sees this shape.
  */
 @OptIn(ExperimentalSerializationApi::class)
@@ -74,8 +84,11 @@ internal class VoxelTraceWireV2(
     val glyphs: List<VoxelGlyphState?>,
 )
 
-/** Converts between a [VoxelTrace] and its [VoxelTraceWireV2] encoding, and dequantizes single cells. */
+/** Converts between a [VoxelTrace] and its [VoxelTraceWireV2] encoding for v2 and v3, and dequantizes single cells. */
 internal object TraceQuantization {
+    /** The format whose position channels hold previous-frame deltas rather than absolute codes. */
+    const val TEMPORAL_FORMAT_VERSION: Int = 3
+
     /** Finest position step a writer uses, in lattice units: `2⁻¹²`. */
     const val DEFAULT_POSITION_STEP: Float = 1f / 4096f
 
@@ -93,7 +106,9 @@ internal object TraceQuantization {
 
     /**
      * Quantize [trace]'s float columns into the v2 wire shape. A trace already
-     * holding [CellChannels.Quantized] channels writes them as they are.
+     * holding [CellChannels.Quantized] channels writes them as they are. For a v3
+     * trace the positions are then delta-coded, into new arrays when they are
+     * the trace's own.
      *
      * @throws IllegalArgumentException when a cell channel is not finite (a `NaN`
      *  alpha is the null sentinel and is allowed), or a scale exceeds [MAX_SCALE].
@@ -105,9 +120,9 @@ internal object TraceQuantization {
                 wireOf(
                     trace,
                     cells.positionStep,
-                    cells.cellX,
-                    cells.cellY,
-                    cells.cellZ,
+                    wirePositions(trace, cells.cellX, owned = false),
+                    wirePositions(trace, cells.cellY, owned = false),
+                    wirePositions(trace, cells.cellZ, owned = false),
                     cells.cellScale,
                     cells.cellRed,
                     cells.cellGreen,
@@ -147,9 +162,9 @@ internal object TraceQuantization {
         return wireOf(
             trace,
             step,
-            cellX = planes16(n) { quantizePosition(cells.cellX[it], step) },
-            cellY = planes16(n) { quantizePosition(cells.cellY[it], step) },
-            cellZ = planes16(n) { quantizePosition(cells.cellZ[it], step) },
+            cellX = wirePositions(trace, planes16(n) { quantizePosition(cells.cellX[it], step) }, owned = true),
+            cellY = wirePositions(trace, planes16(n) { quantizePosition(cells.cellY[it], step) }, owned = true),
+            cellZ = wirePositions(trace, planes16(n) { quantizePosition(cells.cellZ[it], step) }, owned = true),
             cellScale = planes16(n) { quantizeScale(cells.cellScale[it]) },
             cellRed = ByteArray(n) { quantizeChannel(cells.cellRed[it]).toByte() },
             cellGreen = ByteArray(n) { quantizeChannel(cells.cellGreen[it]).toByte() },
@@ -161,6 +176,23 @@ internal object TraceQuantization {
                     ByteArray(0)
                 },
         )
+    }
+
+    /**
+     * Absolute position [planes] as the wire stores them for [trace]'s version:
+     * unchanged for v2, delta-coded for v3. Planes the caller does not [owned]
+     * — a decoded trace's resident channels — are copied first, so they stay
+     * absolute.
+     */
+    private fun wirePositions(
+        trace: VoxelTrace,
+        planes: ByteArray,
+        owned: Boolean,
+    ): ByteArray {
+        if (trace.formatVersion != TEMPORAL_FORMAT_VERSION) return planes
+        val out = if (owned) planes else planes.copyOf()
+        toTemporalDeltas(out, trace.cellCounts)
+        return out
     }
 
     @Suppress("LongParameterList")
@@ -203,9 +235,11 @@ internal object TraceQuantization {
         )
 
     /**
-     * Read a v2 wire payload as a [VoxelTrace] that keeps the quantized channels
-     * as its backing. Nothing is expanded to floats here: playback dequantizes
-     * the cells of the one frame it builds.
+     * Read a v2 or v3 wire payload as a [VoxelTrace] that keeps the quantized
+     * channels as its backing. Nothing is expanded to floats here: playback
+     * dequantizes the cells of the one frame it builds. v3's position deltas are
+     * undone in place in [wire]'s own arrays, so the backing always holds
+     * absolute codes and decoding allocates nothing beyond what v2 does.
      *
      * @throws IllegalArgumentException when the payload is internally inconsistent
      *  (channel lengths that disagree with the cell counts, a non-positive step).
@@ -240,6 +274,12 @@ internal object TraceQuantization {
         }
         require(wire.cellAlpha.isEmpty() || wire.cellAlpha.size == 2 * n) {
             "cell alpha channel holds ${wire.cellAlpha.size} bytes for $n cells"
+        }
+
+        if (wire.formatVersion == TEMPORAL_FORMAT_VERSION) {
+            fromTemporalDeltas(wire.cellX, wire.cellCounts)
+            fromTemporalDeltas(wire.cellY, wire.cellCounts)
+            fromTemporalDeltas(wire.cellZ, wire.cellCounts)
         }
 
         return VoxelTrace(
@@ -321,6 +361,55 @@ internal object TraceQuantization {
         step: Float,
     ): Int = (value / step).roundToInt()
 
+    /**
+     * Rewrite absolute 16-bit position [planes] in place so each cell of a delta
+     * frame holds its difference from the same index in the previous frame.
+     * Walks the frames last to first, so every subtraction still reads an
+     * absolute code. Only the low 16 bits of a difference are kept, which is all
+     * [fromTemporalDeltas] needs to recover the code exactly.
+     */
+    internal fun toTemporalDeltas(
+        planes: ByteArray,
+        cellCounts: IntArray,
+    ) {
+        val n = planes.size / 2
+        var end = n
+        for (frame in cellCounts.indices.reversed()) {
+            val count = cellCounts[frame]
+            val start = end - count
+            if (isDeltaFrame(cellCounts, frame)) {
+                for (i in start until end) {
+                    setCode16(planes, n, i, signed16(planes, n, i) - signed16(planes, n, i - count))
+                }
+            }
+            end = start
+        }
+    }
+
+    /** Undo [toTemporalDeltas] in place, first frame to last, wrapping each sum to a signed 16-bit code. */
+    internal fun fromTemporalDeltas(
+        planes: ByteArray,
+        cellCounts: IntArray,
+    ) {
+        val n = planes.size / 2
+        var start = 0
+        for (frame in cellCounts.indices) {
+            val count = cellCounts[frame]
+            if (isDeltaFrame(cellCounts, frame)) {
+                for (i in start until start + count) {
+                    setCode16(planes, n, i, signed16(planes, n, i - count) + signed16(planes, n, i))
+                }
+            }
+            start += count
+        }
+    }
+
+    /** Whether v3 stores [frame]'s positions as deltas: cell `i` must have a counterpart in the frame before. */
+    private fun isDeltaFrame(
+        cellCounts: IntArray,
+        frame: Int,
+    ): Boolean = frame > 0 && cellCounts[frame] == cellCounts[frame - 1]
+
     internal fun quantizeScale(value: Float): Int =
         if (value <= 0f) {
             0
@@ -346,6 +435,17 @@ internal object TraceQuantization {
             out[n + i] = code.toByte()
         }
         return out
+    }
+
+    /** Write the low 16 bits of [code] as cell [i] of an [n]-cell plane pair. */
+    private fun setCode16(
+        planes: ByteArray,
+        n: Int,
+        i: Int,
+        code: Int,
+    ) {
+        planes[i] = (code shr 8).toByte()
+        planes[n + i] = code.toByte()
     }
 
     private fun signed16(

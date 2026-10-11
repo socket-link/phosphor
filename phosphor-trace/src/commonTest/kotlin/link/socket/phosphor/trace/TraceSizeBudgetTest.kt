@@ -32,27 +32,32 @@ class TraceSizeBudgetTest {
                 paramSnapshot = mapOf("pulseFrequency" to "0.5", "noise" to "0.2"),
             )
         val v1Trace = TraceTestData.withFormatVersion(trace, formatVersion = 1)
+        val v2Trace = TraceTestData.withFormatVersion(trace, formatVersion = 2)
 
         val v1Bytes = TraceCodec.encode(v1Trace)
-        val v2Bytes = TraceCodec.encode(trace)
+        val v2Bytes = TraceCodec.encode(v2Trace)
+        val v3Bytes = TraceCodec.encode(trace)
         val voxelFrames = frameCount.toLong() * voxelCount
 
         println(
-            "[PHO-42] synthetic ${seconds}s @ ${fps}fps × $voxelCount voxels: " +
+            "[PHO-44] synthetic ${seconds}s @ ${fps}fps × $voxelCount voxels: " +
                 "v1 ${v1Bytes.size} B (${perVoxelFrame(v1Bytes.size, voxelFrames)} B/vf), " +
-                "v2 ${v2Bytes.size} B (${perVoxelFrame(v2Bytes.size, voxelFrames)} B/vf)",
+                "v2 ${v2Bytes.size} B (${perVoxelFrame(v2Bytes.size, voxelFrames)} B/vf), " +
+                "v3 ${v3Bytes.size} B (${perVoxelFrame(v3Bytes.size, voxelFrames)} B/vf)",
         )
 
-        // Both versions round-trip at this scale: v1 exactly, v2 within tolerance.
+        // Every version round-trips at this scale: v1 exactly, v2 and v3 within tolerance.
         assertEquals(frames, TraceCodec.decode(v1Bytes).getOrThrow().toFrames())
-        TraceTestData.assertV2Equivalent(trace, TraceCodec.decode(v2Bytes).getOrThrow())
+        TraceTestData.assertV2Equivalent(v2Trace, TraceCodec.decode(v2Bytes).getOrThrow())
+        TraceTestData.assertV2Equivalent(trace, TraceCodec.decode(v3Bytes).getOrThrow())
 
         // PHO-35 set ≤ 2 MB per 5 s clip as the v2 target. Measured ~0.68 MB on JVM.
-        assertTrue(v2Bytes.size <= TWO_MEBIBYTES, "v2 synthetic clip ${v2Bytes.size} B exceeded the 2 MB target")
+        assertTrue(v3Bytes.size <= TWO_MEBIBYTES, "v3 synthetic clip ${v3Bytes.size} B exceeded the 2 MB target")
         assertTrue(
             v2Bytes.size * 3 < v1Bytes.size,
             "v2 ${v2Bytes.size} B should be well under a third of v1 ${v1Bytes.size} B",
         )
+        assertTrue(v3Bytes.size < v2Bytes.size, "v3 ${v3Bytes.size} B should be smaller than v2 ${v2Bytes.size} B")
     }
 
     @Test
@@ -60,6 +65,7 @@ class TraceSizeBudgetTest {
         // Socket's orb: resolution 10 (4,801 voxels) stepped at 20 fps. One 4 s loop
         // per preset is the loops-only asset set SCKT-392 budgets at 10 MB.
         var totalV2 = 0L
+        var totalV3 = 0L
         var totalResident = 0L
         var totalVoxelFrames = 0L
         for ((name, preset) in LOOPS) {
@@ -77,35 +83,42 @@ class TraceSizeBudgetTest {
             assertEquals(LUMOS_VOXELS * trace.frameCount.toLong(), voxelFrames, "$name capture is not a full lattice")
 
             val v1Size = TraceCodec.encode(TraceTestData.withFormatVersion(trace, formatVersion = 1)).size
-            val v2Bytes = TraceCodec.encode(trace)
-            val v2Size = v2Bytes.size
+            val v2Size = TraceCodec.encode(TraceTestData.withFormatVersion(trace, formatVersion = 2)).size
+            val v3Bytes = TraceCodec.encode(trace)
+            val v3Size = v3Bytes.size
             totalV2 += v2Size
-            totalResident += TraceTestData.residentCellBytes(TraceCodec.decode(v2Bytes).getOrThrow())
+            totalV3 += v3Size
+            totalResident += TraceTestData.residentCellBytes(TraceCodec.decode(v3Bytes).getOrThrow())
             totalVoxelFrames += voxelFrames
 
             println(
-                "[PHO-42] $name loop ${LOOP_MS / 1_000}s @ ${SOCKET_FPS}fps × $LUMOS_VOXELS voxels: " +
+                "[PHO-44] $name loop ${LOOP_MS / 1_000}s @ ${SOCKET_FPS}fps × $LUMOS_VOXELS voxels: " +
                     "v1 $v1Size B (${perVoxelFrame(v1Size, voxelFrames)} B/vf), " +
-                    "v2 $v2Size B (${perVoxelFrame(v2Size, voxelFrames)} B/vf)",
+                    "v2 $v2Size B (${perVoxelFrame(v2Size, voxelFrames)} B/vf), " +
+                    "v3 $v3Size B (${perVoxelFrame(v3Size, voxelFrames)} B/vf)",
             )
 
             assertTrue(
-                v2Size <= LOOPS_ONLY_TARGET_BYTES_PER_VOXEL_FRAME * voxelFrames,
-                "$name loop is ${perVoxelFrame(v2Size, voxelFrames)} B/vf; the loops-only target is " +
+                v3Size <= LOOPS_ONLY_TARGET_BYTES_PER_VOXEL_FRAME * voxelFrames,
+                "$name loop is ${perVoxelFrame(v3Size, voxelFrames)} B/vf; the loops-only target is " +
                     "$LOOPS_ONLY_TARGET_BYTES_PER_VOXEL_FRAME",
             )
+            assertTrue(v3Size < v2Size, "$name loop: v3 $v3Size B should be smaller than v2 $v2Size B")
         }
 
-        println("[PHO-42] five loops total v2 $totalV2 B (SCKT-392 budget $SCKT_392_BUDGET_BYTES B)")
+        println(
+            "[PHO-44] five loops total v2 $totalV2 B, v3 $totalV3 B (SCKT-392 budget $SCKT_392_BUDGET_BYTES B)",
+        )
         // PHO-45: decoded, the five loops hold their cell channels quantized rather
-        // than as 32 B/vf of floats.
+        // than as 32 B/vf of floats. v3 undoes its deltas on decode, so it holds
+        // exactly what v2 does.
         println(
             "[PHO-45] five loops decoded: cell channels resident $totalResident B " +
                 "(${perVoxelFrame(totalResident, totalVoxelFrames)} B/vf; " +
                 "${8L * Float.SIZE_BYTES * totalVoxelFrames} B as float columns)",
         )
         assertEquals(RESIDENT_BYTES_PER_VOXEL_FRAME * totalVoxelFrames, totalResident)
-        assertTrue(totalV2 <= SCKT_392_BUDGET_BYTES, "Five loops total $totalV2 B exceeded the 10 MB budget")
+        assertTrue(totalV3 <= SCKT_392_BUDGET_BYTES, "Five loops total $totalV3 B exceeded the 10 MB budget")
     }
 
     private fun synthesizeFrames(
@@ -182,7 +195,8 @@ class TraceSizeBudgetTest {
         const val LUMOS_VOXELS = 4_801L
 
         // SCKT-392: 10 MB across all bundled states. Spread over five 4 s loops of
-        // 4,801 voxels at 20 fps, that is 5.2 B per voxel-frame. Measured 3.4–4.2 on JVM.
+        // 4,801 voxels at 20 fps, that is 5.2 B per voxel-frame. Measured on JVM: v2
+        // 3.41–4.28 (7.43 MB for the five), v3 2.07–3.30 (5.57 MB).
         const val LOOPS_ONLY_TARGET_BYTES_PER_VOXEL_FRAME = 5.2
         const val SCKT_392_BUDGET_BYTES = 10_000_000L
 

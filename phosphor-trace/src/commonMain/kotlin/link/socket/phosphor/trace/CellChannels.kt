@@ -7,7 +7,7 @@ import link.socket.phosphor.lumos.VoxelCell
  *
  * A trace built from frames, constructed directly, or decoded from v1 holds
  * [Floats] — its public float columns are the storage. A trace decoded from v2
- * holds [Quantized] — the wire codes, 11 bytes per voxel-frame (13 with an alpha
+ * or v3 holds [Quantized] — the wire codes, 11 bytes per voxel-frame (13 with an alpha
  * channel) against the 32 that float columns take — and dequantizes one cell at
  * a time as it is read.
  *
@@ -143,6 +143,11 @@ internal sealed class CellChannels {
      * planes, colour as one byte per cell, and an empty [cellAlpha] when every
      * alpha is null. [TraceCodec] re-encodes these arrays as they are, so a
      * decoded v2 trace re-encodes to identical bytes without being requantized.
+     *
+     * Positions are always absolute codes here, so any cell reads without its
+     * neighbours in time. A v3 payload's previous-frame deltas are undone once
+     * when it is decoded and redone into fresh arrays when it is encoded; these
+     * arrays are never rewritten in place.
      *
      * Holding the planes rather than repacking them into `ShortArray`s costs the
      * same two bytes a value and skips a copy, so decoding peaks at the payload

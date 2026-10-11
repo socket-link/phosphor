@@ -18,7 +18,8 @@ import link.socket.phosphor.trace.TraceCodec
 /**
  * PHO-42: a v2 trace projects through [ComposeLattice] to what `LumosCanvas`
  * would draw from the capture it was encoded from, within the tolerance agreed
- * at the recon gate.
+ * at the recon gate. The codec now writes v3 (PHO-44), which decodes to exactly
+ * v2's columns, so this holds both formats to the same bound.
  *
  * Per voxel, recorded against decoded:
  *

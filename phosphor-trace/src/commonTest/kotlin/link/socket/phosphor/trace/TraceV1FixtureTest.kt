@@ -66,6 +66,17 @@ class TraceV1FixtureTest {
         TraceTestData.assertV2Equivalent(upgraded, decoded)
     }
 
+    @Test
+    fun `a decoded v1 trace upgrades to v3 within the v2 tolerance`() {
+        // The fixture's cell counts run 2, 2, 1: one delta frame, then an absolute fallback.
+        val v1 = TraceCodec.decode(fixtureBytes()).getOrThrow()
+        val upgraded = TraceTestData.withFormatVersion(v1, formatVersion = 3)
+
+        val decoded = TraceCodec.decode(TraceCodec.encode(upgraded)).getOrThrow()
+
+        TraceTestData.assertV2Equivalent(upgraded, decoded)
+    }
+
     private fun fixtureBytes(): ByteArray = V1_FIXTURE_HEX.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     private companion object {

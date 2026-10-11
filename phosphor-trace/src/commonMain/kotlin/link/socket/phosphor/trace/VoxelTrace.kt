@@ -46,18 +46,22 @@ data class StaticLattice(
  *
  * - **v1** stores them at full `Float` precision. Lossless, about 12.5–13.6 bytes
  *   per voxel-frame on a real Lumos capture.
- * - **v2** (current) quantizes them: positions to 16-bit multiples of a
+ * - **v2** quantizes them: positions to 16-bit multiples of a
  *   power-of-two step (`2⁻¹²` lattice units for an orb, so at most `2⁻¹³` of
  *   error), scale to 16-bit multiples of `1/6561`, and colour and alpha to the
  *   8-bit sRGB byte Compose draws. Colour and scale project through
  *   `ComposeLattice` and `CliLattice` exactly as the originals do; only position
  *   moves, and by under an eighth of a pixel on a 1080 px canvas. About 3.4–4.3
  *   bytes per voxel-frame on a real capture.
+ * - **v3** (current) is v2 with each frame's position codes stored as the
+ *   difference from the previous frame's, falling back to absolute codes for
+ *   the first frame and any frame whose cell count changed. The deltas are
+ *   between integers, so v3 decodes to exactly the columns v2 would.
  *
- * In memory a trace decoded from v2 keeps its cell channels quantized — 11
+ * In memory a trace decoded from v2 or v3 keeps its cell channels quantized — 11
  * bytes per voxel-frame, 13 with an alpha channel, against 32 as floats — and
  * [TracePlayer] dequantizes only the frame it builds. The [cellX]…[cellAlpha]
- * columns still read as floats whichever version a trace came from; on a v2
+ * columns still read as floats whichever version a trace came from; on a v2 or v3
  * trace they are expanded on first access and then held, which costs the RAM
  * the quantized backing saves, so playback code never touches them. The values
  * are the quantized ones either way, so `decode(encode(t))` equals `t` only up
@@ -69,7 +73,8 @@ data class StaticLattice(
  * `VoxelFrame` list with [toFrames]; serialize it with `TraceCodec`.
  *
  * @property formatVersion Format version of this trace and the format `TraceCodec` writes it in:
- *  v1 is full-precision columnar CBOR + gzip, v2 quantizes the cell channels.
+ *  v1 is full-precision columnar CBOR + gzip, v2 quantizes the cell channels, v3 also delta-codes positions
+ *  against the previous frame.
  * @property fps Frames per second the trace was captured at.
  * @property frameCount Number of frames in the trace.
  * @property phosphorVersion Phosphor library version that produced the trace.
@@ -163,30 +168,30 @@ class VoxelTrace internal constructor(
     /** Whether the [cellX]…[cellAlpha] float columns are resident: always for a float-backed trace. */
     internal val floatColumnsResident: Boolean get() = floatColumns.isInitialized()
 
-    /** Concatenated per-cell x positions across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell x positions across all frames. Expanded on first access for a quantized trace. */
     val cellX: FloatArray get() = floatColumns.value.cellX
 
-    /** Concatenated per-cell y positions across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell y positions across all frames. Expanded on first access for a quantized trace. */
     val cellY: FloatArray get() = floatColumns.value.cellY
 
-    /** Concatenated per-cell z positions across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell z positions across all frames. Expanded on first access for a quantized trace. */
     val cellZ: FloatArray get() = floatColumns.value.cellZ
 
-    /** Concatenated per-cell scale multipliers across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell scale multipliers across all frames. Expanded on first access for a quantized trace. */
     val cellScale: FloatArray get() = floatColumns.value.cellScale
 
-    /** Concatenated per-cell red channel across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell red channel across all frames. Expanded on first access for a quantized trace. */
     val cellRed: FloatArray get() = floatColumns.value.cellRed
 
-    /** Concatenated per-cell green channel across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell green channel across all frames. Expanded on first access for a quantized trace. */
     val cellGreen: FloatArray get() = floatColumns.value.cellGreen
 
-    /** Concatenated per-cell blue channel across all frames. Expanded on first access for a decoded v2 trace. */
+    /** Concatenated per-cell blue channel across all frames. Expanded on first access for a quantized trace. */
     val cellBlue: FloatArray get() = floatColumns.value.cellBlue
 
     /**
      * Concatenated per-cell alpha across all frames; `NaN` encodes a null alpha.
-     * Expanded on first access for a decoded v2 trace.
+     * Expanded on first access for a quantized trace.
      */
     val cellAlpha: FloatArray get() = floatColumns.value.cellAlpha
 
@@ -259,8 +264,8 @@ class VoxelTrace internal constructor(
     }
 
     companion object {
-        /** Current trace [formatVersion], stamped by [fromFrames]: v2, quantized cell channels. */
-        const val CURRENT_FORMAT_VERSION: Int = 2
+        /** Current trace [formatVersion], stamped by [fromFrames]: v3, quantized cells with delta-coded positions. */
+        const val CURRENT_FORMAT_VERSION: Int = 3
 
         /**
          * Record [frames] into a columnar [VoxelTrace].

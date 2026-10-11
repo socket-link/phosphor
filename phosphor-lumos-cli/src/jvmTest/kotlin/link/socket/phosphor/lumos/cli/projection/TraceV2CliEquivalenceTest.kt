@@ -16,6 +16,8 @@ import link.socket.phosphor.trace.TraceCodec
 /**
  * PHO-42: a v2 trace projects through [CliLattice] to the same terminal as the
  * capture it was encoded from, within the tolerance agreed at the recon gate.
+ * The codec now writes v3 (PHO-44), which decodes to exactly v2's columns, so
+ * this holds both formats to the same bound.
  *
  * The capture is real — Socket's resolution-10 orb at 20 fps — and spans IDLE,
  * whose scale breathes straight through a luminance-ramp threshold, then a cue

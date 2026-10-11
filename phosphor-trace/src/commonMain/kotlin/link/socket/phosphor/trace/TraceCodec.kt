@@ -43,19 +43,22 @@ sealed class TraceDecodeError(
  * Round-trip serialization for [VoxelTrace]: CBOR for a compact binary encoding,
  * gzip for the payload, a versioned header, and Result-typed decoding.
  *
- * Two formats exist and both decode:
+ * Three formats exist and all decode:
  *
  * - **v1** — every cell channel at full `Float` precision. Lossless.
  * - **v2** — cell channels quantized to narrow integers (see [VoxelTrace]).
  *   Colour and scale decode to exactly what `ComposeLattice` and `CliLattice`
  *   would draw from the originals; positions carry an error of at most `2⁻¹³`
  *   lattice units for a Lumos orb. About 3.5× smaller than v1 on real captures.
+ * - **v3** — v2's quantization, with each frame's position codes stored as the
+ *   difference from the previous frame's. Decodes to exactly the columns v2
+ *   would, so it carries the same error, and is smaller again on real captures.
  *
  * [encode] writes the format named by the trace's own [VoxelTrace.formatVersion],
  * so everything [VoxelTrace.fromFrames] and `Oscilloscope` produce is written as
- * v2, while a decoded v1 trace re-encodes losslessly as v1 rather than being
- * quantized behind its owner's back. Encoding v2 is idempotent: a decoded v2
- * trace re-encodes to identical bytes.
+ * v3, while a decoded v1 or v2 trace re-encodes in its own format rather than
+ * being converted behind its owner's back. Encoding v2 or v3 is idempotent: a
+ * decoded trace re-encodes to identical bytes.
  *
  * Encoded traces use the `.vxt` file extension ([FILE_EXTENSION]).
  */
@@ -77,14 +80,15 @@ object TraceCodec {
      * [VoxelTrace.formatVersion] names.
      *
      * @throws IllegalArgumentException when the trace declares a version this
-     *  build cannot write, or — for v2 — a cell channel is not finite or a scale
+     *  build cannot write, or — for v2 and v3 — a cell channel is not finite or a scale
      *  exceeds the encodable range.
      */
     fun encode(trace: VoxelTrace): ByteArray {
         val payload =
             when (trace.formatVersion) {
                 FORMAT_V1 -> cbor.encodeToByteArray(VoxelTrace.serializer(), trace)
-                FORMAT_V2 -> cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), TraceQuantization.toWire(trace))
+                FORMAT_V2, FORMAT_V3 ->
+                    cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), TraceQuantization.toWire(trace))
                 else -> throw IllegalArgumentException(
                     "Cannot encode formatVersion=${trace.formatVersion}; this build writes " +
                         "v$FORMAT_V1–v$SUPPORTED_FORMAT_VERSION",
@@ -119,6 +123,7 @@ object TraceCodec {
             Result.success(
                 when (version) {
                     FORMAT_V1 -> cbor.decodeFromByteArray(VoxelTrace.serializer(), payload)
+                    // v2 and v3 share a wire shape; fromWire reads the version to undo v3's deltas.
                     else -> TraceQuantization.fromWire(cbor.decodeFromByteArray(VoxelTraceWireV2.serializer(), payload))
                 },
             )
@@ -129,6 +134,7 @@ object TraceCodec {
 
     private const val FORMAT_V1: Int = 1
     private const val FORMAT_V2: Int = 2
+    private const val FORMAT_V3: Int = TraceQuantization.TEMPORAL_FORMAT_VERSION
 }
 
 /**
