@@ -1,6 +1,11 @@
 package link.socket.phosphor.trace
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
@@ -49,11 +54,16 @@ data class StaticLattice(
  *   moves, and by under an eighth of a pixel on a 1080 px canvas. About 3.4–4.3
  *   bytes per voxel-frame on a real capture.
  *
- * In memory a trace always holds float columns, whichever version it decoded
- * from, so playback code never sees the difference. A decoded v2 trace holds the
- * quantized values, so `decode(encode(t))` equals `t` only up to quantization —
- * and re-encodes to identical bytes. The field also lets a decoder reject
- * payloads it does not understand rather than silently misread them.
+ * In memory a trace decoded from v2 keeps its cell channels quantized — 11
+ * bytes per voxel-frame, 13 with an alpha channel, against 32 as floats — and
+ * [TracePlayer] dequantizes only the frame it builds. The [cellX]…[cellAlpha]
+ * columns still read as floats whichever version a trace came from; on a v2
+ * trace they are expanded on first access and then held, which costs the RAM
+ * the quantized backing saves, so playback code never touches them. The values
+ * are the quantized ones either way, so `decode(encode(t))` equals `t` only up
+ * to quantization — and re-encodes to identical bytes. The field also lets a
+ * decoder reject payloads it does not understand rather than silently misread
+ * them.
  *
  * Build one from captured frames with [fromFrames] and project it back to a
  * `VoxelFrame` list with [toFrames]; serialize it with `TraceCodec`.
@@ -71,19 +81,11 @@ data class StaticLattice(
  * @property ticks Per-frame monotonic frame counter, length [frameCount].
  * @property timestampsEpochMillis Per-frame wall-clock timestamp, length [frameCount].
  * @property cellCounts Per-frame cell count, length [frameCount]. Sums to the channel-array length.
- * @property cellX Concatenated per-cell x positions across all frames.
- * @property cellY Concatenated per-cell y positions across all frames.
- * @property cellZ Concatenated per-cell z positions across all frames.
- * @property cellScale Concatenated per-cell scale multipliers across all frames.
- * @property cellRed Concatenated per-cell red channel across all frames.
- * @property cellGreen Concatenated per-cell green channel across all frames.
- * @property cellBlue Concatenated per-cell blue channel across all frames.
- * @property cellAlpha Concatenated per-cell alpha across all frames; `NaN` encodes a null alpha.
  * @property ambient Per-frame ambient parameters, length [frameCount].
  * @property glyphs Per-frame glyph state, length [frameCount]; an entry is null when no glyph is active.
  */
-@Serializable
-class VoxelTrace(
+@Serializable(with = VoxelTraceV1Serializer::class)
+class VoxelTrace internal constructor(
     val formatVersion: Int,
     val fps: Int,
     val frameCount: Int,
@@ -96,17 +98,98 @@ class VoxelTrace(
     val ticks: LongArray,
     val timestampsEpochMillis: LongArray,
     val cellCounts: IntArray,
-    val cellX: FloatArray,
-    val cellY: FloatArray,
-    val cellZ: FloatArray,
-    val cellScale: FloatArray,
-    val cellRed: FloatArray,
-    val cellGreen: FloatArray,
-    val cellBlue: FloatArray,
-    val cellAlpha: FloatArray,
+    internal val cells: CellChannels,
     val ambient: List<VoxelAmbient>,
     val glyphs: List<VoxelGlyphState?>,
 ) {
+    /**
+     * A trace over full-precision float columns.
+     *
+     * @param cellX Concatenated per-cell x positions across all frames.
+     * @param cellY Concatenated per-cell y positions across all frames.
+     * @param cellZ Concatenated per-cell z positions across all frames.
+     * @param cellScale Concatenated per-cell scale multipliers across all frames.
+     * @param cellRed Concatenated per-cell red channel across all frames.
+     * @param cellGreen Concatenated per-cell green channel across all frames.
+     * @param cellBlue Concatenated per-cell blue channel across all frames.
+     * @param cellAlpha Concatenated per-cell alpha across all frames; `NaN` encodes a null alpha.
+     */
+    constructor(
+        formatVersion: Int,
+        fps: Int,
+        frameCount: Int,
+        phosphorVersion: String,
+        seed: Long,
+        paramSnapshot: Map<String, String>,
+        staticLattice: StaticLattice,
+        segments: List<TraceSegment>,
+        createdAtEpochMs: Long,
+        ticks: LongArray,
+        timestampsEpochMillis: LongArray,
+        cellCounts: IntArray,
+        cellX: FloatArray,
+        cellY: FloatArray,
+        cellZ: FloatArray,
+        cellScale: FloatArray,
+        cellRed: FloatArray,
+        cellGreen: FloatArray,
+        cellBlue: FloatArray,
+        cellAlpha: FloatArray,
+        ambient: List<VoxelAmbient>,
+        glyphs: List<VoxelGlyphState?>,
+    ) : this(
+        formatVersion = formatVersion,
+        fps = fps,
+        frameCount = frameCount,
+        phosphorVersion = phosphorVersion,
+        seed = seed,
+        paramSnapshot = paramSnapshot,
+        staticLattice = staticLattice,
+        segments = segments,
+        createdAtEpochMs = createdAtEpochMs,
+        ticks = ticks,
+        timestampsEpochMillis = timestampsEpochMillis,
+        cellCounts = cellCounts,
+        cells = CellChannels.Floats(cellX, cellY, cellZ, cellScale, cellRed, cellGreen, cellBlue, cellAlpha),
+        ambient = ambient,
+        glyphs = glyphs,
+    )
+
+    // The public float columns. A float-backed trace hands out its own arrays;
+    // a quantized one expands all eight on first access and holds them.
+    private val floatColumns: Lazy<CellChannels.Floats> =
+        if (cells is CellChannels.Floats) lazyOf(cells) else lazy { cells.toFloats() }
+
+    /** Whether the [cellX]…[cellAlpha] float columns are resident: always for a float-backed trace. */
+    internal val floatColumnsResident: Boolean get() = floatColumns.isInitialized()
+
+    /** Concatenated per-cell x positions across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellX: FloatArray get() = floatColumns.value.cellX
+
+    /** Concatenated per-cell y positions across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellY: FloatArray get() = floatColumns.value.cellY
+
+    /** Concatenated per-cell z positions across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellZ: FloatArray get() = floatColumns.value.cellZ
+
+    /** Concatenated per-cell scale multipliers across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellScale: FloatArray get() = floatColumns.value.cellScale
+
+    /** Concatenated per-cell red channel across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellRed: FloatArray get() = floatColumns.value.cellRed
+
+    /** Concatenated per-cell green channel across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellGreen: FloatArray get() = floatColumns.value.cellGreen
+
+    /** Concatenated per-cell blue channel across all frames. Expanded on first access for a decoded v2 trace. */
+    val cellBlue: FloatArray get() = floatColumns.value.cellBlue
+
+    /**
+     * Concatenated per-cell alpha across all frames; `NaN` encodes a null alpha.
+     * Expanded on first access for a decoded v2 trace.
+     */
+    val cellAlpha: FloatArray get() = floatColumns.value.cellAlpha
+
     /**
      * Project this columnar trace back into the `VoxelFrame` sequence it was
      * recorded from. The result is structurally identical to the input of
@@ -117,21 +200,9 @@ class VoxelTrace(
         var cursor = 0
         for (frameIndex in 0 until frameCount) {
             val count = cellCounts[frameIndex]
-            val cells = ArrayList<VoxelCell>(count)
+            val frameCells = ArrayList<VoxelCell>(count)
             for (i in 0 until count) {
-                val cellIndex = cursor + i
-                val alpha = cellAlpha[cellIndex]
-                cells +=
-                    VoxelCell(
-                        x = cellX[cellIndex],
-                        y = cellY[cellIndex],
-                        z = cellZ[cellIndex],
-                        scale = cellScale[cellIndex],
-                        red = cellRed[cellIndex],
-                        green = cellGreen[cellIndex],
-                        blue = cellBlue[cellIndex],
-                        alpha = if (alpha.isNaN()) null else alpha,
-                    )
+                frameCells += cells.cellAt(cursor + i)
             }
             cursor += count
             frames +=
@@ -139,7 +210,7 @@ class VoxelTrace(
                     tick = ticks[frameIndex],
                     timestampEpochMillis = timestampsEpochMillis[frameIndex],
                     resolution = staticLattice.resolution,
-                    cells = cells,
+                    cells = frameCells,
                     ambient = ambient[frameIndex],
                     glyph = glyphs[frameIndex],
                 )
@@ -163,14 +234,7 @@ class VoxelTrace(
             ticks.contentEquals(other.ticks) &&
             timestampsEpochMillis.contentEquals(other.timestampsEpochMillis) &&
             cellCounts.contentEquals(other.cellCounts) &&
-            cellX.contentEquals(other.cellX) &&
-            cellY.contentEquals(other.cellY) &&
-            cellZ.contentEquals(other.cellZ) &&
-            cellScale.contentEquals(other.cellScale) &&
-            cellRed.contentEquals(other.cellRed) &&
-            cellGreen.contentEquals(other.cellGreen) &&
-            cellBlue.contentEquals(other.cellBlue) &&
-            cellAlpha.contentEquals(other.cellAlpha) &&
+            cells.contentEquals(other.cells) &&
             ambient == other.ambient &&
             glyphs == other.glyphs
     }
@@ -188,14 +252,7 @@ class VoxelTrace(
         result = 31 * result + ticks.contentHashCode()
         result = 31 * result + timestampsEpochMillis.contentHashCode()
         result = 31 * result + cellCounts.contentHashCode()
-        result = 31 * result + cellX.contentHashCode()
-        result = 31 * result + cellY.contentHashCode()
-        result = 31 * result + cellZ.contentHashCode()
-        result = 31 * result + cellScale.contentHashCode()
-        result = 31 * result + cellRed.contentHashCode()
-        result = 31 * result + cellGreen.contentHashCode()
-        result = 31 * result + cellBlue.contentHashCode()
-        result = 31 * result + cellAlpha.contentHashCode()
+        result = 31 * result + cells.contentHashCode()
         result = 31 * result + ambient.hashCode()
         result = 31 * result + glyphs.hashCode()
         return result
@@ -302,5 +359,106 @@ class VoxelTrace(
                 glyphs = glyphs,
             )
         }
+    }
+}
+
+/**
+ * The format-v1 wire shape of a [VoxelTrace]: field for field what the class
+ * serialized as before it could hold quantized channels. CBOR writes field names
+ * but no class name, so v1 bytes are unchanged; `TraceV1FixtureTest` holds that.
+ */
+@Serializable
+internal class VoxelTraceWireV1(
+    val formatVersion: Int,
+    val fps: Int,
+    val frameCount: Int,
+    val phosphorVersion: String,
+    val seed: Long,
+    val paramSnapshot: Map<String, String>,
+    val staticLattice: StaticLattice,
+    val segments: List<TraceSegment>,
+    val createdAtEpochMs: Long,
+    val ticks: LongArray,
+    val timestampsEpochMillis: LongArray,
+    val cellCounts: IntArray,
+    val cellX: FloatArray,
+    val cellY: FloatArray,
+    val cellZ: FloatArray,
+    val cellScale: FloatArray,
+    val cellRed: FloatArray,
+    val cellGreen: FloatArray,
+    val cellBlue: FloatArray,
+    val cellAlpha: FloatArray,
+    val ambient: List<VoxelAmbient>,
+    val glyphs: List<VoxelGlyphState?>,
+)
+
+/** Serializes a [VoxelTrace] as its float columns, through [VoxelTraceWireV1]. */
+internal object VoxelTraceV1Serializer : KSerializer<VoxelTrace> {
+    private val wire = VoxelTraceWireV1.serializer()
+
+    @OptIn(ExperimentalSerializationApi::class)
+    override val descriptor: SerialDescriptor =
+        SerialDescriptor("link.socket.phosphor.trace.VoxelTrace", wire.descriptor)
+
+    override fun serialize(
+        encoder: Encoder,
+        value: VoxelTrace,
+    ) {
+        encoder.encodeSerializableValue(
+            wire,
+            VoxelTraceWireV1(
+                formatVersion = value.formatVersion,
+                fps = value.fps,
+                frameCount = value.frameCount,
+                phosphorVersion = value.phosphorVersion,
+                seed = value.seed,
+                paramSnapshot = value.paramSnapshot,
+                staticLattice = value.staticLattice,
+                segments = value.segments,
+                createdAtEpochMs = value.createdAtEpochMs,
+                ticks = value.ticks,
+                timestampsEpochMillis = value.timestampsEpochMillis,
+                cellCounts = value.cellCounts,
+                cellX = value.cellX,
+                cellY = value.cellY,
+                cellZ = value.cellZ,
+                cellScale = value.cellScale,
+                cellRed = value.cellRed,
+                cellGreen = value.cellGreen,
+                cellBlue = value.cellBlue,
+                cellAlpha = value.cellAlpha,
+                ambient = value.ambient,
+                glyphs = value.glyphs,
+            ),
+        )
+    }
+
+    override fun deserialize(decoder: Decoder): VoxelTrace {
+        val decoded = decoder.decodeSerializableValue(wire)
+        return VoxelTrace(
+            formatVersion = decoded.formatVersion,
+            fps = decoded.fps,
+            frameCount = decoded.frameCount,
+            phosphorVersion = decoded.phosphorVersion,
+            seed = decoded.seed,
+            paramSnapshot = decoded.paramSnapshot,
+            staticLattice = decoded.staticLattice,
+            segments = decoded.segments,
+            createdAtEpochMs = decoded.createdAtEpochMs,
+            ticks = decoded.ticks,
+            timestampsEpochMillis = decoded.timestampsEpochMillis,
+            cellCounts = decoded.cellCounts,
+            cellX = decoded.cellX,
+            cellY = decoded.cellY,
+            cellZ = decoded.cellZ,
+            cellScale = decoded.cellScale,
+            cellRed = decoded.cellRed,
+            cellGreen = decoded.cellGreen,
+            cellBlue = decoded.cellBlue,
+            cellAlpha = decoded.cellAlpha,
+            ambient = decoded.ambient,
+            glyphs = decoded.glyphs,
+        )
     }
 }

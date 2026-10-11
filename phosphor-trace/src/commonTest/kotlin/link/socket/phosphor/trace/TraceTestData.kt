@@ -109,6 +109,23 @@ internal object TraceTestData {
             glyphs = listOf(null),
         )
 
+    /** Bytes [trace]'s cell channels hold in memory, however they are stored. */
+    fun residentCellBytes(trace: VoxelTrace): Long =
+        when (val cells = trace.cells) {
+            is CellChannels.Floats -> 8L * Float.SIZE_BYTES * cells.size
+            is CellChannels.Quantized ->
+                listOf(
+                    cells.cellX,
+                    cells.cellY,
+                    cells.cellZ,
+                    cells.cellScale,
+                    cells.cellRed,
+                    cells.cellGreen,
+                    cells.cellBlue,
+                    cells.cellAlpha,
+                ).sumOf { it.size.toLong() }
+        }
+
     /** [trace] with every field kept but [VoxelTrace.formatVersion] replaced — the format `TraceCodec` writes it in. */
     fun withFormatVersion(
         trace: VoxelTrace,

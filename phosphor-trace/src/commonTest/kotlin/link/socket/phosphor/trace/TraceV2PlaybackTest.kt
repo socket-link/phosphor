@@ -12,9 +12,10 @@ import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
- * v2 decodes into the same float columns v1 did, so playback is untouched.
- * These pin that down on traces that went through the v2 codec: held-frame
- * identity, blend alignment, and crossfades.
+ * A decoded v2 trace stays quantized in memory and is dequantized a frame at a
+ * time, but plays exactly as a float trace of the same values would. These pin
+ * that down on traces that went through the v2 codec: held-frame identity, blend
+ * alignment, and crossfades.
  */
 class TraceV2PlaybackTest {
     @Test

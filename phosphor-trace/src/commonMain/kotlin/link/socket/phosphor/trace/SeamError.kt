@@ -176,17 +176,20 @@ private fun VoxelTrace.frameDelta(
     var scale = 0.0
     var color = 0.0
     if (paired && count > 0) {
-        val a = offsets[from]
-        val b = offsets[to]
+        // Read through the channel accessors so a decoded v2 trace is measured
+        // without expanding its float columns.
+        val c = cells
         for (i in 0 until count) {
-            position += distance(cellX[a + i] - cellX[b + i], cellY[a + i] - cellY[b + i], cellZ[a + i] - cellZ[b + i])
-            scale += abs(cellScale[a + i] - cellScale[b + i])
+            val a = offsets[from] + i
+            val b = offsets[to] + i
+            position += distance(c.x(a) - c.x(b), c.y(a) - c.y(b), c.z(a) - c.z(b))
+            scale += abs(c.scale(a) - c.scale(b))
             color +=
                 distance(
-                    cellRed[a + i] - cellRed[b + i],
-                    cellGreen[a + i] - cellGreen[b + i],
-                    cellBlue[a + i] - cellBlue[b + i],
-                    alphaOf(cellAlpha[a + i]) - alphaOf(cellAlpha[b + i]),
+                    c.red(a) - c.red(b),
+                    c.green(a) - c.green(b),
+                    c.blue(a) - c.blue(b),
+                    alphaOf(c.alpha(a)) - alphaOf(c.alpha(b)),
                 )
         }
         position /= count

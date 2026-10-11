@@ -59,9 +59,12 @@ sealed class TracePlaybackError(
  * resolved index moves. Nothing is allocated on a refresh that holds.
  *
  * **Reconstruction is lazy and per-frame.** A frame is assembled on demand by
- * slicing the trace's columnar channel arrays, never via [VoxelTrace.toFrames],
+ * slicing the trace's columnar channels, never via [VoxelTrace.toFrames],
  * which materializes the whole recording at once (a 10 s capture at 60 fps and
- * resolution 10 is 600 × 4,801 cells — far too much to hold for playback).
+ * resolution 10 is 600 × 4,801 cells — far too much to hold for playback). A
+ * trace decoded from format v2 stays quantized in memory and the player
+ * dequantizes only the frame it slices, so it never expands the trace's float
+ * columns.
  *
  * The player is stateful and single-threaded, like `VoxelFrameBuilder`: one
  * player per stream, driven from one coroutine. Collecting [frames] twice
@@ -285,27 +288,17 @@ class TracePlayer(
         return frame
     }
 
-    // Slice one frame out of the columnar channel arrays. This is the only place
-    // in playback that allocates, and it runs once per recorded frame rather
-    // than once per display refresh.
+    // Slice one frame out of the columnar channels. This is the only place in
+    // playback that allocates, and it runs once per recorded frame rather than
+    // once per display refresh. A trace decoded from v2 is dequantized here, one
+    // frame's cells at a time, so its float columns are never materialized.
     private fun reconstruct(index: Int): VoxelFrame {
         val base = cellOffsets[index]
         val count = trace.cellCounts[index]
+        val channels = trace.cells
         val cells = ArrayList<VoxelCell>(count)
         for (offset in 0 until count) {
-            val cell = base + offset
-            val alpha = trace.cellAlpha[cell]
-            cells +=
-                VoxelCell(
-                    x = trace.cellX[cell],
-                    y = trace.cellY[cell],
-                    z = trace.cellZ[cell],
-                    scale = trace.cellScale[cell],
-                    red = trace.cellRed[cell],
-                    green = trace.cellGreen[cell],
-                    blue = trace.cellBlue[cell],
-                    alpha = if (alpha.isNaN()) null else alpha,
-                )
+            cells += channels.cellAt(base + offset)
         }
         return VoxelFrame(
             tick = trace.ticks[index],
