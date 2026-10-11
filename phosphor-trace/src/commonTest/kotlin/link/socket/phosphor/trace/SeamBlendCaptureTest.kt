@@ -29,6 +29,32 @@ class SeamBlendCaptureTest {
     }
 
     @Test
+    fun `a baked seam survives v2 quantization`() {
+        // PHO-50: v2 rounds every cell to a quantum, and a slow preset's per-frame
+        // colour step is about one RGB8 quantum. The seam and its median step are
+        // both means over every cell, so rounding barely moves either one.
+        AtmospherePresets.ALL.forEach { (name, preset) ->
+            val captured =
+                Oscilloscope
+                    .capture(loopAt(preset, start = 0, blendFrames = BLEND_FRAMES))
+                    .getOrThrow()
+            val decoded = TraceCodec.decode(TraceCodec.encode(captured)).getOrThrow()
+
+            val before = captured.seamErrors().single()
+            val after = decoded.seamErrors().single()
+
+            assertEquals(2, decoded.formatVersion)
+            assertTrue(after.contentRatio < BAKED_CEILING, "$name should still wrap after a v2 round trip, was $after")
+            assertEquals(
+                before.contentRatio,
+                after.contentRatio,
+                QUANTIZATION_DRIFT,
+                "$name's seam should read the same quantized as in floats",
+            )
+        }
+    }
+
+    @Test
     fun `baking leaves the rotation as recorded for playback to carry`() {
         val raw = Oscilloscope.capture(loopAt(AtmospherePresets.THINKING, start = BLEND_FRAMES)).getOrThrow()
         val baked =
@@ -123,5 +149,8 @@ class SeamBlendCaptureTest {
 
         // A perfectly periodic sine already reads ~1.4; see SeamErrorTest.
         const val BAKED_CEILING = 2f
+
+        // The PHO-50 recon moved no canonical loop's contentRatio by more than 0.13.
+        const val QUANTIZATION_DRIFT = 0.25f
     }
 }
