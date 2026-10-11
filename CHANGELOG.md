@@ -68,6 +68,8 @@ Ambient rotations blend on the **shortest arc**. `VoxelFrameBuilder` wraps its i
 
 `:phosphor-trace` now declares `api(project(":phosphor-core"))` because `CaptureParams` exposes `AtmosphereState`.
 
+## [0.6.2] - 2026-05-31
+
 ### Breaking Changes
 
 #### `CognitivePhase` enum updated to canonical PROPEL vocabulary
