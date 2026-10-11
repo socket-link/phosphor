@@ -21,7 +21,8 @@ import link.socket.phosphor.lumos.VoxelFrame
  * held frame is the identical instance on every refresh, and a frame whose
  * offset is exactly zero is the recorded instance itself.
  *
- * Single-threaded, like the [TraceStateMachine] that owns it.
+ * Single-threaded, like the [TraceStateMachine] or [LumosSource.Trace] frame
+ * stream that owns it.
  */
 internal class RotationCarry(
     private val trace: VoxelTrace,

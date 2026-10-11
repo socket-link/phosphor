@@ -9,18 +9,28 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withTimeoutOrNull
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
 
 /**
- * Rotation is carried across seams by [TraceStateMachine], not replayed.
+ * Rotation is carried across seams by [TraceStateMachine] and by a
+ * [LumosSource.Trace]'s frame stream, not replayed.
  *
  * The fixture's segments turn at different rates from unrelated recorded
  * angles, the way separate stretches of a real capture do, so any seam the
  * machine fails to carry shows up as a rotation step far from the local rate.
  * At 10 fps one recorded frame is 100 ms.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RotationCarryTest {
     @Test
     fun `a loop keeps turning across its own seam`() {
@@ -104,6 +114,81 @@ class RotationCarryTest {
 
         rotationSteps(machine, frames = 2 * LOOP_FRAMES).forEach { assertNear(SPIN_RATE, it) }
     }
+
+    @Test
+    fun `a looping trace source keeps turning across its own seam`() =
+        runTest {
+            val emitted = LumosSource.Trace(trace(), SPIN).frames(testTimeSource).take(3 * LOOP_FRAMES + 1).toList()
+
+            rotationSteps(emitted).forEach { assertNear(SPIN_RATE, it) }
+        }
+
+    @Test
+    fun `a trace source without carrying replays the drop at its seam`() =
+        runTest {
+            val source = LumosSource.Trace(trace(), SPIN, carryRotation = false)
+
+            val emitted = source.frames(testTimeSource).take(LOOP_FRAMES + 1).toList()
+
+            assertNear(-(LOOP_FRAMES - 1) * SPIN_RATE, rotationSteps(emitted).last())
+        }
+
+    @Test
+    fun `a trace source's first pass is the recording and its carried frames keep the recorded cells`() =
+        runTest {
+            val trace = trace()
+
+            val emitted = LumosSource.Trace(trace, SPIN).frames(testTimeSource).take(2 * LOOP_FRAMES).toList()
+
+            val recorded = trace.toFrames()
+            assertEquals(recorded.subList(0, LOOP_FRAMES), emitted.subList(0, LOOP_FRAMES))
+            emitted.subList(LOOP_FRAMES, 2 * LOOP_FRAMES).forEachIndexed { within, carried ->
+                assertEquals(recorded[within].cells, carried.cells)
+            }
+        }
+
+    @Test
+    fun `a held carried frame from a trace source is one instance and emits once`() =
+        runTest {
+            val trace = trace()
+            val source = LumosSource.Trace(trace, SPIN)
+            // Into the second iteration, where the rotation is offset, then hold.
+            source.player.advance(750.milliseconds)
+            source.player.pause()
+
+            val emitted = ArrayList<VoxelFrame>()
+            withTimeoutOrNull(1.seconds) { source.frames(testTimeSource).collect { emitted += it } }
+
+            // Ten ticks over a held playhead, and only the first emits: every
+            // later tick resolved to the identical carried instance.
+            val held = emitted.single()
+            assertEquals(trace.toFrames()[1].cells, held.cells)
+            assertNear(1.0f + (LOOP_FRAMES + 1) * SPIN_RATE, held.ambient.orbRotationY)
+        }
+
+    @Test
+    fun `switching a trace source's segment restarts from the recording and carries the new loop`() =
+        runTest {
+            val trace = trace()
+            val source = LumosSource.Trace(trace, SPIN)
+            var seen = 0
+
+            val emitted =
+                source
+                    .frames(testTimeSource)
+                    // Partway into spin's second pass, cut to other.
+                    .onEach { if (++seen == LOOP_FRAMES + 3) source.player.setSegment(OTHER) }
+                    .take(LOOP_FRAMES + 3 + 2 * LOOP_FRAMES)
+                    .toList()
+
+            val afterCut = emitted.subList(LOOP_FRAMES + 3, emitted.size)
+            // The tick that sees the cut has already spent a frame's time in it.
+            assertEquals(trace.toFrames()[LOOP_FRAMES + 1], afterCut.first())
+            rotationSteps(afterCut).forEach { assertNear(OTHER_RATE, it) }
+        }
+
+    private fun rotationSteps(frames: List<VoxelFrame>): List<Float> =
+        frames.map { it.ambient.orbRotationY }.zipWithNext { previous, next -> shortestArc(previous, next) }
 
     private fun rotationSteps(
         machine: TraceStateMachine,
