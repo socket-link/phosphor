@@ -107,6 +107,19 @@ tasks.register<JavaExec>("runSeamQuantizationRecon") {
     args((project.findProperty("out") as String?) ?: "")
 }
 
+// PHO-46: measure how far a recorded one-shot jumps when entered from every loop frame, per entry mechanism.
+// Usage: ./gradlew :phosphor-lumos-cli:runEntryRecon -Pout=/abs/path/to/dir
+tasks.register<JavaExec>("runEntryRecon") {
+    group = "verification"
+    description = "Measure recorded one-shot entry pops through the seam metric and a Compose raster (PHO-46)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.bench.EntryReconKt")
+    maxHeapSize = "1536m"
+    args((project.findProperty("out") as String?) ?: "")
+}
+
 // PHO-39: drive a recorded trace through state changes from the keyboard.
 // Usage: ./gradlew :phosphor-lumos-cli:runStateMachineDemo                 (45s)
 //        ./gradlew :phosphor-lumos-cli:runStateMachineDemo -Pseconds=90

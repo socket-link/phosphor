@@ -82,6 +82,125 @@ class TraceStateMachineTest {
     }
 
     // ---------------------------------------------------------------------
+    // Entering a recorded transition: blending in
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun aRecordedTransitionBlendsInByDefault() {
+        val machine = TraceStateMachine(StateMachineTraces.threeState(), "idle")
+        machine.advance(250.milliseconds)
+
+        machine.requestState("thinking").getOrThrow()
+
+        val blend = assertNotNull(machine.blend)
+        assertEquals(0f, blend.weight)
+        // The loop keeps playing underneath; the one-shot starts on its first frame.
+        assertEquals("idle", machine.activeSegment.name)
+        assertEquals(2, machine.currentFrameIndex)
+        assertEquals("idle→thinking", machine.incomingSegment?.name)
+        assertEquals(18, machine.incomingFrameIndex)
+        assertEquals("idle", machine.state.value)
+        assertEquals("thinking", machine.requestedState.value)
+    }
+
+    @Test
+    fun aBlendInHandsOverToTheOneShotAndArrivesWhenItEnds() {
+        val machine = machineOf(entry = OneShotEntry.BlendIn(durationMs = 200))
+        machine.advance(250.milliseconds)
+        machine.requestState("thinking").getOrThrow()
+
+        machine.advance(100.milliseconds)
+        assertEquals(0.5f, machine.blend?.weight)
+        assertEquals(3, machine.currentFrameIndex)
+        assertEquals(19, machine.incomingFrameIndex)
+
+        // The fade lands two frames into the one-shot, which carries on from there.
+        machine.advance(100.milliseconds)
+        assertNull(machine.blend)
+        assertEquals("idle→thinking", machine.activeSegment.name)
+        assertEquals(20, machine.currentFrameIndex)
+        assertTrue(machine.isTransitioning)
+        assertEquals("idle", machine.state.value)
+
+        // 400 ms after the request — the one-shot's own length — thinking is on screen.
+        machine.advance(200.milliseconds)
+        assertEquals("thinking", machine.state.value)
+        assertEquals(6, machine.currentFrameIndex)
+        assertFalse(machine.isTransitioning)
+    }
+
+    @Test
+    fun theBlendInRidesFromTheLoopIntoTheOneShot() {
+        val machine = machineOf(entry = OneShotEntry.BlendIn(durationMs = 200))
+        machine.requestState("thinking").getOrThrow()
+
+        // idle holds 0; idle→thinking walks 0, 1/3, 2/3, 1. Weight 0, then 1/2,
+        // then the one-shot alone.
+        val signatures =
+            listOf(machine.currentFrame) + List(3) { machine.advance(100.milliseconds) }
+
+        listOf(0f, 1f / 6f, 2f / 3f, 1f).forEachIndexed { index, expected ->
+            assertNear(expected, StateMachineTraces.signatureOf(signatures[index]))
+        }
+    }
+
+    @Test
+    fun aBlendInLongerThanTheOneShotIsCutToIt() {
+        val machine = machineOf(entry = OneShotEntry.BlendIn(durationMs = 1_000))
+        machine.requestState("thinking").getOrThrow()
+
+        // Four recorded frames of one-shot, so four steps of weight rather than ten.
+        machine.advance(100.milliseconds)
+        assertEquals(0.25f, machine.blend?.weight)
+
+        machine.advance(300.milliseconds)
+        assertEquals("thinking", machine.state.value)
+        assertEquals(6, machine.currentFrameIndex)
+    }
+
+    @Test
+    fun aRequestDuringABlendInIsHeldUntilTheOneShotLands() {
+        val machine = machineOf(entry = OneShotEntry.BlendIn(durationMs = 200))
+        machine.requestState("thinking").getOrThrow()
+        machine.advance(100.milliseconds)
+
+        machine.requestState("idle").getOrThrow()
+
+        assertEquals("idle→thinking", machine.incomingSegment?.name)
+        assertEquals("idle", machine.requestedState.value)
+
+        // Through the rest of idle→thinking, then thinking→idle blends in at once.
+        machine.advance(300.milliseconds)
+        assertEquals("thinking", machine.state.value)
+        assertEquals("thinking→idle", machine.incomingSegment?.name)
+
+        machine.advance(400.milliseconds)
+        assertEquals("idle", machine.state.value)
+        assertFalse(machine.isTransitioning)
+    }
+
+    @Test
+    fun aTraceWhoseCellsDoNotPairEntersImmediately() {
+        val machine =
+            machineOf(
+                entry = OneShotEntry.BlendIn(durationMs = 200),
+                trace = StateMachineTraces.threeState(transitionCells = StateMachineTraces.CELLS_PER_FRAME - 1),
+            )
+
+        machine.requestState("thinking").getOrThrow()
+
+        // A blend of unpaired cells would hold the loop, then cut halfway through.
+        assertNull(machine.blend)
+        assertEquals("idle→thinking", machine.activeSegment.name)
+        assertEquals(18, machine.currentFrameIndex)
+    }
+
+    @Test
+    fun aZeroLengthBlendInIsRejected() {
+        assertFailsWith<IllegalArgumentException> { OneShotEntry.BlendIn(durationMs = 0) }
+    }
+
+    // ---------------------------------------------------------------------
     // Fallback: finish the loop, then switch
     // ---------------------------------------------------------------------
 
@@ -440,8 +559,16 @@ class TraceStateMachineTest {
     private companion object {
         const val TOLERANCE: Float = 1e-4f
 
-        fun machineOf(policy: TransitionPolicy = TransitionPolicy.FinishLoopThenSwitch): TraceStateMachine =
-            TraceStateMachine(StateMachineTraces.threeState(), "idle", policy)
+        /**
+         * A machine over the three-state fixture. Recorded transitions enter
+         * [OneShotEntry.Immediate]ly unless [entry] says otherwise, so a frame
+         * index names one segment rather than a blend of two.
+         */
+        fun machineOf(
+            policy: TransitionPolicy = TransitionPolicy.FinishLoopThenSwitch,
+            entry: OneShotEntry = OneShotEntry.Immediate,
+            trace: VoxelTrace = StateMachineTraces.threeState(),
+        ): TraceStateMachine = TraceStateMachine(trace, "idle", policy, oneShotEntry = entry)
 
         fun assertNear(
             expected: Float,

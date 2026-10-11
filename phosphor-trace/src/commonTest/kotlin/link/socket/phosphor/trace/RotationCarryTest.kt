@@ -67,7 +67,7 @@ class RotationCarryTest {
 
     @Test
     fun `a recorded transition starts where the loop is and hands its rate to the next`() {
-        val machine = TraceStateMachine(trace(), OTHER)
+        val machine = TraceStateMachine(trace(), OTHER, oneShotEntry = OneShotEntry.Immediate)
         machine.advance(250.milliseconds)
         machine.requestState(SPIN).getOrThrow()
 
@@ -77,6 +77,21 @@ class RotationCarryTest {
         // The transition opens on the angle the loop was showing, and every step
         // moves forward at a rate the recording contains — its own, then spin's.
         steps.forEach { step -> assertTrue(step in -TOLERANCE..TRANSITION_RATE + TOLERANCE, "step $step") }
+    }
+
+    @Test
+    fun `a blended-in transition starts at the loop's orientation`() {
+        val machine = TraceStateMachine(trace(), OTHER, oneShotEntry = OneShotEntry.BlendIn(durationMs = 200))
+        machine.advance(250.milliseconds)
+        machine.requestState(SPIN).getOrThrow()
+
+        val steps = rotationSteps(machine, frames = TRANSITION_FRAMES + LOOP_FRAMES)
+
+        assertEquals(SPIN, machine.state.value)
+        // Both heads leave from the angle the loop was showing, so the fade only
+        // ever outruns the faster side by their difference — never by the
+        // 1.1 rad between the loop's angle and the transition's recorded one.
+        steps.forEach { step -> assertTrue(step in -TOLERANCE..2 * TRANSITION_RATE + TOLERANCE, "step $step") }
     }
 
     @Test

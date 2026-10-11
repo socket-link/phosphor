@@ -30,7 +30,8 @@ import link.socket.phosphor.trace.seamErrors
  * name *which* of the three resolution paths carried it there:
  *
  * - `idle↔thinking` and `idle↔uncertain` are recorded one-shots. They start the
- *   instant you press and play their authored motion, easing included.
+ *   instant you press and play their authored motion, easing included, fading
+ *   in from wherever the loop was over their first half second (PHO-46).
  * - `thinking↔uncertain` is deliberately **not** recorded, so it falls through
  *   to the configured crossfade and the status line counts the weight up.
  *
@@ -214,7 +215,7 @@ private fun play(
                         orb.render(frame)
                         status(machine, width)
 
-                        val fading = machine.blend != null
+                        val fading = machine.blend != null && !machine.isBlendingIntoOneShot()
                         if (fading && !wasFading) fades++
                         wasFading = fading
                         rendered++
@@ -252,12 +253,18 @@ private fun path(machine: TraceStateMachine): String {
     val fade = machine.blend
     return when {
         !machine.isTransitioning -> "looping ${machine.activeSegment.name}"
+        fade != null && machine.isBlendingIntoOneShot() ->
+            "recorded ${machine.incomingSegment?.name}, blending in ${(fade.weight * 100).roundToInt()}%"
         fade != null -> "crossfade ${(fade.weight * 100).roundToInt()}% -> ${machine.incomingSegment?.name}"
         machine.activeSegment.name.contains(TraceStateMachine.TRANSITION_ARROW) ->
             "recorded ${machine.activeSegment.name}"
         else -> "finish-loop, waiting for the seam"
     }
 }
+
+/** Whether the incoming head is a recorded one-shot being faded into, rather than a loop. */
+private fun TraceStateMachine.isBlendingIntoOneShot(): Boolean =
+    incomingSegment?.name?.contains(TraceStateMachine.TRANSITION_ARROW) == true
 
 private fun stateFor(key: Char): String? =
     when (key.lowercaseChar()) {

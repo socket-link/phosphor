@@ -328,7 +328,7 @@ private fun ratio(
  * trace's seam *is* the distance between them, so the recon and `seamError`
  * cannot disagree about what a step is.
  */
-private fun channelDistances(pair: Pair<VoxelFrame, VoxelFrame>): Map<String, Float> {
+internal fun channelDistances(pair: Pair<VoxelFrame, VoxelFrame>): Map<String, Float> {
     val (a, b) = pair
     val trace =
         VoxelTrace.fromFrames(
@@ -397,7 +397,7 @@ private fun colorChange(
  * The `ComposeLattice` projection, rasterized: rotate X → Y → Z, orthographic,
  * far voxels first, zoomed by [RASTER_VIEW].
  */
-private fun raster(frame: VoxelFrame): BufferedImage {
+internal fun raster(frame: VoxelFrame): BufferedImage {
     val image = BufferedImage(RASTER_PX, RASTER_PX, BufferedImage.TYPE_INT_RGB)
     val g = image.createGraphics()
     val ambient = frame.ambient
@@ -437,7 +437,7 @@ private fun raster(frame: VoxelFrame): BufferedImage {
 }
 
 /** Mean absolute per-channel pixel change, `0..1`. */
-private fun pixelDelta(
+internal fun pixelDelta(
     a: BufferedImage,
     b: BufferedImage,
 ): Float {

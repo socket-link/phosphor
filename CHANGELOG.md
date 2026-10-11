@@ -36,6 +36,22 @@ PHO-43 carried rotation only inside `TraceStateMachine`, so a looping segment pl
 
 This is on by default and changes what the stream emits after a loop's first pass. `LumosSource.Trace(…, carryRotation = false)` restores replayed rotations. The carry is applied where frames leave the source, so `TracePlayer` itself — `currentFrame`, `advance`, `frameAt`, and its own `frames` — still replays exactly what was recorded. `LumosSource.Trace` gains a `carryRotation` property, which adds a parameter to the data class's `copy` and a `component2`.
 
+#### Recorded transitions blend in from wherever the loop is: `OneShotEntry` in `:phosphor-trace` (PHO-46 / #92)
+
+`TraceStateMachine` started a recorded `"from→to"` one-shot on its first frame the instant it was asked for. That frame is continuous only with the frame recorded just before it, and the outgoing loop's playhead is almost never there: its pattern, surface bump, and breath pulse have drifted by up to a loop's worth. PHO-43 already carries rotation into the one-shot; the cells still jumped. Measured by entering each of `StateMachineDemo`'s four recorded transitions from every frame of a 4 s loop at 24 fps, the typical entry step was 29 to 45 times the loop's median frame step in its worst cell channel, and 6 to 21 times an ordinary frame's pixel change in a Compose raster.
+
+**Recorded transitions now fade in from the outgoing loop by default.** `TraceStateMachine(…, oneShotEntry = …)` takes a new sealed `OneShotEntry`. The default, `OneShotEntry.BlendIn(durationMs = 500)`, runs the outgoing loop and the one-shot on two heads over the one-shot's first 500 ms and ramps a linear weight between them, which is the machinery `TransitionPolicy.Crossfade` already uses between loops. On baked loops (captured with `CaptureConfig.seamBlendFrames`) this brings the worst step anywhere in the window to 4 to 7 median steps, and the Compose raster's worst to 2.1 to 6.4. Both are in line with the one-shot's own authored motion and the loop's largest ordinary step. The one-shot keeps its length, so `state` flips exactly when it did before. A window longer than the one-shot is cut to it. Each blended frame costs one `FrameBlend.transduce`: about 35 µs on a desktop JVM at 4,801 voxels, or 0.4 ms per switch. A trace whose frames do not all carry the same voxels, such as one captured with `omitBelowScale > 0`, enters immediately instead of blending unpaired cells.
+
+**This changes what the machine emits.** For the first 500 ms of a recorded transition:
+- `blend`, `incomingSegment` and `incomingFrameIndex` are non-null.
+- `activeSegment` names the outgoing loop until the fade lands.
+
+`OneShotEntry.Immediate` restores the first-frame entry, which costs nothing and jumps.
+
+**Waiting for the loop seam was measured and rejected.** A baked loop ends on the frame before its *own* start, not the frame before the one-shot, so its seam still jumps 22 to 73 steps. Only an unbaked loop recorded immediately before its one-shot meets it at the seam, and that loop pops on every wrap. No loop frame is a good place to wait either: the closest one in a baked loop is still ten or more steps away. Blend-in has the same precondition as `FinishLoopThenSwitch`, a loop that wraps continuously. The outgoing loop keeps playing through the window, so on an unbaked loop an entry close to the seam blends that seam's jump in as well.
+
+`./gradlew :phosphor-lumos-cli:runEntryRecon` reproduces the measurements. `runStateMachineDemo`'s status line now names a blend-in separately from a crossfade.
+
 #### `VoxelTrace` format v2 — quantized cell channels, about 3.5× smaller (PHO-42 / #88)
 
 `TraceCodec` now writes **format v2** for every new trace: `VoxelTrace.CURRENT_FORMAT_VERSION` is `2`, and `VoxelTrace.fromFrames` and `Oscilloscope.capture` stamp it. v1 stored every cell channel as a full `Float`, which measured 12.5–13.6 bytes per voxel-frame on real Lumos captures (resolution 10, 4,801 voxels, 20 fps). That put a 4 s loop near 5 MB and Socket's five-loop asset set at 24.8 MB against SCKT-392's 10 MB budget. v2 measures **3.4–4.3 bytes per voxel-frame** on the same captures, and the five loops come to **7.4 MB**. The PHO-35 synthetic clip drops from 2.83 MB to 0.68 MB.
