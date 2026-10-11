@@ -13,6 +13,8 @@ import link.socket.phosphor.math.Vector3
  * - [WORLD_POSITIVE]: Origin at the corner (minimum). Coordinates range from
  *   `0` to `size`. Used by the waveform grid sampling loop and substrate
  *   density lookups.
+ *
+ * See also [NoSuchSymbolDokkaGateProbe].
  */
 enum class CoordinateSpace {
     /** Origin at center, e.g. -w/2 .. +w/2 */
