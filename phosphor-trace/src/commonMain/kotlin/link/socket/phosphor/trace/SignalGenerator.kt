@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
+import link.socket.phosphor.lumos.FramePhases
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrame
@@ -118,6 +119,44 @@ class SignalGenerator(
     fun nextFrame(): VoxelFrame {
         frameCount++
         return builder.build(runtime.update(dt), dt)
+    }
+
+    /**
+     * The [frames] frames this generator would have produced before the one
+     * [nextFrame] last returned, had the atmosphere it is in now always been
+     * active: its steady state, run backwards.
+     *
+     * Oldest first, so the last element sits one step before the current frame.
+     * Each is built at the current atmosphere with no transition and no glyph,
+     * at the phases the builder would have held that many steps ago
+     * ([FramePhases.advanced] by a negative `dt`), with tick and timestamp
+     * counted back from the current frame's. Nothing in the generator moves.
+     *
+     * This is the lead-in [Oscilloscope] fades a loop's tail toward when
+     * `CaptureConfig.seamBlendFrames` is set. Read at the loop's first frame, it
+     * lets a loop start the frame after a transition lands: the seam closes onto
+     * the loop's own motion rather than onto whatever the transition was still
+     * carrying, and no recorded frame has to be given over to a settled hold.
+     *
+     * @throws IllegalArgumentException when [frames] is negative.
+     */
+    internal fun steadyStateLeadIn(frames: Int): List<VoxelFrame> {
+        require(frames >= 0) { "frames must be >= 0, was $frames" }
+        val atmosphere =
+            checkNotNull(runtime.currentAtmosphere) {
+                "SignalGenerator requires SceneConfiguration.enableAtmosphere = true"
+            }
+        val now = runtime.snapshot()
+        val phases = builder.phases
+        return List(frames) { index ->
+            val stepsBack = frames - index
+            builder.buildSteadyState(
+                atmosphere = atmosphere,
+                phases = phases.advanced(atmosphere, -stepsBack * dt),
+                tick = now.frameIndex - stepsBack,
+                timestampEpochMillis = ((now.elapsedTimeSeconds - stepsBack * dt) * 1_000.0).toLong(),
+            )
+        }
     }
 
     /**
