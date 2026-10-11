@@ -4,6 +4,22 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+#### Loops that wrap: `seamError`, baked seam blends, and carried rotation in `:phosphor-trace` (PHO-43 / #89)
+
+A `loop` segment did not wrap, and nothing said so. `Oscilloscope.capture` records whatever the simulation produced between a segment's two frames, and the breath pulse, pattern, surface bump, and orb rotation advance at rates that share no period. Measured at 20 fps and resolution 10, every canonical preset jumped at its seam at both 4 s and 8 s: rotation by the loop's whole travel (23° to 155°), and colour and position by 10 to 80 frame steps in their worst channel. In a Compose raster that is 3 to 21 times an ordinary frame's pixel change; through `CliLattice` it is a colour-band jump. `TransitionPolicy.FinishLoopThenSwitch`, the default, plays that seam on every iteration — a 4 s idle loop popped fifteen times a minute while the orb sat idle.
+
+**`VoxelTrace.seamError(segment)` and `VoxelTrace.seamErrors()` measure it.** Each `SeamError` reports five channels — mean per-cell position, scale, and colour distance, ambient glow, and ambient orb rotation on the shortest arc — as a `SeamChannel` of the raw `jump` beside the segment's `medianStep`. `ratio` divides the two, so about `1` is a seam indistinguishable from an ordinary frame step and `10` is a ten-frame jump. `SeamError.contentRatio` is the worst channel other than rotation, which is the number to hold to a ceiling (see below); `SeamError.ratio` includes rotation. The metric is computed from the columnar channels on demand, and the format is unchanged.
+
+**`CaptureConfig.seamBlendFrames` bakes the content seam out.** Over the last *B* frames of every `loop` segment, cells and halo fade toward the frames recorded *B* steps before the segment's start, so the final frame is the one before the first and wrapping reads as one more step. With 20 frames at 20 fps every canonical preset wraps at a `contentRatio` below 2, at the cost of content moving up to about four times its normal speed through the window. It defaults to `0`, which records the simulation untouched and leaves a capture's bytes as they were. A loop starting closer than *B* frames to the start of the clip gets a hidden warm-up, which shifts every recorded `tick` and timestamp by that many steps and is recorded in `paramSnapshot` as `capture.warmUpFrames`. The frames a loop fades toward must already look like the loop: when a transition precedes it, give the transition *B* frames to settle. The blend pairs cells by index, so it is rejected alongside `LumosRenderConfig.omitBelowScale > 0`, as is a blend as long as a loop.
+
+**`TraceStateMachine` carries rotation across seams instead of replaying it.** A loop shorter than a full turn — 14 to 63 s for the canonical presets — cannot wrap a monotonic rotation, and a baked blend that tried would spin the orb backwards through the window at three to seven times its normal speed. Cells are recorded unrotated and the angles live in `VoxelAmbient`, so the machine offsets them: each loop iteration, and each segment a head enters — finishing a loop into another, a recorded transition, either side of a crossfade — starts where the last frame left off, one ordinary step on. Only the three ambient angles change; the cells are the recorded ones, a frame whose offset is zero is the recorded instance, and a held carried frame is one instance across refreshes. This is on by default and changes what the machine emits: `ambient.orbRotation*` no longer equals the recorded value after the first pass through a segment. `TraceStateMachine(…, carryRotation = false)` restores replayed rotations. `TracePlayer` and `LumosSource.Trace` are unchanged and still replay rotations as recorded.
+
+`FinishLoopThenSwitch`'s KDoc no longer says loops are recorded to wrap. It states content continuity as a precondition and points at `seamBlendFrames` and `contentRatio`.
+
+`./gradlew :phosphor-lumos-cli:runStateMachineDemo` captures with a 12-frame seam blend and prints each loop's measured seam. `CliLattice` applies no orb rotation, so the terminal shows the content seam only; the rotation carry is visible through `ComposeLattice`. `./gradlew :phosphor-lumos-cli:runSeamRecon` reproduces the measurements above.
+
 ### Changed
 
 #### `VoxelTrace` format v2 — quantized cell channels, about 3.5× smaller (PHO-42 / #88)

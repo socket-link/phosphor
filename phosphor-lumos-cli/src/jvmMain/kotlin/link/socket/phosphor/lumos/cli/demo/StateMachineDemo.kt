@@ -19,6 +19,7 @@ import link.socket.phosphor.trace.TraceSegment
 import link.socket.phosphor.trace.TraceStateMachine
 import link.socket.phosphor.trace.TransitionPolicy
 import link.socket.phosphor.trace.VoxelTrace
+import link.socket.phosphor.trace.seamErrors
 
 /**
  * Drives a recorded orb through state changes from the keyboard (PHO-39, Task D).
@@ -34,7 +35,10 @@ import link.socket.phosphor.trace.VoxelTrace
  *   to the configured crossfade and the status line counts the weight up.
  *
  * The clip is captured fresh on every run, so the segment layout in the status
- * header is the layout the state machine is actually reading.
+ * header is the layout the state machine is actually reading. It is captured
+ * with a baked seam blend (PHO-43), so a loop left alone — idle, most of the
+ * orb's life — iterates without popping too; the header prints each loop's
+ * measured seam.
  *
  * Not a test. Nothing here is asserted; it is meant to be watched.
  *
@@ -44,6 +48,9 @@ import link.socket.phosphor.trace.VoxelTrace
 private const val DEFAULT_SECONDS = 45
 private const val CAPTURE_FPS = 24
 private const val CROSSFADE_MS = 600L
+
+/** Half a second of each loop's tail fades toward the frames before its start. */
+private const val SEAM_BLEND_FRAMES = 12
 
 // Terminal geometry. Clamped so the orb still reads on a cramped window.
 private const val MIN_WIDTH = 40
@@ -76,18 +83,21 @@ private data class Beat(
  * Three resting loops and four of the six directed transitions between them.
  * Transition lengths are one frame longer than the authored durations in
  * `AtmosphereChoreographer`'s table — 0.8 s, 1.0 s, 1.4 s, 1.15 s at 24 fps —
- * so each one fully lands inside its own segment. The two `thinking↔uncertain`
- * pairs are left out on purpose: they are what the crossfade covers.
+ * so each one fully lands inside its own segment, plus [SEAM_BLEND_FRAMES] of
+ * settled hold: the loop that follows fades its tail toward exactly those
+ * frames, and they must already look like the loop. The two
+ * `thinking↔uncertain` pairs are left out on purpose: they are what the
+ * crossfade covers.
  */
 private val SCRIPT =
     listOf(
         Beat(IDLE, frames = 48, loop = true),
-        Beat("$IDLE→$THINKING", frames = 20, loop = false, cue = AtmospherePresets.THINKING),
+        Beat("$IDLE→$THINKING", frames = 20 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.THINKING),
         Beat(THINKING, frames = 48, loop = true),
-        Beat("$THINKING→$IDLE", frames = 24, loop = false, cue = AtmospherePresets.IDLE),
-        Beat("$IDLE→$UNCERTAIN", frames = 34, loop = false, cue = AtmospherePresets.UNCERTAIN),
+        Beat("$THINKING→$IDLE", frames = 24 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.IDLE),
+        Beat("$IDLE→$UNCERTAIN", frames = 34 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.UNCERTAIN),
         Beat(UNCERTAIN, frames = 48, loop = true),
-        Beat("$UNCERTAIN→$IDLE", frames = 28, loop = false, cue = AtmospherePresets.IDLE),
+        Beat("$UNCERTAIN→$IDLE", frames = 28 + SEAM_BLEND_FRAMES, loop = false, cue = AtmospherePresets.IDLE),
     )
 
 fun main(args: Array<String>) {
@@ -123,6 +133,7 @@ private fun capture(): Result<VoxelTrace> {
             fps = CAPTURE_FPS,
             segments = segments,
             cues = cues,
+            seamBlendFrames = SEAM_BLEND_FRAMES,
         ),
     )
 }
@@ -139,6 +150,12 @@ private fun describe(trace: VoxelTrace) {
     println("loops: ${loops.joinToString()}")
     println("recorded transitions: ${recorded.joinToString()}")
     println("missing (crossfade covers these): $THINKING→$UNCERTAIN, $UNCERTAIN→$THINKING")
+    // ~1 wraps like one more frame. Rotation is left out: the state machine
+    // carries it across the seam rather than replaying it.
+    println(
+        "loop seams (frame steps, baked over $SEAM_BLEND_FRAMES frames): " +
+            trace.seamErrors().joinToString { "${it.segment.name} ${"%.2f".format(it.contentRatio)}" },
+    )
     // A pairwise blend needs cell index i to mean the same voxel on both sides,
     // which holds whenever the capture ran with omitBelowScale = 0.
     val paired = trace.cellCounts.distinct().size == 1

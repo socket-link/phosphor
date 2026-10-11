@@ -18,6 +18,32 @@ import link.socket.phosphor.signal.AtmosphereState
  * produces identical bytes. Only the atmosphere subsystem is enabled on the
  * runtime; particles, flow, waveform, emitters, and camera do not contribute to
  * a `VoxelFrame` and are switched off so capture stays cheap.
+ *
+ * ### Loop seams
+ *
+ * By default capture does not make a `loop` segment wrap. It records whatever
+ * the simulation produced between the segment's two frames, and the breath
+ * pulse, pattern, surface bump, and orb rotation advance at rates that share no
+ * period, so the last frame of a loop is generally not one step before its
+ * first. Call [seamErrors] on the result to see how far each loop jumps.
+ *
+ * [CaptureConfig.seamBlendFrames] bakes the seam out. Over the last *B* frames
+ * of every `loop` segment, each cell fades toward the frame that preceded the
+ * segment's start by the same distance, so the final frame *is* the one before
+ * the first and wrapping reads as one more step. The fade reads from the
+ * unblended capture, so loops whose windows touch do not feed each other. It
+ * blends cells and the halo but **not** orb rotation: rotation is monotonic, a
+ * short loop cannot give it back, and blending it would spin the orb backwards
+ * through the window. [TraceStateMachine] carries rotation across the seam at
+ * playback instead.
+ *
+ * The frames a loop fades toward are the *B* recorded before it. When a loop
+ * starts closer than *B* frames to the start of the clip, capture first steps
+ * the simulation through enough hidden warm-up frames to supply them, which
+ * shifts every recorded frame's `tick` and timestamp by that many steps. When a
+ * transition precedes a loop, those frames belong to the transition: give it
+ * room to settle before the loop starts, or the loop's tail leans toward
+ * whatever the transition was still carrying.
  */
 object Oscilloscope {
     /**
@@ -61,6 +87,9 @@ object Oscilloscope {
         if (config.fps <= 0) {
             return CaptureError.InvalidConfig("fps must be > 0, was ${config.fps}")
         }
+        if (config.seamBlendFrames < 0) {
+            return CaptureError.InvalidConfig("seamBlendFrames must be >= 0, was ${config.seamBlendFrames}")
+        }
         if (config.durationMs <= 0L) {
             return CaptureError.InvalidConfig("durationMs must be > 0, was ${config.durationMs}")
         }
@@ -82,6 +111,28 @@ object Oscilloscope {
             if (cue.atFrame < 0 || cue.atFrame >= frameCount) {
                 return CaptureError.InvalidConfig(
                     "Cue $index atFrame ${cue.atFrame} is outside the $frameCount-frame clip",
+                )
+            }
+        }
+        return validateSeamBlend(config)
+    }
+
+    private fun validateSeamBlend(config: CaptureConfig): CaptureError? {
+        val blendFrames = config.seamBlendFrames
+        if (blendFrames == 0) return null
+        if (config.params.renderConfig.omitBelowScale > 0f) {
+            // FrameBlend pairs cells by index, which omitBelowScale breaks; it
+            // would cut halfway through the window instead of fading.
+            return CaptureError.InvalidConfig(
+                "seamBlendFrames needs every frame to carry every voxel, but omitBelowScale is " +
+                    "${config.params.renderConfig.omitBelowScale}",
+            )
+        }
+        config.segments.filter(TraceSegment::loop).forEach { segment ->
+            if (blendFrames >= segment.frameCount) {
+                return CaptureError.InvalidConfig(
+                    "seamBlendFrames $blendFrames must be shorter than loop segment '${segment.name}', " +
+                        "which is ${segment.frameCount} frames",
                 )
             }
         }
@@ -115,13 +166,80 @@ object Oscilloscope {
         // same frame apply in declaration order.
         val cuesByFrame = config.cues.groupBy(AtmosphereCue::atFrame)
         val frameCount = config.frameCount
+        val warmUp = warmUpFrames(config)
 
-        val frames = ArrayList<VoxelFrame>(frameCount)
+        // Warm-up frames come first and are never recorded; they exist only
+        // as the frames a loop at the head of the clip fades toward.
+        val frames = ArrayList<VoxelFrame>(warmUp + frameCount)
+        repeat(warmUp) { frames += generator.nextFrame() }
         for (frameIndex in 0 until frameCount) {
             cuesByFrame[frameIndex]?.forEach { cue -> generator.setAtmosphere(cue.atmosphere) }
             frames += generator.nextFrame()
         }
-        return frames
+        return if (config.seamBlendFrames == 0) frames else bakeSeams(frames, warmUp, config)
+    }
+
+    /**
+     * Hidden steps needed before frame 0 so every `loop` segment has
+     * [CaptureConfig.seamBlendFrames] frames ahead of its start to fade toward.
+     */
+    private fun warmUpFrames(config: CaptureConfig): Int {
+        val blendFrames = config.seamBlendFrames
+        if (blendFrames == 0) return 0
+        val earliestLoop = config.segments.filter(TraceSegment::loop).minOfOrNull(TraceSegment::startFrame) ?: return 0
+        return (blendFrames - earliestLoop).coerceAtLeast(0)
+    }
+
+    /**
+     * Fade the tail of every `loop` segment toward the frames before its start.
+     *
+     * [captured] holds [warmUp] hidden frames followed by the clip; the result
+     * is the clip alone. Reads always come from [captured], so a blend never
+     * reads another blend's output.
+     */
+    private fun bakeSeams(
+        captured: List<VoxelFrame>,
+        warmUp: Int,
+        config: CaptureConfig,
+    ): List<VoxelFrame> {
+        val blendFrames = config.seamBlendFrames
+        val baked = ArrayList(captured.subList(warmUp, captured.size))
+        config.segments.filter(TraceSegment::loop).forEach { segment ->
+            for (step in 0 until blendFrames) {
+                // The window's last frame takes weight 1 and so becomes the frame
+                // recorded just before the segment's first: the seam is one step.
+                val frameIndex = segment.endFrame - blendFrames + 1 + step
+                baked[frameIndex] =
+                    bakeFrame(
+                        recorded = captured[warmUp + frameIndex],
+                        target = captured[warmUp + segment.startFrame - blendFrames + step],
+                        weight = (step + 1).toFloat() / blendFrames,
+                    )
+            }
+        }
+        return baked
+    }
+
+    /**
+     * [recorded]'s cells and halo faded toward [target]'s by [weight], keeping
+     * everything that places the frame in time — tick, timestamp, glyph — and
+     * the orb's rotation, which a loop cannot wrap and playback carries instead.
+     */
+    private fun bakeFrame(
+        recorded: VoxelFrame,
+        target: VoxelFrame,
+        weight: Float,
+    ): VoxelFrame {
+        val blended = FrameBlend(recorded, target, weight).transduce()
+        return recorded.copy(
+            cells = blended.cells,
+            ambient =
+                blended.ambient.copy(
+                    orbRotationX = recorded.ambient.orbRotationX,
+                    orbRotationY = recorded.ambient.orbRotationY,
+                    orbRotationZ = recorded.ambient.orbRotationZ,
+                ),
+        )
     }
 
     /**
@@ -133,6 +251,11 @@ object Oscilloscope {
         snapshot["capture.fps"] = config.fps.toString()
         snapshot["capture.durationMs"] = config.durationMs.toString()
         snapshot["capture.frameCount"] = config.frameCount.toString()
+        // Only when set, so a capture without seam blending keeps its bytes.
+        if (config.seamBlendFrames > 0) {
+            snapshot["capture.seamBlendFrames"] = config.seamBlendFrames.toString()
+            snapshot["capture.warmUpFrames"] = warmUpFrames(config).toString()
+        }
         putAtmosphere(snapshot, "atmosphere", config.params.atmosphere)
         putRenderConfig(snapshot, "render", config.params.renderConfig)
         config.cues.forEachIndexed { index, cue ->
