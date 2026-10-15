@@ -138,6 +138,47 @@ The snippet above is compiled by `ReadmeQuickStartTest`; change one and the test
 
 Phase transitions trigger effects automatically — spark bursts, substrate ripples, particle acceleration — all from the cognitive signal alone.
 
+### A Lumos orb in Compose
+
+`:phosphor-lumos-compose` draws Lumos, the voxel orb. `LumosOrb` owns its clock, so a screen hands it a source and a config and runs no loop of its own:
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("link.socket:phosphor-lumos-compose:<version>")
+}
+```
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.palette.AtmospherePresets
+
+@Composable
+fun ThinkingOrb() {
+    // 1. A live scene with nothing in it but an atmosphere
+    val source = remember { LiveFrameSource(AtmospherePresets.THINKING) }
+
+    // 2. The orb owns the clock: speed, pause, reduced motion and the label are config
+    LumosOrb(
+        source = source,
+        config = LumosConfig(label = "Lumos is thinking"),
+        modifier = Modifier.size(160.dp),
+    )
+
+    // 3. Change what it shows from anywhere, and it carries on from where it is:
+    //    source.runtime.setAtmospherePreset("ready")
+}
+```
+
+The orb stops while it is scrolled off screen or its window is in the background, holds still when the platform asks for reduced motion, and is one labelled image to a screen reader — or hidden from one, without a label. Orbs in the same state share a clock, so a column of them breathes together. To drive a runtime and frame builder you already own, wrap them in `LiveFrameSource(runtime, builder)`; to play a recording from `:phosphor-trace`, open it with `asFrameSource()`. The snippet is compiled by `ReadmeLumosQuickStartTest`.
+
 ---
 
 ## Metadata-Driven Emitters

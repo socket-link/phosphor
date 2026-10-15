@@ -3,6 +3,7 @@ import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.SonatypeHost
 import org.gradle.plugins.signing.Sign
 import org.gradle.plugins.signing.SigningExtension
+import org.jetbrains.compose.ExperimentalComposeLibrary
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
@@ -90,6 +91,9 @@ kotlin {
                 implementation(compose.runtime)
                 implementation(compose.ui)
                 implementation(compose.foundation)
+                // LumosOrb's lifecycle gate. Compose 1.7.0 already depends on this version at
+                // runtime on every target; declaring it lets commonMain compile against it.
+                implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
             }
         }
         val commonTest by getting {
@@ -107,6 +111,9 @@ kotlin {
                 // Test-only Skia native runtime for the host OS, so jvmTest can paint
                 // LumosCanvas into an ImageBitmap and read pixels back (PHO-70).
                 implementation(compose.desktop.currentOs)
+                // Compose's UI test harness, so jvmTest can read LumosOrb's semantics tree (PHO-53).
+                @OptIn(ExperimentalComposeLibrary::class)
+                implementation(compose.uiTest)
             }
         }
     }
