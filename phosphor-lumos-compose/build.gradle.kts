@@ -93,6 +93,9 @@ kotlin {
                 // Test-only, and only on the JVM (phosphor-trace has no wasm target):
                 // the PHO-42 pixel-equivalence test projects real v2 traces.
                 implementation(project(":phosphor-trace"))
+                // Test-only Skia native runtime for the host OS, so jvmTest can paint
+                // LumosCanvas into an ImageBitmap and read pixels back (PHO-70).
+                implementation(compose.desktop.currentOs)
             }
         }
     }

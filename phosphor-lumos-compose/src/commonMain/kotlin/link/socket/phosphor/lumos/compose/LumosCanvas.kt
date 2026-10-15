@@ -19,6 +19,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import link.socket.phosphor.lumos.GlyphEnvelope
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
@@ -32,7 +33,15 @@ import link.socket.phosphor.lumos.probe.measure
  * Each recomposition paints:
  * 1. An optional ambient halo (radial gradient behind the orb).
  * 2. All voxels back-to-front (painter's algorithm, sorted by [LumosCanvasFrame.CanvasVoxel.z] ascending).
- * 3. An optional glyph overlay at the canvas center, faded by [VoxelGlyphState.progress].
+ * 3. An optional glyph overlay at the canvas center, faded by [GlyphEnvelope.visibility] of
+ *    [VoxelGlyphState.progress].
+ *
+ * The overlay is the second of a glyph's two layers: the frame builder has already carved the
+ * glyph into the voxels, and both layers fade on the same [GlyphEnvelope], so they rise and fall
+ * together — as the terminal overlay does. Progress is the position in the glyph's display window;
+ * the envelope fades in over its first 20% and out over its last 20%, so the overlay is gone by
+ * the frame the glyph completes. The envelope is applied here at draw time, so recorded traces
+ * replay with the same fade.
  *
  * The composable is [Stable]: identical [LumosCanvasFrame] values (structural equality via data class)
  * produce identical output, letting Compose's machinery skip recomposition when frames are unchanged.
@@ -57,21 +66,31 @@ fun LumosCanvas(
 ) {
     Canvas(modifier = modifier) {
         probe.measure(FramePhase.DRAW) {
-            if (backgroundColor != Color.Transparent) {
-                drawRect(backgroundColor)
-            }
-            if (showHalo) drawHalo(frame.ambient)
-            for (voxel in frame.voxels.sortedBy { it.z }) {
-                drawRect(
-                    color = Color(voxel.red, voxel.green, voxel.blue, voxel.alpha),
-                    topLeft = Offset(voxel.screenX - voxel.radiusPx, voxel.screenY - voxel.radiusPx),
-                    size = Size(voxel.radiusPx * 2f, voxel.radiusPx * 2f),
-                )
-            }
-            if (showGlyphOverlay) {
-                frame.glyph?.let { drawGlyph(it) }
-            }
+            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay)
         }
+    }
+}
+
+// The whole paint, separated from the composable so tests can draw it into an ImageBitmap.
+internal fun DrawScope.drawLumosFrame(
+    frame: LumosCanvasFrame,
+    backgroundColor: Color = Color.Transparent,
+    showHalo: Boolean = true,
+    showGlyphOverlay: Boolean = true,
+) {
+    if (backgroundColor != Color.Transparent) {
+        drawRect(backgroundColor)
+    }
+    if (showHalo) drawHalo(frame.ambient)
+    for (voxel in frame.voxels.sortedBy { it.z }) {
+        drawRect(
+            color = Color(voxel.red, voxel.green, voxel.blue, voxel.alpha),
+            topLeft = Offset(voxel.screenX - voxel.radiusPx, voxel.screenY - voxel.radiusPx),
+            size = Size(voxel.radiusPx * 2f, voxel.radiusPx * 2f),
+        )
+    }
+    if (showGlyphOverlay) {
+        frame.glyph?.let { drawGlyph(it) }
     }
 }
 
@@ -96,15 +115,15 @@ private fun DrawScope.drawHalo(ambient: VoxelAmbient) {
     )
 }
 
-// Draws the active glyph at the canvas center, alpha-scaled by progress (0..1 fade envelope).
+// Draws the active glyph at the canvas center, alpha-scaled by the glyph envelope at its progress.
 private fun DrawScope.drawGlyph(glyph: VoxelGlyphState) {
-    val progress = glyph.progress.coerceIn(0f, 1f)
-    if (progress == 0f) return
+    val visibility = GlyphEnvelope.visibility(glyph.progress)
+    if (visibility == 0f) return
     val cx = size.width / 2f
     val cy = size.height / 2f
     // Glyph spans 60% of the shorter canvas dimension; scale is half of that (maps [-1,1] → pixels).
     val scale = min(size.width, size.height) * 0.30f
-    val color = Color(glyph.red, glyph.green, glyph.blue, progress)
+    val color = Color(glyph.red, glyph.green, glyph.blue, visibility)
     val strokeWidth = scale * 0.18f
     val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
     when (glyph.glyphName) {
@@ -313,6 +332,7 @@ private fun atmosphereFrame(
     glyphRed: Float = 1f,
     glyphGreen: Float = 1f,
     glyphBlue: Float = 1f,
+    glyphProgress: Float = 0.5f,
 ): LumosCanvasFrame =
     LumosCanvasFrame(
         width = canvasSize,
@@ -323,7 +343,7 @@ private fun atmosphereFrame(
             glyphName?.let {
                 VoxelGlyphState(
                     it,
-                    progress = 1.0f,
+                    progress = glyphProgress,
                     red = glyphRed,
                     green = glyphGreen,
                     blue = glyphBlue,
@@ -334,7 +354,8 @@ private fun atmosphereFrame(
 
 /**
  * Preview composable demonstrating [LumosCanvas] across all five atmosphere presets and
- * each of the six canonical glyphs at full intensity (progress = 1.0).
+ * each of the six canonical glyphs at full intensity (progress = 0.5, the middle of the hold —
+ * at progress 1.0 the glyph has faded out).
  *
  * Intended for visual review in a host project preview or sample app. Not a test — simply
  * drives the composable with hardcoded [LumosCanvasFrame] values representative of each preset.

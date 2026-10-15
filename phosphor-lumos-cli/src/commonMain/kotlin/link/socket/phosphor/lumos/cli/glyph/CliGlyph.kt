@@ -2,6 +2,7 @@ package link.socket.phosphor.lumos.cli.glyph
 
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.color.OklabColor
+import link.socket.phosphor.lumos.GlyphEnvelope
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame
 import link.socket.phosphor.lumos.cli.frame.LumosTerminalFrame.TerminalCell
@@ -267,18 +268,10 @@ object CliGlyph {
         }
 
     /**
-     * Mirrors the fade-in/hold/fade-out envelope from `GlyphLifecycle.visibility`
-     * so the overlay's stipple intensity matches the 3D pipeline's voxel-color
-     * lerp factor at the same progress value.
+     * `GlyphEnvelope.visibility` at [progress], so the overlay's stipple intensity
+     * matches the 3D pipeline's voxel-color lerp factor at the same progress value.
      */
-    internal fun visibilityFromProgress(progress: Float): Float {
-        val p = progress.coerceIn(0f, 1f)
-        return when {
-            p < FADE_IN -> smoothstep(0f, FADE_IN, p)
-            p > FADE_OUT -> 1f - smoothstep(FADE_OUT, 1f, p)
-            else -> 1f
-        }
-    }
+    internal fun visibilityFromProgress(progress: Float): Float = GlyphEnvelope.visibility(progress)
 
     /**
      * Deterministic hash of `(x, y, frameNumber)` mapped to `[0, 1]`. Used as
@@ -303,15 +296,6 @@ object CliGlyph {
         return nonNegative.toFloat() / Int.MAX_VALUE.toFloat()
     }
 
-    private fun smoothstep(
-        edge0: Float,
-        edge1: Float,
-        x: Float,
-    ): Float {
-        val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
-        return t * t * (3f - 2f * t)
-    }
-
     private fun buildGrid(
         width: Int,
         height: Int,
@@ -330,8 +314,6 @@ object CliGlyph {
         return CharGrid(width, height, mask, chars)
     }
 
-    private const val FADE_IN: Float = 0.20f
-    private const val FADE_OUT: Float = 0.80f
     private const val PRIME_X: Int = 73856093
     private const val PRIME_Y: Int = 19349663
     private const val PRIME_T: Int = 83492791
