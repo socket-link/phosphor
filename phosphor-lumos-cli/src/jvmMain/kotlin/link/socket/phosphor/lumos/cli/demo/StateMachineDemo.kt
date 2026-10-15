@@ -6,6 +6,8 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import link.socket.phosphor.lumos.Forms
+import link.socket.phosphor.lumos.LumosForm
 import link.socket.phosphor.lumos.cli.projection.CliLattice
 import link.socket.phosphor.lumos.cli.renderer.CliOrb
 import link.socket.phosphor.lumos.cli.renderer.DefaultTerminalSize
@@ -14,6 +16,7 @@ import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.trace.AtmosphereCue
 import link.socket.phosphor.trace.CaptureConfig
 import link.socket.phosphor.trace.CaptureParams
+import link.socket.phosphor.trace.FormCue
 import link.socket.phosphor.trace.Oscilloscope
 import link.socket.phosphor.trace.TraceSegment
 import link.socket.phosphor.trace.TraceStateMachine
@@ -34,6 +37,13 @@ import link.socket.phosphor.trace.seamErrors
  *   in from wherever the loop was over their first half second (PHO-46).
  * - `thinking↔uncertain` is deliberately **not** recorded, so it falls through
  *   to the configured crossfade and the status line counts the weight up.
+ * - `f` and `c` reshape the idle orb into the Fibonacci sphere and the cube and
+ *   `i` brings it back: recorded morphs (PHO-57) in which every cell springs
+ *   from its lattice position to its matched one, so the trace keeps pairing
+ *   cells by index and the one-shots blend in like any other. Only idle is
+ *   recorded to and from a form; a form key pressed from thinking or uncertain
+ *   falls through to the crossfade, which drags cells and is the pop the morph
+ *   exists to avoid.
  *
  * The clip is captured fresh on every run, so the segment layout in the status
  * header is the layout the state machine is actually reading. It is captured
@@ -68,6 +78,14 @@ private const val PREAMBLE_PAUSE_MS = 2_000L
 private const val IDLE = "idle"
 private const val THINKING = "thinking"
 private const val UNCERTAIN = "uncertain"
+private const val FIBONACCI = "fibonacci"
+private const val CUBE = "cube"
+
+/** The morph's own 2.4 s at 24 fps, rounded up, so the loop that follows starts settled. */
+private const val MORPH_FRAMES = 58
+
+/** The lattice every preset renders on, to morph back to. */
+private val SPHERE: LumosForm = Forms.Lattice(AtmospherePresets.IDLE.resolution)
 
 /**
  * One stretch of the captured clip.
@@ -76,12 +94,14 @@ private const val UNCERTAIN = "uncertain"
  * @property frames How many captured frames the stretch covers.
  * @property loop Whether a player should loop the stretch or play it once.
  * @property cue Atmosphere to fire at the stretch's first frame, or null to carry on.
+ * @property form Form to morph to at the stretch's first frame, or null to keep the current one.
  */
 private data class Beat(
     val name: String,
     val frames: Int,
     val loop: Boolean,
     val cue: AtmosphereState? = null,
+    val form: LumosForm? = null,
 )
 
 /**
@@ -105,6 +125,13 @@ private val SCRIPT =
         Beat("$IDLE→$UNCERTAIN", frames = 34, loop = false, cue = AtmospherePresets.UNCERTAIN),
         Beat(UNCERTAIN, frames = 48, loop = true),
         Beat("$UNCERTAIN→$IDLE", frames = 28, loop = false, cue = AtmospherePresets.IDLE),
+        // Form morphs, idle only: the lattice reshaping into each catalogue form and back (PHO-57).
+        Beat("$IDLE→$FIBONACCI", frames = MORPH_FRAMES, loop = false, form = Forms.Fibonacci),
+        Beat(FIBONACCI, frames = 48, loop = true),
+        Beat("$FIBONACCI→$IDLE", frames = MORPH_FRAMES, loop = false, form = SPHERE),
+        Beat("$IDLE→$CUBE", frames = MORPH_FRAMES, loop = false, form = Forms.Cube),
+        Beat(CUBE, frames = 48, loop = true),
+        Beat("$CUBE→$IDLE", frames = MORPH_FRAMES, loop = false, form = SPHERE),
     )
 
 fun main(args: Array<String>) {
@@ -128,11 +155,13 @@ internal fun captureDemoTrace(seamBlendFrames: Int = SEAM_BLEND_FRAMES): Result<
     val totalFrames = SCRIPT.sumOf(Beat::frames)
     val segments = ArrayList<TraceSegment>(SCRIPT.size)
     val cues = ArrayList<AtmosphereCue>()
+    val formCues = ArrayList<FormCue>()
     var cursor = 0
 
     SCRIPT.forEach { beat ->
         segments += TraceSegment(beat.name, cursor, cursor + beat.frames - 1, beat.loop)
         beat.cue?.let { cues += AtmosphereCue(atFrame = cursor, atmosphere = it) }
+        beat.form?.let { formCues += FormCue(atFrame = cursor, form = it) }
         cursor += beat.frames
     }
 
@@ -145,6 +174,7 @@ internal fun captureDemoTrace(seamBlendFrames: Int = SEAM_BLEND_FRAMES): Result<
             segments = segments,
             cues = cues,
             seamBlendFrames = seamBlendFrames,
+            formCues = formCues,
         ),
     )
 }
@@ -172,7 +202,8 @@ private fun describe(trace: VoxelTrace) {
     val paired = trace.cellCounts.distinct().size == 1
     println("blend alignment: ${if (paired) "paired" else "unpaired - the crossfade will cut instead"}")
     println()
-    println("keys: [i] $IDLE  [t] $THINKING  [u] $UNCERTAIN  [q] quit")
+    println("keys: [i] $IDLE  [t] $THINKING  [u] $UNCERTAIN  [f] $FIBONACCI  [c] $CUBE  [q] quit")
+    println("forms morph from idle and back; from thinking or uncertain they crossfade instead")
     println("watch for a pop at the switch - there should not be one")
     Thread.sleep(PREAMBLE_PAUSE_MS)
 }
@@ -253,7 +284,9 @@ private fun status(
     out: PrintStream = System.out,
 ) {
     val arriving = if (machine.isTransitioning) " -> ${machine.requestedState.value}" else ""
-    val line = "[i]$IDLE [t]$THINKING [u]$UNCERTAIN [q]uit | ${machine.state.value}$arriving | ${path(machine)}"
+    val line =
+        "[i]$IDLE [t]$THINKING [u]$UNCERTAIN [f]$FIBONACCI [c]$CUBE [q]uit | " +
+            "${machine.state.value}$arriving | ${path(machine)}"
     // One short of the width so the cursor cannot wrap onto the row below.
     val room = (width - 1).coerceAtLeast(1)
     out.print(line.take(room).padEnd(room))
@@ -281,6 +314,8 @@ private fun stateFor(key: Char): String? =
         'i' -> IDLE
         't' -> THINKING
         'u' -> UNCERTAIN
+        'f' -> FIBONACCI
+        'c' -> CUBE
         else -> null
     }
 

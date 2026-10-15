@@ -8,9 +8,13 @@ import kotlinx.serialization.Serializable
  * Segments carve a recorded trace into the cognitive beats a player loops over.
  * Names follow the convention consumed downstream by `TraceStateMachine`: a
  * resting beat is `"idle"`, an active beat is `"thinking"`, and a transition
- * between two beats is written with an arrow, `"idle→thinking"`.
+ * between two beats is written with an arrow, `"idle→thinking"`. A change of
+ * form recorded with a [FormCue] follows the same convention with the two
+ * forms' names: `"sphere→fibonacci"`, `"fibonacci→sphere"`, `"sphere→check"`,
+ * the lattice being `"sphere"`. Cells keep their index across a recorded morph,
+ * so such a segment blends and delta-codes like any other.
  *
- * @property name Segment label, e.g. `"idle"`, `"thinking"`, `"idle→thinking"`.
+ * @property name Segment label, e.g. `"idle"`, `"thinking"`, `"idle→thinking"`, `"sphere→fibonacci"`.
  * @property startFrame Index of the first frame in the segment, inclusive. Must be `>= 0`.
  * @property endFrame Index of the last frame in the segment, inclusive. Must be `>= startFrame`.
  * @property loop Whether a player should loop this segment rather than play it once.

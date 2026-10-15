@@ -7,8 +7,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
+import link.socket.phosphor.field.Choreography
 import link.socket.phosphor.lumos.FramePhases
 import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosForm
 import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.LumosRenderConfig
@@ -109,6 +111,35 @@ class SignalGenerator(
     ) {
         runtime.setAtmospherePreset(name, spec)
     }
+
+    /**
+     * Reshape the orb into [form] from the next step on, every cell springing
+     * from where it is to its matched position; see `VoxelFrameBuilder.morphTo`.
+     *
+     * @param form The form to morph to.
+     * @param count Cells to sample it at; null keeps the current count.
+     * @param choreography The arc cells travel on.
+     * @param durationSeconds How long the spring takes to settle; `0` snaps.
+     * @param easingName Easing for the arc envelope only, by `Easing.byName`; null is linear.
+     */
+    fun morphTo(
+        form: LumosForm,
+        count: Int? = null,
+        choreography: Choreography = Choreography.FLOW,
+        durationSeconds: Float = VoxelFrameBuilder.DEFAULT_MORPH_SECONDS,
+        easingName: String? = null,
+    ) {
+        builder.morphTo(
+            form = form,
+            count = count ?: builder.currentCount,
+            choreography = choreography,
+            durationSeconds = durationSeconds,
+            easingName = easingName,
+        )
+    }
+
+    /** Whether a [morphTo] is still settling. */
+    val isMorphing: Boolean get() = builder.isMorphing
 
     /**
      * Fire a glyph, carved into the orb over [durationSeconds]. Replaces any
