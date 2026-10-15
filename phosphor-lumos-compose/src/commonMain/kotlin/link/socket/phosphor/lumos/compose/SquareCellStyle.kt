@@ -8,7 +8,7 @@ import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
 
 /**
  * How [LumosCanvas] paints voxels: [begin] once per frame, [cell] per voxel in
- * ascending [depthBucket] order, [end] to flush anything still accumulated.
+ * painter's order (z ascending), [end] to flush anything still accumulated.
  * Styles that accumulate geometry (mesh, halftone, lines) emit on [end].
  */
 internal interface CellStyle {
