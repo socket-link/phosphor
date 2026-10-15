@@ -7,9 +7,9 @@ package link.socket.phosphor.lumos
  * the Phosphor cell-based pipeline produce different frame shapes.
  */
 enum class LumosRenderTarget {
-    /** Native 3D voxel rendering via a host-provided 3D library (Three.js, Compose Canvas + custom voxel impl, etc.). */
+    /** Native 3D voxel rendering via a host-provided 3D library. Unimplemented; see the web-surface decision (PHO-69). */
     VOXEL_NATIVE,
 
-    /** ANSI-projected voxel orb for terminal output. Reserved for Wave 2; declared now so consumers can match on the enum exhaustively. */
+    /** ANSI-projected voxel orb for terminal output, rendered by `CliOrb` in `:phosphor-lumos-cli`. */
     VOXEL_TERMINAL,
 }

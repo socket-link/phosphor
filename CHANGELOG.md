@@ -4,6 +4,12 @@ All notable changes to Phosphor are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+#### Published descriptions and docs match the code (PHO-71 / #127)
+
+The `phosphor-lumos-cli` POM description, which ships to Maven Central with every release, no longer calls the CLI renderer "future": it now reads "JVM terminal DTOs, CliLattice projection, and CliOrb ANSI renderer for Phosphor's framework-free Lumos voxel-orb visualization." `LumosRenderTarget.VOXEL_TERMINAL`'s KDoc names `CliOrb` instead of "Reserved for Wave 2", `VOXEL_NATIVE`'s says it is unimplemented rather than naming a library, and the README's module table and `AGENTS.md` describe the modules as they are. The README Quick Start now compiles — it was missing `AgentVisualState.name` and `role`, an `AgentLayer`, and a `SubstrateAnimator`, and pinned `0.3.0` — and `ReadmeQuickStartTest` fails if it stops compiling or the README's copy drifts from the tested one.
+
 ## [0.8.0] - 2026-10-11
 
 ### Added

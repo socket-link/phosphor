@@ -33,8 +33,9 @@ import link.socket.phosphor.trace.seamError
  *
  * - the trace-level metric ([seamError]), per channel;
  * - CLI visibility through [CliLattice]: terminal cells whose glyph changes, and
- *   the mean truecolour change of lit cells. [CliLattice] applies **no** orb
- *   rotation, so the terminal is blind to that channel;
+ *   the mean truecolour change of lit cells. Since PHO-48 [CliLattice] rotates
+ *   each voxel by the frame's orb rotation, so a rotation seam shows in these
+ *   numbers as well as in the Compose raster;
  * - Compose visibility: mean pixel change through a Java2D raster of the exact
  *   `ComposeLattice` projection (Euler X → Y → Z, orthographic, painter-sorted),
  *   since there is no Compose host here.

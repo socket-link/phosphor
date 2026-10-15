@@ -71,15 +71,15 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 |--------|---------|
 | `phosphor-core/` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
 | `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core` |
-| `phosphor-lumos-cli/` | JVM terminal DTO and future CLI renderer surface for projected Lumos voxel frames |
+| `phosphor-lumos-cli/` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
 | `phosphor-lumos-compose/` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
+| `phosphor-trace/` | Recorded `VoxelTrace` format, capture, codec, and playback — versioned segments and a CBOR + gzip codec |
 
 ### Future / Aspirational Modules
 
 | Module | Purpose |
 |--------|---------|
 | `phosphor-mosaic/` | Mosaic (Compose-for-terminal) adapter — AnnotatedString output |
-| `phosphor-compose/` | Compose Multiplatform Canvas adapter — DrawScope rendering |
 | `phosphor-ansi/` | Raw ANSI escape code output for non-Compose terminals |
 | `phosphor-demo/` | Desktop demo app (Compose Desktop) |
 | `phosphor-demo-cli/` | Terminal demo app |
