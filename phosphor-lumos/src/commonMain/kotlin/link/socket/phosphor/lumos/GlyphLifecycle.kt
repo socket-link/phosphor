@@ -27,30 +27,12 @@ data class GlyphLifecycle(
     val isComplete: Boolean get() = ageSeconds >= totalDurationSeconds
 
     /**
-     * Fade envelope, `0..1`: smoothstep in over the first 20% of the window,
-     * full through the middle, smoothstep out over the last 20%.
+     * Fade envelope, `0..1`: [GlyphEnvelope.visibility] at [progress] — smoothstep in
+     * over the first 20% of the window, full through the middle, smoothstep out over
+     * the last 20%.
      */
-    val visibility: Float
-        get() {
-            val p = progress
-            val fadeIn = 0.20f
-            val fadeOut = 0.80f
-            return when {
-                p < fadeIn -> smoothstep(0f, fadeIn, p)
-                p > fadeOut -> 1f - smoothstep(fadeOut, 1f, p)
-                else -> 1f
-            }
-        }
+    val visibility: Float get() = GlyphEnvelope.visibility(progress)
 
     /** Age the lifecycle by [dt] seconds. */
     fun advance(dt: Float): GlyphLifecycle = copy(ageSeconds = ageSeconds + dt)
-
-    private fun smoothstep(
-        edge0: Float,
-        edge1: Float,
-        x: Float,
-    ): Float {
-        val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
-        return t * t * (3f - 2f * t)
-    }
 }

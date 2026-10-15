@@ -90,8 +90,10 @@ data class VoxelAmbient(
  * Active glyph carved into the voxel orb, carried by [VoxelFrame.glyph].
  *
  * @property glyphName Identifier of the active glyph (see the PHO-18 `LumosGlyph` enum).
- * @property progress Glyph rendering progress, 0..1. Renderers may use this to fade glyph
- *  voxels in/out across the glyph's display window.
+ * @property progress Linear position in the glyph's display window, 0 when queued and 1 at
+ *  completion. This is not a visibility: renderers fade by [GlyphEnvelope.visibility] of it,
+ *  the same envelope the carve into these voxels already used, so an overlay and the carve
+ *  rise and fall together.
  * @property red Glyph-member voxel red channel in sRGB, 0..1, distinct from base voxel color.
  * @property green Glyph-member voxel green channel in sRGB, 0..1.
  * @property blue Glyph-member voxel blue channel in sRGB, 0..1.
