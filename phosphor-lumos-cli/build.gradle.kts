@@ -81,6 +81,8 @@ tasks.register<JavaExec>("runFrameProbeBenchmark") {
     classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
     mainClass.set("link.socket.phosphor.lumos.cli.bench.FrameProbeBenchmarkKt")
     (project.findProperty("duration") as String?)?.let { args(it) }
+    // PHO-58: -Plook=working wears a look, so BUILD includes the view-space pass.
+    (project.findProperty("look") as String?)?.let { args(it) }
 }
 
 // PHO-43: measure how far each preset's loop jumps at its seam, under each candidate fix.
@@ -207,4 +209,19 @@ plugins.withId("signing") {
 
 tasks.withType<Sign>().configureEach {
     enabled = hasSigningCredentials && !isPublishingToMavenLocal
+}
+
+// PHO-58: watch the first four looks live and switch between them from the keyboard.
+// Usage: ./gradlew :phosphor-lumos-cli:runLookDemo                 (60s)
+//        ./gradlew :phosphor-lumos-cli:runLookDemo -Pseconds=120
+tasks.register<JavaExec>("runLookDemo") {
+    group = "application"
+    description = "Switch a live orb between looks and atmospheres from the keyboard (PHO-58, Task E)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.demo.LookDemoKt")
+    // Keypresses drive the look changes, so the task must own stdin as well as stdout.
+    standardInput = System.`in`
+    args((project.findProperty("seconds") as String?) ?: "")
 }

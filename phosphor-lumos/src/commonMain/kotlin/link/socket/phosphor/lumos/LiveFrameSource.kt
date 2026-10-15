@@ -23,7 +23,8 @@ import link.socket.phosphor.signal.AtmosphereTransition
  *   strength for its window.
  * - [revision] changes when an atmosphere is set. Firing a glyph does not change it, so a paused
  *   orb never freezes on a glyph it cannot finish.
- * - [lookKey] is the name of the preset the scene is in, or heading to; a custom atmosphere has none.
+ * - [lookKey] is the name of the preset the scene is in, or heading to, with the builder's [Look]
+ *   after a slash when it is not [LumosLook.BASE]; a custom atmosphere has none.
  * - [align] puts the builder's phases where a steady scene at the clock's time would hold them.
  *
  * Stateful and single-threaded, like the pair it wraps.
@@ -122,7 +123,9 @@ class LiveFrameSource(
     override val lookKey: String?
         get() {
             val heading = choreographer.activeTransition?.to ?: choreographer.currentState
-            return AtmospherePresets.ALL.firstOrNull { (_, preset) -> preset == heading }?.first
+            val preset = AtmospherePresets.ALL.firstOrNull { (_, preset) -> preset == heading }?.first ?: return null
+            val look = builder.look
+            return if (look.look == LumosLook.BASE) preset else "$preset/${look.key}"
         }
 
     override fun align(lookTime: Double) {

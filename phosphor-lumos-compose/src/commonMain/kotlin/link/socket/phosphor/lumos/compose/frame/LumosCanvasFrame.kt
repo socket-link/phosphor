@@ -44,6 +44,11 @@ data class LumosCanvasFrame(
      * @property blue sRGB blue channel, 0..1.
      * @property alpha sRGB alpha channel, 0..1. Defaults to 1.0 if source voxel had null alpha.
      * @property z Z-depth preserved for painter's-algorithm back-to-front compositing.
+     * @property dx The screen-space direction the orb's spin carries this voxel, per radian of
+     *  yaw, in canvas orientation: Thinking Orbs' `sx = z1`, the voxel's rotated `z`. A dash
+     *  style strokes along `(dx, dy)`. 0 for a frame built before this field existed.
+     * @property dy The screen-space direction the spin carries this voxel, canvas Y down: the
+     *  rotated `x` times the sine of the tilt, negated for the Y flip; 0 when the view is untilted.
      */
     @Serializable
     data class CanvasVoxel(
@@ -55,5 +60,7 @@ data class LumosCanvasFrame(
         val blue: Float,
         val alpha: Float,
         val z: Float,
+        val dx: Float = 0f,
+        val dy: Float = 0f,
     )
 }

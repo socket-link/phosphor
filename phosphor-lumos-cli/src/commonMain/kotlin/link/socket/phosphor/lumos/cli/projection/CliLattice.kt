@@ -24,7 +24,9 @@ import link.socket.phosphor.lumos.probe.measure
  * cell). A frame whose rotation is zero projects its recorded positions
  * unchanged. Zero-scale voxels (those thinned away by bipolar boundary
  * compression or glyph carving) are skipped, so empty cells remain empty
- * instead of being overpainted by ghost cubes.
+ * instead of being overpainted by ghost cubes. A voxel's alpha, when a look
+ * gives it one, folds into its ramp character: a half-transparent voxel reads
+ * as a half-scale one, which is the only way a terminal cell can fade.
  *
  * Orthographic, not perspective: at typical terminal resolutions (40x20 to
  * 60x30) foreshortening barely reads and the simpler projection halves the
@@ -68,8 +70,8 @@ class CliLattice(
      *    (X → Y → Z) using angles from [frame]'s ambient state, then compute
      *    screen `(x, y)` via orthographic mapping of the rotated position.
      * 2. Per cell, keep the voxel with the largest rotated `z` (closest to camera).
-     * 3. Map each winning voxel's scale to a luminance-ramp character and
-     *    pass its sRGB color through as OklabColor.
+     * 3. Map each winning voxel's scale, times its alpha when it has one, to a
+     *    luminance-ramp character and pass its sRGB color through as OklabColor.
      * 4. Empty cells become transparent blanks.
      *
      * Ambient and glyph state pass through unchanged.
@@ -130,7 +132,7 @@ class CliLattice(
                 out += EMPTY_CELL
             } else {
                 val v = cells[winner]
-                val char = luminanceChar(v.scale)
+                val char = luminanceChar(v.scale * (v.alpha ?: 1f))
                 val color = OklabColor.fromSrgb(NeutralColor.fromRgba(v.red, v.green, v.blue))
                 out += TerminalCell(char = char, foreground = color)
             }

@@ -86,6 +86,24 @@ class FramePhasesTest {
     }
 
     @Test
+    fun `lookSeconds advances by dt and never wraps`() {
+        val forward = FramePhases.ZERO.advanced(atmosphere, 0.25f)
+        assertEquals(0.25, forward.lookSeconds, 1e-6, "lookSeconds after a step")
+
+        var long = FramePhases.ZERO
+        repeat(400) { long = long.advanced(atmosphere, 0.5f) }
+        assertEquals(200.0, long.lookSeconds, 1e-3, "lookSeconds keeps counting past every wrap")
+
+        assertEquals(-0.5, FramePhases.ZERO.advanced(atmosphere, -0.5f).lookSeconds, 1e-6, "a rewind goes below zero")
+    }
+
+    @Test
+    fun `at puts lookSeconds on the clock's time`() {
+        assertEquals(12.5, FramePhases.at(atmosphere, 12.5).lookSeconds, 0.0)
+        assertEquals(86_400.0 * 3, FramePhases.at(atmosphere, 86_400.0 * 3).lookSeconds, 0.0)
+    }
+
+    @Test
     fun `at wraps every accumulator into its range`() {
         val phases = FramePhases.at(atmosphere.copy(rotationX = -0.3f), 1_000.0)
 

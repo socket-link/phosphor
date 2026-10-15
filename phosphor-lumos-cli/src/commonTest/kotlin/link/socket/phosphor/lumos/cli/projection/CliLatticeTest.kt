@@ -181,6 +181,25 @@ class CliLatticeTest {
     }
 
     @Test
+    fun `a voxel's alpha folds into its ramp character`() {
+        val opaque = VoxelCell(x = 0f, y = 0f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f)
+        val faded = opaque.copy(alpha = 0.5f)
+        val gone = opaque.copy(alpha = 0f)
+        val lattice = CliLattice(width = 10, height = 10)
+
+        fun only(cell: VoxelCell): Char =
+            lattice
+                .project(voxelFrame(cells = listOf(cell)))
+                .cells
+                .single { it.char != ' ' || it.foreground != null }
+                .char
+
+        assertEquals('@', only(opaque), "a null alpha is 1, as before")
+        assertEquals(CliLattice.luminanceChar(0.5f), only(faded))
+        assertEquals(' ', only(gone), "a fully faded voxel still wins its cell, as a blank")
+    }
+
+    @Test
     fun `ambient and glyph state pass through unchanged`() {
         val ambient =
             VoxelAmbient(

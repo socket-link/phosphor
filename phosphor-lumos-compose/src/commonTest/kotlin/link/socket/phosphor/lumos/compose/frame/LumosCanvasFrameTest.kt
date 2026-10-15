@@ -18,6 +18,8 @@ class LumosCanvasFrameTest {
                 blue = 1f,
                 alpha = 1f,
                 z = 0.5f,
+                dx = 0.5f,
+                dy = -0.1f,
             )
 
         val ambient =

@@ -24,10 +24,16 @@ import kotlinx.serialization.Serializable
  * @property omitBelowScale Voxels whose final [VoxelCell.scale] falls below
  *  this threshold are omitted from the output frame entirely. Default 0
  *  emits all voxels regardless of scale.
+ * @property rimFade Light the sphere from the front in [LumosLook.BASE]: opacity
+ *  ramps from 0 just behind the rim to 1 at the front, and radius from a quarter
+ *  at the back to full at the front, Thinking Orbs' base look. Off by default,
+ *  so every existing preset, trace and golden file is unchanged; the other looks
+ *  fade their rim regardless. See [VoxelFrameBuilder.look].
  */
 @Serializable
 data class LumosRenderConfig(
     val globalYSquashOverride: Float? = null,
     val enableGlyphCarving: Boolean = true,
     val omitBelowScale: Float = 0.0f,
+    val rimFade: Boolean = false,
 )
