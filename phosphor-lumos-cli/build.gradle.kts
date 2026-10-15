@@ -162,7 +162,7 @@ mavenPublishing {
     pom {
         name.set("Phosphor Lumos CLI")
         description.set(
-            "JVM terminal DTOs and future CLI renderer surface for Phosphor's " +
+            "JVM terminal DTOs, CliLattice projection, and CliOrb ANSI renderer for Phosphor's " +
                 "framework-free Lumos voxel-orb visualization.",
         )
         url.set("https://github.com/socket-link/phosphor")

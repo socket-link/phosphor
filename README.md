@@ -43,9 +43,10 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | Module | Purpose |
 |--------|---------|
 | `:phosphor-core` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
-| `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state, scaffolded for downstream Lumos frame APIs |
-| `:phosphor-lumos-cli` | JVM terminal DTO and future CLI renderer surface for projected Lumos voxel frames |
+| `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state — builds every `VoxelFrame` and defines the `LumosRenderer` contract, with no UI framework dependency |
+| `:phosphor-lumos-cli` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
 | `:phosphor-lumos-compose` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
+| `:phosphor-trace` | Recorded `VoxelTrace` format, capture, codec, and playback for Lumos voxel frames |
 
 ---
 
@@ -68,48 +69,72 @@ Each cognitive phase has a distinct visual texture. The eye reads the shift inst
 
 > **Prerequisites:** Java 21+
 
-Add the dependency:
+Add the dependency, using the version shown in the Maven Central badge above:
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("link.socket:phosphor-core:0.3.0")
+    implementation("link.socket:phosphor-core:<version>")
 }
 ```
 
 Build a frame:
 
 ```kotlin
-// 1. Define an agent's visible state
-val agent = AgentVisualState(
-    id = "agent-1",
-    position = Vector2(40f, 12f),
-    cognitivePhase = CognitivePhase.EXECUTE
-)
+import link.socket.phosphor.choreography.AgentLayer
+import link.socket.phosphor.choreography.CognitiveChoreographer
+import link.socket.phosphor.field.ParticleSystem
+import link.socket.phosphor.field.SubstrateAnimator
+import link.socket.phosphor.field.SubstrateState
+import link.socket.phosphor.math.Vector2
+import link.socket.phosphor.palette.AsciiLuminancePalette
+import link.socket.phosphor.palette.CognitiveColorRamp
+import link.socket.phosphor.render.AsciiCell
+import link.socket.phosphor.render.CellBuffer
+import link.socket.phosphor.signal.AgentVisualState
+import link.socket.phosphor.signal.CognitivePhase
+
+// 1. Define an agent's visible state and add it to a layer
+val agent =
+    AgentVisualState(
+        id = "agent-1",
+        name = "Atlas",
+        role = "reasoning",
+        position = Vector2(40f, 12f),
+        cognitivePhase = CognitivePhase.EXECUTE,
+    )
+val agentLayer = AgentLayer(width = 80, height = 24)
+agentLayer.addAgent(agent)
 
 // 2. Create the animation field
 val particles = ParticleSystem(maxParticles = 500)
 val substrate = SubstrateState.create(width = 80, height = 24)
 
 // 3. Let the choreographer respond to phase transitions
-val choreographer = CognitiveChoreographer(particles, substrateAnimator)
-choreographer.update(agentLayer, substrate, deltaTime = 0.016f)
+val choreographer = CognitiveChoreographer(particles, SubstrateAnimator())
+val nextSubstrate = choreographer.update(agents = agentLayer, substrate = substrate, deltaTime = 0.016f)
 
-// 4. Map luminance to cells
+// 4. Map luminance to cells and write them to a cell buffer
 val palette = AsciiLuminancePalette.EXECUTE
 val colorRamp = CognitiveColorRamp.forPhase(CognitivePhase.EXECUTE)
-val cell = AsciiCell.fromSurfaceDithered(
-    luminance = 0.8f,
-    normalX = 0.5f, normalY = 0.2f,
-    screenX = col, screenY = row,
-    palette = palette,
-    colorRamp = colorRamp
-)
-
-// 5. Write to a cell buffer and pass to your surface adapter
 val buffer = CellBuffer(width = 80, height = 24)
-buffer[row, col] = cell
+for (row in 0 until buffer.height) {
+    for (col in 0 until buffer.width) {
+        buffer[row, col] =
+            AsciiCell.fromSurfaceDithered(
+                luminance = 0.8f,
+                normalX = 0.5f, normalY = 0.2f,
+                screenX = col, screenY = row,
+                palette = palette,
+                colorRamp = colorRamp,
+            )
+    }
+}
+
+// 5. Pass the buffer to your surface adapter
 ```
+
+The snippet above is compiled by `ReadmeQuickStartTest`; change one and the test fails until the other follows.
 
 Phase transitions trigger effects automatically — spark bursts, substrate ripples, particle acceleration — all from the cognitive signal alone.
 

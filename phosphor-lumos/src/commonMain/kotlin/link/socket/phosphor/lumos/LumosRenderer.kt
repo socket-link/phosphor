@@ -10,7 +10,7 @@ package link.socket.phosphor.lumos
  *
  * Implementations are framework-free in the sense that they should not depend on
  * a specific UI toolkit. Concrete output types (Compose draw commands, JSON for
- * web bridge, ANSI text in Wave 2) live in consuming modules or platforms.
+ * web bridge, ANSI text from `:phosphor-lumos-cli`) live in consuming modules or platforms.
  */
 interface LumosRenderer<out T> {
     val target: LumosRenderTarget

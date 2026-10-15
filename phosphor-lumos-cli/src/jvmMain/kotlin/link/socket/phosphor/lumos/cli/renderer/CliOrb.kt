@@ -18,7 +18,7 @@ import link.socket.phosphor.lumos.probe.measure
  * JVM terminal renderer for [LumosTerminalFrame].
  *
  * Writes ANSI escape sequences directly to a [PrintStream] (default `System.out`),
- * completing the Wave 2 pipeline:
+ * completing the terminal pipeline:
  *
  * ```
  * VoxelFrame → CliLattice.project → LumosTerminalFrame
