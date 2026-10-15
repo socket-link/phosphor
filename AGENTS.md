@@ -23,7 +23,7 @@ Phosphor is a Kotlin Multiplatform rendering library that translates cognitive s
 ### Release
 ```bash
 scripts/release-preflight.sh 0.7.0     # Gate a release, on the commit you intend to tag
-scripts/bump-version.sh 0.8.0          # Close out 0.7.0 and open the next cycle — AFTER the tag
+scripts/bump-version.sh 0.8.0          # Move main to the next version — AFTER the v0.7.0 tag
 ./gradlew publishToMavenLocal          # Publish to local Maven for integration testing
 ```
 
@@ -36,20 +36,10 @@ Never bump to release.
 
 ## Changelog
 
-`CHANGELOG.md` is hand-written and it is the release's written record — GitHub's
-generated notes are commit subjects, which do not explain a behavior change to
-someone upgrading. Add an entry under `## [Unreleased]` for anything a consumer
-can observe: new API, a changed default, a moved convention, a fixed defect.
-Match the depth of what is already there — a `####` subsection naming the ticket
-and PR, then prose that says what the output does differently now.
-
-Internal refactors, test-only changes and doc edits do not need an entry.
-
-Never add a version heading yourself. The close-out PR after a tag runs
-`scripts/bump-version.sh`, which rolls `[Unreleased]` into a section dated from
-the tag. Writing one by hand attributes entries to a version by guess, and the
-pre-flight reads those headings to tell whether the last release was closed
-out.
+There is no `CHANGELOG.md`. Do not create one, and do not add a changelog entry
+as part of a PR — every parallel PR editing the same "Unreleased" section
+guarantees merge conflicts and resets CI on unrelated branches. Release notes
+are generated at release time from commit/PR history instead.
 
 ## Architecture at a Glance
 
@@ -137,10 +127,10 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 - **Never** hardcode terminal dimensions — always accept width/height parameters
 - **Never** assume ANSI color support — surface adapters handle capability detection
 - **Never** commit binary test assets without approval
+- **Never** create `CHANGELOG.md` or add a changelog entry to a PR — see [Changelog](#changelog)
 - **Never** push a `v*` tag without `scripts/release-preflight.sh` passing on that exact commit — Maven Central is permanent
 - **Always** run `./gradlew jvmTest` before considering work complete
 - **Always** run `./gradlew ktlintFormat` before committing
-- **Always** add a `CHANGELOG.md` entry under `[Unreleased]` for a consumer-visible change
 - **Always** verify demo output visually when changing palette or projection code
 
 ## Permissions

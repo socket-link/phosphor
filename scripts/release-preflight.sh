@@ -23,10 +23,7 @@
 #
 #   1. A module can declare `mavenPublishing { }` and still be absent from the
 #      publish workflow's command line. Nothing fails when those two drift.
-#   2. CHANGELOG.md entries sit under `[Unreleased]` until the close-out PR
-#      moves them, and a skipped close-out folds one release's entries into the
-#      next one's section, silently.
-#   3. `iosX64` is produced by no job before the tag, and every publication
+#   2. `iosX64` is produced by no job before the tag, and every publication
 #      includes it. A source failure there is unlikely; a toolchain one is not
 #      ruled out, and it would fail the publish step partway through.
 #
@@ -67,54 +64,21 @@ if [ "$GRADLE_VERSION" != "$EXPECTED_VERSION" ]; then
     exit 1
 fi
 
-# --- 2. CHANGELOG.md must have something to release, and the previous release
-#        must have been closed out.
-#
-# At tag time this release's entries are still under `[Unreleased]` — the
-# close-out PR names and dates the section afterwards (docs/RELEASING.md step 5).
-# So there is no section to look for here. What there is to check is that the
-# section is not empty, and that the last release's close-out actually happened:
-# a skipped one leaves its entries sitting under `[Unreleased]`, where this
-# release's close-out would absorb them and attribute them to the wrong version.
-unreleased_body() {
-    awk '/^## \[Unreleased\]/ { capture = 1; next } /^## / { capture = 0 } capture' |
-        tr -d ' \t\n'
-}
-
-if [ -z "$(unreleased_body < CHANGELOG.md)" ]; then
-    printf 'release-preflight: CHANGELOG.md has nothing under [Unreleased].\n' >&2
-    printf '  You are about to publish a permanent coordinate that documents no change. Write the\n' >&2
-    printf '  entries first, or you are releasing nothing.\n' >&2
-    exit 1
-fi
-
-PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)
-if [ -n "$PREVIOUS_TAG" ]; then
-    PREVIOUS_VERSION=${PREVIOUS_TAG#v}
-    if ! grep -q "^## \[$PREVIOUS_VERSION\] - " CHANGELOG.md; then
-        printf 'release-preflight: CHANGELOG.md has no dated "## [%s]" section, so %s was never\n' \
-            "$PREVIOUS_VERSION" "$PREVIOUS_TAG" >&2
-        printf '  closed out. Its entries are still under [Unreleased] and this release would claim\n' >&2
-        printf '  them. Roll them into a dated section first — see docs/RELEASING.md step 5.\n' >&2
-        exit 1
-    fi
-fi
-
-# --- 3. The tree must be clean, or you are not validating what you will tag.
+# --- 2. The tree must be clean, or you are not validating what you will tag.
 if [ -n "$(git status --porcelain)" ]; then
     printf 'release-preflight: working tree is dirty. Commit or discard first — a tag points at a\n' >&2
     printf '  commit, so anything uncommitted is validated here and then not published.\n' >&2
     exit 1
 fi
 
-# --- 4. The tag must not already exist. A published tag is never force-moved.
+# --- 3. The tag must not already exist. A published tag is never force-moved.
 if git rev-parse -q --verify "refs/tags/v$EXPECTED_VERSION" >/dev/null; then
     printf 'release-preflight: tag v%s already exists. Releases are immutable; pick the next version.\n' \
         "$EXPECTED_VERSION" >&2
     exit 1
 fi
 
-# --- 5. The commit must be on main.
+# --- 4. The commit must be on main.
 #
 # Releases are cut from main. Tagging a branch commit publishes code that was
 # never reviewed, and the tag then outlives the branch.
@@ -129,7 +93,7 @@ else
     printf 'release-preflight: note — no origin/main ref locally, skipping the "is it on main" check.\n\n'
 fi
 
-# --- 6. Apple device targets that publish but that no workflow compiles.
+# --- 5. Apple device targets that publish but that no workflow compiles.
 #
 # ci.yml and publish.yml name `compileKotlinIosArm64` per module, so a module
 # that opts into Apple targets and is not added to both lists is compiled for
@@ -167,7 +131,7 @@ if [ -z "$PUBLISHING_MODULES" ]; then
     exit 1
 fi
 
-# --- 7. One build.
+# --- 6. One build.
 #
 # ktlintCheck: cheap, and a lint failure is a red release for no reason.
 # verifyPublishWorkflowCoverage: the module-to-publish-list drift check (root
