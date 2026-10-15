@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
+    id("com.android.library")
     id("org.jlleitschuh.gradle.ktlint")
     id("org.jetbrains.dokka")
     id("com.vanniktech.maven.publish")
@@ -47,6 +48,16 @@ kotlin {
         }
     }
 
+    androidTarget {
+        publishLibraryVariants("release")
+
+        // 11, not the JVM target's 21: Kotlin refuses to inline from a newer JVM target than
+        // the caller's, and Android modules (Socket's app among them) still compile for 11.
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
+
     js(IR) {
         browser()
         binaries.executable()
@@ -81,6 +92,20 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             }
         }
+    }
+}
+
+android {
+    namespace = "link.socket.phosphor.lumos"
+    compileSdk = providers.gradleProperty("android.compileSdk").get().toInt()
+
+    defaultConfig {
+        minSdk = providers.gradleProperty("android.minSdk").get().toInt()
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 

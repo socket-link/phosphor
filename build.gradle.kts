@@ -1,6 +1,8 @@
 plugins {
     kotlin("multiplatform").apply(false)
     kotlin("plugin.serialization").apply(false)
+    // Loaded here, beside the Kotlin plugin, so KGP, Dokka and ktlint all see the same AGP classes.
+    id("com.android.library").apply(false)
     id("org.jlleitschuh.gradle.ktlint").version("12.2.0").apply(false)
     id("org.jetbrains.dokka").apply(false)
     id("com.vanniktech.maven.publish").apply(false)

@@ -23,6 +23,10 @@ pluginManagement {
         id("org.jetbrains.dokka").version("2.1.0")
         id("com.vanniktech.maven.publish").version("0.30.0")
         id("org.jetbrains.compose").version("1.7.0")
+        // Socket's Android build runs this AGP on the same Kotlin and Gradle versions. 8.13 is the
+        // last AGP line Gradle 8.13 runs; AGP 9 needs Gradle 9 and moves KMP libraries to
+        // com.android.kotlin.multiplatform.library.
+        id("com.android.library").version("8.13.2")
     }
 }
 
