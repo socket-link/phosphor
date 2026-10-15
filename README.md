@@ -164,6 +164,7 @@ emitters.emit(
 Phosphor compiles to:
 
 - **JVM** (Java 21)
+- **Android** (minSdk 24 — `:phosphor-core`, `:phosphor-lumos` and `:phosphor-lumos-compose`)
 - **JavaScript** (Kotlin/JS IR)
 - **WebAssembly** (Kotlin/WASM)
 - **iOS** (x64, ARM64, Simulator ARM64 — packaged as XCFrameworks)
@@ -181,6 +182,8 @@ The `:phosphor-lumos-cli` module is JVM-only by design; non-terminal Lumos surfa
 ./gradlew ktlintFormat             # Auto-format code
 ./gradlew dokkaGeneratePublicationHtml  # Generate API documentation
 ```
+
+Building the Android target needs an Android SDK: set `ANDROID_HOME`, or `sdk.dir` in `local.properties`.
 
 ---
 

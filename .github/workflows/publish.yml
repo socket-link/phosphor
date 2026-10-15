@@ -59,6 +59,9 @@ jobs:
           :phosphor-lumos:compileKotlinIosArm64
           :phosphor-lumos-compose:compileKotlinIosArm64
           :phosphor-trace:compileKotlinIosArm64
+          :phosphor-core:compileReleaseKotlinAndroid
+          :phosphor-lumos:compileReleaseKotlinAndroid
+          :phosphor-lumos-compose:compileReleaseKotlinAndroid
 
       # pipefail stops a failed Dokka run here rather than partway through the publish step;
       # --no-build-cache keeps a cache hit from hiding warnings. Same gate as ci.yml.

@@ -139,9 +139,9 @@ gh run watch --exit-status $(gh run list --workflow=publish.yml -L1 --json datab
 
 On a macOS runner. In order, the job validates the tag against
 `gradle.properties`, runs `verifyPublishWorkflowCoverage` with every module's
-`jvmTest` and iOS device compile, checks Dokka for unresolved links, decodes the
-signing key, publishes all five modules, then creates the GitHub Release with
-generated notes.
+`jvmTest`, iOS device compile and Android compile, checks Dokka for unresolved
+links, decodes the signing key, publishes all five modules, then creates the
+GitHub Release with generated notes.
 
 A failure *before* the publish step means nothing was published: fix forward,
 delete the tag (`git push origin :refs/tags/v0.7.0`), and start again. A failure
@@ -316,8 +316,8 @@ already pushed. Publish every module, or the release is partial:
   -PsigningInMemoryKeyPassword=KEY_PASSPHRASE
 ```
 
-This is a full multiplatform publish from one machine — JVM, JS, Wasm and every
-Apple target. It needs macOS and a lot of memory.
+This is a full multiplatform publish from one machine — JVM, Android, JS, Wasm
+and every Apple target. It needs macOS, an Android SDK, and a lot of memory.
 
 ## Version numbering
 

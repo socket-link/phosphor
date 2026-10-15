@@ -34,6 +34,14 @@ jobs:
       - name: Run JVM and web tests
         run: ./gradlew jvmTest jsTest wasmJsTest
 
+      # The hosted runner image ships the Android SDK and sets ANDROID_HOME.
+      - name: Compile Android target
+        run: >
+          ./gradlew
+          :phosphor-core:compileReleaseKotlinAndroid
+          :phosphor-lumos:compileReleaseKotlinAndroid
+          :phosphor-lumos-compose:compileReleaseKotlinAndroid
+
       - name: Verify formatting
         run: ./gradlew ktlintCheck
 

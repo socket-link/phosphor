@@ -11,6 +11,7 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
     kotlin("plugin.compose")
+    id("com.android.library")
     id("org.jlleitschuh.gradle.ktlint")
     id("org.jetbrains.dokka")
     id("com.vanniktech.maven.publish")
@@ -46,6 +47,16 @@ kotlin {
     jvm {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+
+    androidTarget {
+        publishLibraryVariants("release")
+
+        // 11, not the JVM target's 21: Kotlin refuses to inline from a newer JVM target than
+        // the caller's, and Android modules (Socket's app among them) still compile for 11.
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
         }
     }
 
@@ -95,6 +106,20 @@ kotlin {
                 implementation(project(":phosphor-trace"))
             }
         }
+    }
+}
+
+android {
+    namespace = "link.socket.phosphor.lumos.compose"
+    compileSdk = providers.gradleProperty("android.compileSdk").get().toInt()
+
+    defaultConfig {
+        minSdk = providers.gradleProperty("android.minSdk").get().toInt()
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
