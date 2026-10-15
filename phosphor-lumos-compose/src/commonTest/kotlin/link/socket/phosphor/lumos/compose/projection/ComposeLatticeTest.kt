@@ -42,6 +42,20 @@ class ComposeLatticeTest {
     }
 
     @Test
+    fun `voxels are emitted z ascending with ties in lattice order, across repeated projections`() {
+        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val zs = listOf(0.5f, -0.9f, 0.0f, 0.5f, -0.2f, 0.99f, -0.9f)
+        val frame = voxelFrame(cells = zs.mapIndexed { i, z -> voxelAt(x = i * 0.1f - 0.3f, y = 0f, z = z) })
+
+        repeat(3) {
+            val out = lattice.project(frame).voxels
+            assertEquals(zs.sorted(), out.map { it.z })
+        }
+        val tied = lattice.project(frame).voxels.filter { it.z == 0.5f }
+        assertTrue(tied[0].screenX < tied[1].screenX, "equal z keeps lattice order")
+    }
+
+    @Test
     fun `voxel at origin with no rotation projects to canvas center`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 0f, y = 0f, z = 0f)))
