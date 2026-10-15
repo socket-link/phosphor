@@ -14,14 +14,18 @@ import kotlinx.serialization.Serializable
  * Multiplatform 3D, Three.js, or an ANSI-projected terminal renderer. This
  * type carries no UI-framework dependencies.
  *
- * The frame is produced by the builder introduced in PHO-17 from an
- * `AtmosphereState`, an `AtmosphereTransition`, and a `VoxelSphere`; this
- * ticket (PHO-16) only defines the data shape.
+ * The frame is produced by [VoxelFrameBuilder] from an `AtmosphereState`, an
+ * `AtmosphereTransition`, and the [FormSample] of its [LumosForm]; this type
+ * only defines the data shape.
  *
  * @property tick Monotonic frame counter, matching [link.socket.phosphor.renderer.SimulationFrame.tick].
  * @property timestampEpochMillis Wall-clock timestamp at which the frame was produced.
- * @property resolution Resolution at which this frame's voxel lattice was constructed.
- * @property cells Per-voxel render data, ordered identically to `VoxelSphere.voxels`.
+ * @property resolution The lattice resolution the atmosphere asked for when this frame was built:
+ *  `AtmosphereState.resolution`. With the default [Forms.Lattice] form it is the resolution the
+ *  cells were laid out at; with another form the cells follow the form and this still reports
+ *  the atmosphere's resolution, so the field means the same thing in every frame.
+ * @property cells Per-voxel render data, in the order of the form's sample. With the default
+ *  lattice form that is `VoxelSphere.voxels` order.
  * @property ambient Per-frame derived parameters useful to renderers: glow intensity,
  *  overall rotation, atmospheric color (for halo/glow effects).
  * @property glyph Active glyph state, if any. Null when no glyph is being rendered.

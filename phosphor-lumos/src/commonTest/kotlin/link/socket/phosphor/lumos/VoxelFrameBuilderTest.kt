@@ -5,9 +5,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.coordinate.CoordinateSpace
@@ -194,20 +196,20 @@ class VoxelFrameBuilderTest {
     fun `pattern crossfade lands between pure source and pure target mix`() {
         val from = AtmospherePresets.IDLE
         val to = AtmospherePresets.LISTENING
-        val sphere = VoxelSphere(4)
+        val sample = Forms.Lattice(4).sample(0, LumosLook.BASE, 0f)
         val patternPhase = 0f
 
-        val sample =
-            sphere.voxels.first { voxel ->
+        val index =
+            (0 until sample.count).first { index ->
                 val fromMix =
-                    VoxelFrameBuilder.evaluatePattern(from.pattern, voxel, patternPhase)
+                    VoxelFrameBuilder.evaluatePattern(from.pattern, sample, index, patternPhase)
                 val toMix =
-                    VoxelFrameBuilder.evaluatePattern(to.pattern, voxel, patternPhase)
+                    VoxelFrameBuilder.evaluatePattern(to.pattern, sample, index, patternPhase)
                 abs(fromMix - toMix) > 0.05f
             }
 
-        val fromMix = VoxelFrameBuilder.evaluatePattern(from.pattern, sample, patternPhase)
-        val toMix = VoxelFrameBuilder.evaluatePattern(to.pattern, sample, patternPhase)
+        val fromMix = VoxelFrameBuilder.evaluatePattern(from.pattern, sample, index, patternPhase)
+        val toMix = VoxelFrameBuilder.evaluatePattern(to.pattern, sample, index, patternPhase)
         val blended = fromMix * 0.5f + toMix * 0.5f
 
         assertNotEquals(fromMix, blended)
@@ -535,6 +537,118 @@ class VoxelFrameBuilderTest {
                 tick = 0L,
                 timestampEpochMillis = 0L,
             )
+        }
+    }
+
+    @Test
+    fun `the form defaults to the lattice at the initial resolution`() {
+        val builder = VoxelFrameBuilder(initialResolution = 5)
+
+        val form = assertIs<Forms.Lattice>(builder.form)
+        assertEquals(5, form.resolution)
+        assertSame(form.sphere, builder.voxelSphere)
+    }
+
+    @Test
+    fun `the form is sampled once per build with the lattice's count and the frame's time`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        val recording = RecordingForm(builder.form)
+        builder.form = recording
+        val atmosphere = AtmospherePresets.IDLE.copy(resolution = 4)
+
+        builder.build(snapshot(atmosphere = atmosphere).copy(elapsedTimeSeconds = 1.25f), dt = 0f)
+        builder.build(snapshot(atmosphere = atmosphere).copy(elapsedTimeSeconds = 1.5f), dt = 0f)
+
+        assertEquals(
+            listOf(
+                Triple(VoxelSphere(4).count, LumosLook.BASE, 1.25f),
+                Triple(VoxelSphere(4).count, LumosLook.BASE, 1.5f),
+            ),
+            recording.calls,
+        )
+    }
+
+    @Test
+    fun `cells follow the form with one cell per sampled position in sample order`() {
+        val rest = listOf(Vector3(0.5f, 0f, 0f), Vector3(0f, 0.5f, 0f), Vector3(0f, 0f, -0.5f))
+        val builder = VoxelFrameBuilder(initialResolution = 6)
+        builder.form = LumosForm { _, _, _ -> FormSample.derive(rest) }
+        val still =
+            AtmospherePresets.IDLE.copy(
+                resolution = 6,
+                noise = 0f,
+                surfaceBump = 0f,
+                pulseAmplitude = 0f,
+                ySquash = 1f,
+            )
+
+        val frame = builder.build(snapshot(atmosphere = still), dt = 0f)
+
+        assertEquals(3, frame.cells.size)
+        assertEquals(rest, frame.cells.map { Vector3(it.x, it.y, it.z) })
+        // The field keeps its meaning: the resolution the atmosphere asked for, whatever the form.
+        assertEquals(6, frame.resolution)
+        assertEquals(6, builder.voxelSphere.resolution)
+    }
+
+    @Test
+    fun `a resolution change replaces a lattice form and leaves another form alone`() {
+        val latticeBuilder = VoxelFrameBuilder(initialResolution = 4)
+        val formBuilder = VoxelFrameBuilder(initialResolution = 4)
+        val custom = RecordingForm(LumosForm { _, _, _ -> FormSample.derive(listOf(Vector3.ZERO)) })
+        formBuilder.form = custom
+        val higher = AtmospherePresets.IDLE.copy(resolution = 7)
+
+        val latticeFrame = latticeBuilder.build(snapshot(atmosphere = higher), dt = 0f)
+        val formFrame = formBuilder.build(snapshot(atmosphere = higher), dt = 0f)
+
+        assertEquals(7, assertIs<Forms.Lattice>(latticeBuilder.form).resolution)
+        assertEquals(VoxelSphere(7).count, latticeFrame.cells.size)
+        assertSame(custom, formBuilder.form)
+        assertEquals(1, formFrame.cells.size)
+        assertEquals(7, formFrame.resolution)
+        assertEquals(7, formBuilder.voxelSphere.resolution)
+        assertEquals(VoxelSphere(7).count, custom.calls.single().first, "the new resolution's budget is offered")
+    }
+
+    @Test
+    fun `setting a lattice form moves voxelSphere with it until the atmosphere says otherwise`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        val lattice = Forms.Lattice(6)
+
+        builder.form = lattice
+        assertSame(lattice.sphere, builder.voxelSphere)
+
+        val frame = builder.build(snapshot(atmosphere = AtmospherePresets.IDLE.copy(resolution = 4)), dt = 0f)
+        assertEquals(4, assertIs<Forms.Lattice>(builder.form).resolution)
+        assertEquals(VoxelSphere(4).count, frame.cells.size)
+    }
+
+    @Test
+    fun `buildSteadyState rejects a form that is not a lattice`() {
+        val builder = VoxelFrameBuilder(initialResolution = 4)
+        builder.form = LumosForm { _, _, _ -> FormSample.derive(listOf(Vector3.ZERO)) }
+
+        assertFailsWith<IllegalArgumentException> {
+            builder.buildSteadyState(
+                atmosphere = AtmospherePresets.IDLE.copy(resolution = 4),
+                phases = FramePhases.ZERO,
+                tick = 0L,
+                timestampEpochMillis = 0L,
+            )
+        }
+    }
+
+    private class RecordingForm(private val delegate: LumosForm) : LumosForm {
+        val calls = mutableListOf<Triple<Int, LumosLook, Float>>()
+
+        override fun sample(
+            count: Int,
+            look: LumosLook,
+            time: Float,
+        ): FormSample {
+            calls += Triple(count, look, time)
+            return delegate.sample(count, look, time)
         }
     }
 

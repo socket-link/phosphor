@@ -3,9 +3,7 @@ package link.socket.phosphor.lumos
 import kotlin.math.abs
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
-import link.socket.phosphor.field.Voxel
 import link.socket.phosphor.field.VoxelSphere
-import link.socket.phosphor.field.facingCamera
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
@@ -19,8 +17,8 @@ import link.socket.phosphor.signal.AtmosphereTransition
  * Stateful translator from Phosphor's runtime state into a [VoxelFrame].
  *
  * The builder owns continuous phase accumulators ([phases]) and the current
- * voxel lattice so the surrounding pull-based runtime can call [build] each
- * tick without re-allocating geometry or resetting animation phase. Atmosphere
+ * [form] so the surrounding pull-based runtime can call [build] each tick
+ * without re-allocating geometry or resetting animation phase. Atmosphere
  * frequency changes can be interpolated through transitions without phase
  * discontinuities because the accumulators persist across calls and are
  * advanced by the current state's rate.
@@ -29,8 +27,8 @@ import link.socket.phosphor.signal.AtmosphereTransition
  * renderer, called from the render loop. Sharing across threads or sharing
  * across renderers will produce torn output.
  *
- * @param initialResolution Starting resolution for the underlying
- *  [VoxelSphere]. Rebuilt when [AtmosphereState.resolution] changes.
+ * @param initialResolution Starting resolution for the default [Forms.Lattice]
+ *  form. Rebuilt when [AtmosphereState.resolution] changes.
  * @param config Optional embedder knobs; see [LumosRenderConfig].
  * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
  *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
@@ -68,12 +66,34 @@ class VoxelFrameBuilder(
     /** Integrated Y-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationY]. */
     val orbRotationY: Float get() = phases.orbRotationY
 
+    private var lattice: Forms.Lattice = Forms.Lattice(initialResolution)
+
     /**
-     * Current voxel lattice. Rebuilt when [AtmosphereState.resolution] changes.
-     * Stable across ticks otherwise — no per-frame allocation.
+     * Where the cells sit: the geometry [build] reads its rest positions from.
+     *
+     * Defaults to [Forms.Lattice] at the initial resolution, and while the form
+     * is a lattice it follows [AtmosphereState.resolution]: a resolution change
+     * replaces it with the lattice at the new resolution, exactly as the voxel
+     * sphere was rebuilt before forms existed. Any other form is left alone by
+     * a resolution change and is sampled with the new resolution's cell count.
+     *
+     * Sampled once per frame with the count of the lattice at the atmosphere's
+     * resolution, [LumosLook.BASE], and the frame's time in seconds; see
+     * [LumosForm.sample]. Setting it takes effect on the next [build].
      */
-    var voxelSphere: VoxelSphere = VoxelSphere(initialResolution)
-        private set
+    var form: LumosForm = lattice
+        set(value) {
+            field = value
+            if (value is Forms.Lattice) lattice = value
+        }
+
+    /**
+     * The lattice at the atmosphere's current resolution. Rebuilt when
+     * [AtmosphereState.resolution] changes and stable across ticks otherwise —
+     * no per-frame allocation. It is the geometry being rendered only while
+     * [form] is a lattice, which it is by default.
+     */
+    val voxelSphere: VoxelSphere get() = lattice.sphere
 
     private var activeGlyph: GlyphLifecycle? = null
 
@@ -82,6 +102,7 @@ class VoxelFrameBuilder(
     private var stillAtmosphere: AtmosphereState? = null
     private var stillPhases: FramePhases? = null
     private var stillGlyph: LumosGlyph? = null
+    private var stillSample: FormSample? = null
 
     /** True if a glyph is currently being rendered. */
     val hasActiveGlyph: Boolean get() = activeGlyph != null
@@ -126,15 +147,16 @@ class VoxelFrameBuilder(
      * [build] returned at those phases, up to float rounding; `Oscilloscope` in
      * `:phosphor-trace` is the caller this exists for.
      *
-     * Cells are ordered as in [voxelSphere], which [atmosphere] must match in
-     * resolution: the lattice is the one thing a steady-state frame shares with
-     * the live stream, and building a throwaway one here would hide a per-call
-     * allocation behind a method that promises none. Not measured by the probe,
-     * which times the live render loop.
+     * Cells are ordered as in [voxelSphere], which [form] must be and
+     * [atmosphere] must match in resolution: the lattice is the one thing a
+     * steady-state frame shares with the live stream, and building a throwaway
+     * one here would hide a per-call allocation behind a method that promises
+     * none. Not measured by the probe, which times the live render loop.
      *
      * @param tick [VoxelFrame.tick] of the result.
      * @param timestampEpochMillis [VoxelFrame.timestampEpochMillis] of the result.
-     * @throws IllegalArgumentException when [atmosphere]'s resolution differs from [voxelSphere]'s.
+     * @throws IllegalArgumentException when [form] is not a [Forms.Lattice], or
+     *  [atmosphere]'s resolution differs from [voxelSphere]'s.
      */
     fun buildSteadyState(
         atmosphere: AtmosphereState,
@@ -142,15 +164,20 @@ class VoxelFrameBuilder(
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
-        require(atmosphere.resolution == voxelSphere.resolution) {
+        val current = form
+        require(current is Forms.Lattice) {
+            "buildSteadyState renders on the builder's lattice, but the current form is $current"
+        }
+        require(atmosphere.resolution == current.resolution) {
             "buildSteadyState renders on the builder's lattice: atmosphere resolution ${atmosphere.resolution} " +
-                "differs from the current ${voxelSphere.resolution}"
+                "differs from the current ${current.resolution}"
         }
         return frameAt(
             atmosphere = atmosphere,
             transition = null,
             phases = phases,
             glyphLifecycle = null,
+            sample = current.sample(current.count, LumosLook.BASE, timestampEpochMillis / 1_000f),
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -165,14 +192,14 @@ class VoxelFrameBuilder(
      * by [dt], so it leaves when its window closes, but it is carved at full
      * strength the whole time instead of fading in and out; its
      * [VoxelGlyphState.progress] reads 0.5, inside the envelope's hold. The
-     * lattice follows the atmosphere's resolution, as in [build].
+     * [form] follows the atmosphere's resolution, as in [build].
      *
      * With no transition and no glyph this is [buildSteadyState] at [phases].
-     * A still whose inputs have not changed — the same atmosphere, phases, and
-     * glyph — is returned as the same instance, so a driver can tell nothing
-     * moved without comparing cells; its tick and timestamp stay those of the
-     * call that built it. Only a still that is actually built is measured by
-     * the probe.
+     * A still whose inputs have not changed — the same atmosphere, phases,
+     * glyph, and form sample — is returned as the same instance, so a driver
+     * can tell nothing moved without comparing cells; its tick and timestamp
+     * stay those of the call that built it. Only a still that is actually
+     * built is measured by the probe.
      *
      * @throws IllegalStateException when the atmosphere subsystem is disabled
      *  on the runtime that produced [snapshot].
@@ -187,16 +214,16 @@ class VoxelFrameBuilder(
                     "VoxelFrameBuilder requires SceneConfiguration.enableAtmosphere = true"
                 }
 
-        if (atmosphere.resolution != voxelSphere.resolution) {
-            voxelSphere = voxelSphere.rebuild(atmosphere.resolution)
-        }
+        followResolution(atmosphere)
 
         val glyph = advanceGlyph(dt)?.glyph
+        val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
         stillFrame?.let { held ->
             if (atmosphere === stillAtmosphere &&
                 phases == stillPhases &&
                 glyph == stillGlyph &&
-                held.resolution == voxelSphere.resolution
+                sample === stillSample &&
+                held.resolution == lattice.resolution
             ) {
                 return held
             }
@@ -212,6 +239,7 @@ class VoxelFrameBuilder(
                         glyph?.let {
                             GlyphLifecycle(it, totalDurationSeconds = 1f, ageSeconds = STILL_GLYPH_PROGRESS)
                         },
+                    sample = sample,
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
                 )
@@ -220,6 +248,7 @@ class VoxelFrameBuilder(
         stillAtmosphere = atmosphere
         stillPhases = phases
         stillGlyph = glyph
+        stillSample = sample
         return frame
     }
 
@@ -232,9 +261,7 @@ class VoxelFrameBuilder(
                 "VoxelFrameBuilder requires SceneConfiguration.enableAtmosphere = true"
             }
 
-        if (atmosphere.resolution != voxelSphere.resolution) {
-            voxelSphere = voxelSphere.rebuild(atmosphere.resolution)
-        }
+        followResolution(atmosphere)
 
         val glyphLifecycle = advanceGlyph(dt)
         phases = phases.advanced(atmosphere, dt)
@@ -244,6 +271,7 @@ class VoxelFrameBuilder(
             transition = snapshot.atmosphereTransition,
             phases = phases,
             glyphLifecycle = glyphLifecycle,
+            sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds),
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
         )
@@ -251,14 +279,16 @@ class VoxelFrameBuilder(
 
     /**
      * The pure core of a build: every input named, nothing read from the
-     * builder but its lattice and [config]. [build] advances state and calls
-     * this; [buildSteadyState] calls it as it is.
+     * builder but its lattice resolution and [config]. [build] advances state
+     * and calls this; [buildSteadyState] calls it as it is. One cell per entry
+     * of [sample], in its order.
      */
     private fun frameAt(
         atmosphere: AtmosphereState,
         transition: AtmosphereTransition?,
         phases: FramePhases,
         glyphLifecycle: GlyphLifecycle?,
+        sample: FormSample,
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
@@ -277,16 +307,23 @@ class VoxelFrameBuilder(
         val glyphVisibility = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.visibility ?: 0f
         val glyphRotation = Vector3(phases.orbRotationX, phases.orbRotationY, 0f)
 
-        val cells = ArrayList<VoxelCell>(voxelSphere.voxels.size)
-        for (voxel in voxelSphere.voxels) {
-            val mix = computeMix(atmosphere, transition, voxel, phases.patternPhase)
+        val positions = sample.positions
+        val directions = sample.unitDirections
+        val jitters = sample.jitter
+        val thetas = sample.theta
+        val phis = sample.phi
+        val cells = ArrayList<VoxelCell>(sample.count)
+        for (index in 0 until sample.count) {
+            val mix = computeMix(atmosphere, transition, sample, index, phases.patternPhase)
             val boundaryShrink = computeBoundaryShrink(atmosphere.bipolarStrength, mix)
             val baseColor = computeVoxelColor(atmosphere, transition, mix)
-            val rotatedDirection = glyphShape?.let { voxel.unitDirection.rotatedBy(glyphRotation) }
+            val direction = directions[index]
+            val rotatedDirection = glyphShape?.let { direction.rotatedBy(glyphRotation) }
+            // Facing the camera is the rotated normal's z past the threshold, as `Voxel.facingCamera` tests it.
             val isGlyphMember =
                 glyphShape != null &&
                     rotatedDirection != null &&
-                    voxel.facingCamera(glyphRotation, GLYPH_FACING_THRESHOLD) &&
+                    rotatedDirection.z > GLYPH_FACING_THRESHOLD &&
                     glyphShape.contains(rotatedDirection.x, rotatedDirection.y)
             val color =
                 if (isGlyphMember && glyphColor != null) {
@@ -304,16 +341,18 @@ class VoxelFrameBuilder(
 
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 
-            val px = voxel.normalizedPos.x + voxel.jitter.x * atmosphere.noise * JITTER_GAIN
-            val py = voxel.normalizedPos.y + voxel.jitter.y * atmosphere.noise * JITTER_GAIN
-            val pz = voxel.normalizedPos.z + voxel.jitter.z * atmosphere.noise * JITTER_GAIN
+            val position = positions[index]
+            val jitter = jitters[index]
+            val px = position.x + jitter.x * atmosphere.noise * JITTER_GAIN
+            val py = position.y + jitter.y * atmosphere.noise * JITTER_GAIN
+            val pz = position.z + jitter.z * atmosphere.noise * JITTER_GAIN
             val bumpAmount =
                 atmosphere.surfaceBump *
-                    sin(voxel.theta * BUMP_THETA + voxel.phi * BUMP_PHI + phases.patternPhase * BUMP_PHASE)
+                    sin(thetas[index] * BUMP_THETA + phis[index] * BUMP_PHI + phases.patternPhase * BUMP_PHASE)
 
-            val ux = voxel.unitDirection.x
-            val uy = voxel.unitDirection.y
-            val uz = voxel.unitDirection.z
+            val ux = direction.x
+            val uy = direction.y
+            val uz = direction.z
 
             val finalX = (px + ux * bumpAmount) * pulse
             val finalY = (py + uy * bumpAmount) * effectiveYSquash * pulse
@@ -336,7 +375,7 @@ class VoxelFrameBuilder(
         return VoxelFrame(
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
-            resolution = voxelSphere.resolution,
+            resolution = lattice.resolution,
             cells = cells,
             ambient = ambient,
             glyph =
@@ -355,6 +394,17 @@ class VoxelFrameBuilder(
         )
     }
 
+    /**
+     * Rebuild the lattice when [atmosphere]'s resolution moved. A lattice form
+     * is the atmosphere's and follows it; any other form keeps its shape.
+     */
+    private fun followResolution(atmosphere: AtmosphereState) {
+        if (atmosphere.resolution != lattice.resolution) {
+            lattice = Forms.Lattice(atmosphere.resolution)
+            if (form is Forms.Lattice) form = lattice
+        }
+    }
+
     private fun advanceGlyph(dt: Float): GlyphLifecycle? {
         val next = activeGlyph?.advance(dt) ?: return null
         activeGlyph = next.takeUnless { it.isComplete }
@@ -364,14 +414,15 @@ class VoxelFrameBuilder(
     private fun computeMix(
         atmosphere: AtmosphereState,
         transition: AtmosphereTransition?,
-        voxel: Voxel,
+        sample: FormSample,
+        index: Int,
         patternPhase: Float,
     ): Float {
-        val toMix = evaluatePattern(atmosphere.pattern, voxel, patternPhase)
+        val toMix = evaluatePattern(atmosphere.pattern, sample, index, patternPhase)
         if (transition == null || transition.from.pattern == transition.to.pattern) {
             return toMix
         }
-        val fromMix = evaluatePattern(transition.from.pattern, voxel, patternPhase)
+        val fromMix = evaluatePattern(transition.from.pattern, sample, index, patternPhase)
         return fromMix * (1f - transition.progressLinear) + toMix * transition.progressLinear
     }
 
@@ -452,28 +503,32 @@ class VoxelFrameBuilder(
         // Where a held glyph sits in its envelope: the middle of the hold, at full strength.
         private const val STILL_GLYPH_PROGRESS: Float = 0.5f
 
+        /** The pattern mix in `0..1` for cell [index] of [sample] at [patternPhase]. */
         internal fun evaluatePattern(
             pattern: AtmospherePattern,
-            voxel: Voxel,
+            sample: FormSample,
+            index: Int,
             patternPhase: Float,
         ): Float =
             when (pattern) {
                 AtmospherePattern.LONGITUDE ->
-                    (sin(voxel.theta * 2f + patternPhase * 2f) + 1f) * 0.5f
+                    (sin(sample.theta[index] * 2f + patternPhase * 2f) + 1f) * 0.5f
                 AtmospherePattern.LATITUDE ->
-                    (sin(voxel.phi * 2.5f + patternPhase * 2f) + 1f) * 0.5f
+                    (sin(sample.phi[index] * 2.5f + patternPhase * 2f) + 1f) * 0.5f
                 AtmospherePattern.SPIRAL ->
-                    (sin(voxel.theta * 2f + voxel.phi * 3f + patternPhase * 2.5f) + 1f) * 0.5f
+                    (sin(sample.theta[index] * 2f + sample.phi[index] * 3f + patternPhase * 2.5f) + 1f) * 0.5f
                 AtmospherePattern.SCAN ->
-                    (sin(voxel.normalizedPos.y * 0.85f - patternPhase * 3f) + 1f) * 0.5f
-                AtmospherePattern.PLASMA ->
+                    (sin(sample.positions[index].y * 0.85f - patternPhase * 3f) + 1f) * 0.5f
+                AtmospherePattern.PLASMA -> {
+                    val position = sample.positions[index]
                     (
-                        sin(voxel.normalizedPos.x * 0.55f + patternPhase * 1.7f) +
-                            sin(voxel.normalizedPos.y * 0.50f + patternPhase * 1.2f) +
-                            sin(voxel.normalizedPos.z * 0.65f + patternPhase * 2.0f) + 3f
+                        sin(position.x * 0.55f + patternPhase * 1.7f) +
+                            sin(position.y * 0.50f + patternPhase * 1.2f) +
+                            sin(position.z * 0.65f + patternPhase * 2.0f) + 3f
                     ) / 6f
+                }
                 AtmospherePattern.PULSE ->
-                    (sin(voxel.distance * 0.85f - patternPhase * 3f) + 1f) * 0.5f
+                    (sin(sample.distance[index] * 0.85f - patternPhase * 3f) + 1f) * 0.5f
                 AtmospherePattern.SOLID -> 0.5f
             }
 
