@@ -42,7 +42,7 @@ class ComposeLatticeTest {
     }
 
     @Test
-    fun `voxels are emitted z ascending with ties in lattice order, across repeated projections`() {
+    fun `voxels are emitted z ascending with ties in lattice order over repeated projections`() {
         val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
         val zs = listOf(0.5f, -0.9f, 0.0f, 0.5f, -0.2f, 0.99f, -0.9f)
         val frame = voxelFrame(cells = zs.mapIndexed { i, z -> voxelAt(x = i * 0.1f - 0.3f, y = 0f, z = z) })
