@@ -1,7 +1,6 @@
 package link.socket.phosphor.lumos.compose
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PixelMap
@@ -26,16 +25,16 @@ import org.jetbrains.skia.Image
  * reduced motion keep every pixel. Both moments are written to `build/lumos-previews/` for review.
  *
  * `ImageComposeScene` provides no lifecycle owner, so this also proves an orb runs in a host
- * without one rather than throwing.
+ * without one rather than throwing. It is driven through [SteppedScene]: the paused and held orbs
+ * poll on `delay`, and a scene that resumes those off the test thread deadlocks against `render`.
  */
 class LumosOrbPreviewTest {
     @Test
     fun `only the moving preview orb changes over time`() {
-        val scene = ImageComposeScene(width = WIDTH, height = HEIGHT, density = Density(1f)) { LumosOrbPreview() }
+        val scene = SteppedScene(width = WIDTH, height = HEIGHT, density = Density(1f)) { LumosOrbPreview() }
         try {
-            val clock = FrameClock(scene)
-            val early = clock.renderUntil(EARLY_NANOS)
-            val late = clock.renderUntil(LATE_NANOS)
+            val early = scene.renderUntil(EARLY_NANOS)
+            val late = scene.renderUntil(LATE_NANOS)
             save(early, "lumos-orb-preview-0.5s.png")
             save(late, "lumos-orb-preview-3.0s.png")
 
@@ -68,30 +67,15 @@ class LumosOrbPreviewTest {
         source.builder.queueGlyph(LumosGlyph.QUESTION, durationSeconds = 60f)
         val config = LumosConfig(paused = true, tiltDegrees = tiltDegrees)
         val scene =
-            ImageComposeScene(width = TILT_ORB, height = TILT_ORB, density = Density(1f)) {
+            SteppedScene(width = TILT_ORB, height = TILT_ORB, density = Density(1f)) {
                 LumosOrb(source, config, Modifier.size(TILT_ORB.dp), backgroundColor = BACKGROUND)
             }
         try {
-            val image = FrameClock(scene).renderUntil(EARLY_NANOS)
+            val image = scene.renderUntil(EARLY_NANOS)
             save(image, "lumos-orb-tilt-${tiltDegrees.toInt()}.png")
             return image.toComposeImageBitmap().toPixelMap()
         } finally {
             scene.close()
-        }
-    }
-
-    private class FrameClock(
-        private val scene: ImageComposeScene,
-    ) {
-        private var now = 0L
-
-        fun renderUntil(nanos: Long): Image {
-            var image = scene.render(now)
-            while (now < nanos) {
-                now += FRAME_NANOS
-                image = scene.render(now)
-            }
-            return image
         }
     }
 
@@ -125,7 +109,6 @@ class LumosOrbPreviewTest {
         const val PAUSED = ORB + GAP
         const val HELD = 2 * (ORB + GAP)
 
-        const val FRAME_NANOS = 33_333_333L
         const val EARLY_NANOS = 500_000_000L
         const val LATE_NANOS = 3_000_000_000L
 

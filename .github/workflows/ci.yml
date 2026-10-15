@@ -13,10 +13,15 @@ concurrency:
 permissions:
   contents: read
 
+# Four independent jobs so the wall clock is the slowest one (iOS, ~6 min) rather than
+# the sum of a serial chain, and so a stall in one surface leaves the others reporting.
+# Every job has a timeout: the JVM tests once hung silently for 65 minutes before
+# someone noticed and cancelled the run.
 jobs:
   jvm:
-    name: JVM, Lint, Web
+    name: JVM, Android, Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -31,8 +36,30 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run JVM and web tests
-        run: ./gradlew jvmTest jsTest wasmJsTest
+      # Cheapest check first so a formatting slip fails in seconds, not after the tests.
+      - name: Verify formatting
+        run: ./gradlew ktlintCheck
+
+      # A healthy run takes about 3 minutes. :phosphor-lumos-compose:jvmTest once deadlocked
+      # inside Compose for an hour at a time (see SteppedScene in that module's jvmTest);
+      # a timeout turns a repeat into a 15-minute failure with thread dumps attached.
+      - name: Run JVM tests
+        timeout-minutes: 15
+        run: ./gradlew jvmTest
+
+      # When a step times out, the Gradle client dies but the daemons and the test worker
+      # survive long enough to be inspected. Thread dumps show which lock they sat on.
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: scripts/ci-hang-diagnostics.sh
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-hang-diagnostics
+          path: hang-diagnostics
+          if-no-files-found: ignore
 
       # The hosted runner image ships the Android SDK and sets ANDROID_HOME.
       - name: Compile Android target
@@ -42,8 +69,68 @@ jobs:
           :phosphor-lumos:compileReleaseKotlinAndroid
           :phosphor-lumos-compose:compileReleaseKotlinAndroid
 
-      - name: Verify formatting
-        run: ./gradlew ktlintCheck
+  web:
+    name: Web (JS, Wasm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # :phosphor-lumos-compose links two Compose UI test executables (JS and Wasm) in
+      # parallel inside one Kotlin daemon, which gradle.properties caps at 4 GB for a
+      # 16 GB laptop shared with other work. The hosted runner has 16 GB to itself.
+      # GRADLE_USER_HOME properties take precedence over the project's, so this widens
+      # only CI's daemon.
+      - name: Give the Kotlin daemon more heap
+        run: |
+          mkdir -p ~/.gradle
+          echo 'org.gradle.jvmargs=-Xmx3g -Dkotlin.daemon.jvm.options=-Xmx6g' >> ~/.gradle/gradle.properties
+
+      # A healthy run takes about 4 minutes from a cold cache.
+      - name: Run JS and Wasm browser tests
+        timeout-minutes: 15
+        run: ./gradlew jsTest wasmJsTest
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: scripts/ci-hang-diagnostics.sh
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-hang-diagnostics
+          path: hang-diagnostics
+          if-no-files-found: ignore
+
+  docs:
+    name: Dokka
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       # gradle.properties opts into Dokka V2, where the V1 `dokkaHtml` task only throws, so
       # this step passed for months without Dokka ever running. Run the task the javadoc
@@ -66,6 +153,7 @@ jobs:
   ios:
     name: iOS Compile And Test
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code

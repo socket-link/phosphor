@@ -114,6 +114,9 @@ kotlin {
                 // Compose's UI test harness, so jvmTest can read LumosOrb's semantics tree (PHO-53).
                 @OptIn(ExperimentalComposeLibrary::class)
                 implementation(compose.uiTest)
+                // Drives ImageComposeScene's effects from the test thread on virtual time; see
+                // SteppedScene for the deadlock the default unconfined context allows.
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
             }
         }
     }
