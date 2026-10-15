@@ -619,7 +619,10 @@ class VoxelFrameBuilderTest {
 
         val frame = builder.build(snapshot(atmosphere = still), dt = 0f)
 
-        assertEquals(listOf(Vector3(0.6f, 0f, 0f), Vector3(0f, 0f, -0.6f)), frame.cells.map { Vector3(it.x, it.y, it.z) })
+        assertEquals(
+            listOf(Vector3(0.6f, 0f, 0f), Vector3(0f, 0f, -0.6f)),
+            frame.cells.map { Vector3(it.x, it.y, it.z) },
+        )
         frame.cells.forEach { assertEquals(2f, it.scale, 1e-6f) }
     }
 

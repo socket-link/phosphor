@@ -176,7 +176,7 @@ class FormCatalogueTest {
     private companion object {
         const val BOUNDS_TOLERANCE = 1e-4f
 
-        /** The inline orb's floor, Socket's 20 px count, and the presets' lattice count, with every count between in steps. */
+        /** The inline orb's floor, Socket's 20 px count and the presets' lattice count, plus every 13th count between. */
         val COUNTS: List<Int> = (listOf(8, 9, 80, 4_801) + (8..4_801 step 13)).distinct().sorted()
     }
 }
