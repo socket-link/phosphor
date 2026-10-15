@@ -61,6 +61,23 @@ data class FramePhases(
         /** Wrap limit for [patternPhase]. */
         const val PATTERN_WRAP: Float = (2.0 * PI * 10.0).toFloat()
 
+        /**
+         * The phases a builder holds [seconds] after starting from [ZERO] with [atmosphere] active
+         * the whole time: [advanced] by [seconds] in one step, worked in double precision so a
+         * clock that has run for days still lands every orb that reads it on the same phase.
+         * [LookClock] time goes in; [LiveFrameSource.align] is the caller.
+         */
+        fun at(
+            atmosphere: AtmosphereState,
+            seconds: Double,
+        ): FramePhases =
+            FramePhases(
+                pulsePhase = wrapAt(seconds * atmosphere.pulseFrequency * TWO_PI, TWO_PI),
+                patternPhase = wrapAt(seconds * atmosphere.patternSpeed, PATTERN_WRAP),
+                orbRotationX = wrapAt(seconds * atmosphere.rotationX, TWO_PI),
+                orbRotationY = wrapAt(seconds * atmosphere.rotationY, TWO_PI),
+            )
+
         private fun wrap(
             value: Float,
             limit: Float,
@@ -69,6 +86,18 @@ data class FramePhases(
             var wrapped = value % limit
             if (wrapped < 0f) wrapped += limit
             return wrapped
+        }
+
+        // Wraps in doubles, then narrows; a value just under the limit can round up onto it.
+        private fun wrapAt(
+            value: Double,
+            limit: Float,
+        ): Float {
+            val span = limit.toDouble()
+            var wrapped = value % span
+            if (wrapped < 0.0) wrapped += span
+            val narrowed = wrapped.toFloat()
+            return if (narrowed >= limit) 0f else narrowed
         }
     }
 }

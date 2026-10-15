@@ -1,6 +1,7 @@
 package link.socket.phosphor.lumos
 
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -63,6 +64,57 @@ class FramePhasesTest {
         repeat(28) { expected = expected.advanced(atmosphere, dt) }
 
         assertClose(expected, forward.advanced(atmosphere, -12 * dt))
+    }
+
+    @Test
+    fun `at lands where advancing from zero by the same time does`() {
+        val seconds = 12.5
+
+        assertClose(FramePhases.ZERO.advanced(atmosphere, seconds.toFloat()), FramePhases.at(atmosphere, seconds))
+    }
+
+    @Test
+    fun `at is still one frame apart after days of clock`() {
+        // A Float clock this old would have lost the frame step entirely; at() works in doubles.
+        val days = 86_400.0 * 3
+        val frame = 1.0 / 60.0
+
+        val now = FramePhases.at(atmosphere, days)
+        val next = FramePhases.at(atmosphere, days + frame)
+
+        assertCircularlyClose(now.advanced(atmosphere, frame.toFloat()), next)
+    }
+
+    @Test
+    fun `at wraps every accumulator into its range`() {
+        val phases = FramePhases.at(atmosphere.copy(rotationX = -0.3f), 1_000.0)
+
+        assertInRange("pulsePhase", phases.pulsePhase, TWO_PI)
+        assertInRange("patternPhase", phases.patternPhase, FramePhases.PATTERN_WRAP)
+        assertInRange("orbRotationX", phases.orbRotationX, TWO_PI)
+        assertInRange("orbRotationY", phases.orbRotationY, TWO_PI)
+    }
+
+    private fun assertCircularlyClose(
+        expected: FramePhases,
+        actual: FramePhases,
+    ) {
+        assertCircular("pulsePhase", expected.pulsePhase, actual.pulsePhase, TWO_PI)
+        assertCircular("patternPhase", expected.patternPhase, actual.patternPhase, FramePhases.PATTERN_WRAP)
+        assertCircular("orbRotationX", expected.orbRotationX, actual.orbRotationX, TWO_PI)
+        assertCircular("orbRotationY", expected.orbRotationY, actual.orbRotationY, TWO_PI)
+    }
+
+    // Distance the short way round, so a pair either side of the wrap still reads as close.
+    private fun assertCircular(
+        name: String,
+        expected: Float,
+        actual: Float,
+        limit: Float,
+    ) {
+        val apart = abs(expected - actual) % limit
+        val distance = minOf(apart, limit - apart)
+        assertTrue(distance <= TOLERANCE, "$name: expected $expected, was $actual")
     }
 
     private fun assertClose(

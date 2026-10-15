@@ -1,7 +1,9 @@
 package link.socket.phosphor.lumos.compose.projection
 
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
@@ -25,6 +27,12 @@ import link.socket.phosphor.lumos.probe.measure
  * Input lattice positions are in `[-1, 1]` on all axes, following the same convention as
  * CliLattice. Y is flipped: `y = +1` maps to the top of the canvas (`screenY = 0`).
  *
+ * A [tiltDegrees] other than 0 views the orb from above its equator: one more rotation, about
+ * the screen's X axis, after the orb's own. It has to come last. Added to
+ * [VoxelAmbient.orbRotationX] instead, it would be applied first, in the orb's own frame, and the
+ * spin about Y would carry it round — the orb would nod forward, roll sideways and nod back once
+ * a turn instead of being seen from above.
+ *
  * @param widthPx Output canvas width in pixels; must be > 0.
  * @param heightPx Output canvas height in pixels; must be > 0.
  * @param voxelRadiusPx Base voxel half-size in pixels at `scale = 1.0`; must be > 0.
@@ -33,6 +41,10 @@ import link.socket.phosphor.lumos.probe.measure
  * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which
  *  adds no per-frame cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe]
  *  to capture PROJECT timings.
+ * @param tiltDegrees How far above the orb's equator the viewer sits; positive tips the north pole
+ *  (`y = +1`) toward the viewer. 0, the default, projects exactly as before tilt existed. The glyph
+ *  is carved on the face an untilted viewer sees, so a tilted view shows the carve that far below
+ *  the centre, where `LumosCanvas` draws its overlay. Must be finite.
  */
 class ComposeLattice(
     val widthPx: Int,
@@ -40,13 +52,19 @@ class ComposeLattice(
     val voxelRadiusPx: Float = 4f,
     val aspectRatio: Float = 1.0f,
     private val probe: FrameProbe = FrameProbe.Disabled,
+    val tiltDegrees: Float = 0f,
 ) {
     init {
         require(widthPx > 0) { "widthPx must be > 0, got $widthPx" }
         require(heightPx > 0) { "heightPx must be > 0, got $heightPx" }
         require(voxelRadiusPx > 0f) { "voxelRadiusPx must be > 0, got $voxelRadiusPx" }
         require(aspectRatio > 0f) { "aspectRatio must be > 0, got $aspectRatio" }
+        require(tiltDegrees.isFinite()) { "tiltDegrees must be finite, got $tiltDegrees" }
     }
+
+    private val tilted: Boolean = tiltDegrees != 0f
+    private val cosTilt: Float = cos(tiltDegrees * DEGREES_TO_RADIANS).toFloat()
+    private val sinTilt: Float = sin(tiltDegrees * DEGREES_TO_RADIANS).toFloat()
 
     /**
      * Project [frame] to a [LumosCanvasFrame].
@@ -94,8 +112,15 @@ class ComposeLattice(
 
             // Rotate around Z axis
             val rx = x2 * cosZ - y2 * sinZ
-            val ry = x2 * sinZ + y2 * cosZ
-            val rz = z2
+            var ry = x2 * sinZ + y2 * cosZ
+            var rz = z2
+
+            // View from above: tilt about the screen's X axis, after the orb's own rotation.
+            if (tilted) {
+                val ty = ry * cosTilt - rz * sinTilt
+                rz = ry * sinTilt + rz * cosTilt
+                ry = ty
+            }
 
             val screenX = (rx + 1f) * 0.5f * widthPx
             val screenY = (1f - (ry + 1f) * 0.5f) * heightPx * invAspect
@@ -123,5 +148,9 @@ class ComposeLattice(
             glyph = frame.glyph,
             tick = frame.tick,
         )
+    }
+
+    private companion object {
+        const val DEGREES_TO_RADIANS: Double = PI / 180.0
     }
 }

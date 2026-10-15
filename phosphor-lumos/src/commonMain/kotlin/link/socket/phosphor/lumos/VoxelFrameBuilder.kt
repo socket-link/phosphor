@@ -49,9 +49,12 @@ class VoxelFrameBuilder(
      * ([FramePhases.advanced]), so a frequency that interpolates through a
      * transition produces no phase discontinuity. Read them to reconstruct
      * frames the builder never produced; see [buildSteadyState].
+     *
+     * Set them to re-anchor the accumulators — to the phase a shared clock says
+     * every orb of this look holds, for one ([LiveFrameSource.align]). The next
+     * [build] advances from what was set.
      */
     var phases: FramePhases = FramePhases.ZERO
-        private set
 
     /** Continuous breath-pulse phase in radians; [FramePhases.pulsePhase]. */
     val pulsePhase: Float get() = phases.pulsePhase
@@ -73,6 +76,12 @@ class VoxelFrameBuilder(
         private set
 
     private var activeGlyph: GlyphLifecycle? = null
+
+    // The last still built and what it was built from; see buildStill.
+    private var stillFrame: VoxelFrame? = null
+    private var stillAtmosphere: AtmosphereState? = null
+    private var stillPhases: FramePhases? = null
+    private var stillGlyph: LumosGlyph? = null
 
     /** True if a glyph is currently being rendered. */
     val hasActiveGlyph: Boolean get() = activeGlyph != null
@@ -145,6 +154,73 @@ class VoxelFrameBuilder(
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
+    }
+
+    /**
+     * The frame reduced motion draws: a pose, held still.
+     *
+     * [snapshot]'s atmosphere — or, while a transition is in flight, the one it
+     * is heading to — rendered at the current [phases], which this does not
+     * advance: no breath, no pattern drift, no spin. A queued glyph still ages
+     * by [dt], so it leaves when its window closes, but it is carved at full
+     * strength the whole time instead of fading in and out; its
+     * [VoxelGlyphState.progress] reads 0.5, inside the envelope's hold. The
+     * lattice follows the atmosphere's resolution, as in [build].
+     *
+     * With no transition and no glyph this is [buildSteadyState] at [phases].
+     * A still whose inputs have not changed — the same atmosphere, phases, and
+     * glyph — is returned as the same instance, so a driver can tell nothing
+     * moved without comparing cells; its tick and timestamp stay those of the
+     * call that built it. Only a still that is actually built is measured by
+     * the probe.
+     *
+     * @throws IllegalStateException when the atmosphere subsystem is disabled
+     *  on the runtime that produced [snapshot].
+     */
+    fun buildStill(
+        snapshot: SceneSnapshot,
+        dt: Float,
+    ): VoxelFrame {
+        val atmosphere =
+            snapshot.atmosphereTransition?.to
+                ?: checkNotNull(snapshot.atmosphere) {
+                    "VoxelFrameBuilder requires SceneConfiguration.enableAtmosphere = true"
+                }
+
+        if (atmosphere.resolution != voxelSphere.resolution) {
+            voxelSphere = voxelSphere.rebuild(atmosphere.resolution)
+        }
+
+        val glyph = advanceGlyph(dt)?.glyph
+        stillFrame?.let { held ->
+            if (atmosphere === stillAtmosphere &&
+                phases == stillPhases &&
+                glyph == stillGlyph &&
+                held.resolution == voxelSphere.resolution
+            ) {
+                return held
+            }
+        }
+
+        val frame =
+            probe.measure(FramePhase.BUILD) {
+                frameAt(
+                    atmosphere = atmosphere,
+                    transition = null,
+                    phases = phases,
+                    glyphLifecycle =
+                        glyph?.let {
+                            GlyphLifecycle(it, totalDurationSeconds = 1f, ageSeconds = STILL_GLYPH_PROGRESS)
+                        },
+                    tick = snapshot.frameIndex,
+                    timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
+                )
+            }
+        stillFrame = frame
+        stillAtmosphere = atmosphere
+        stillPhases = phases
+        stillGlyph = glyph
+        return frame
     }
 
     private fun buildFrame(
@@ -372,6 +448,9 @@ class VoxelFrameBuilder(
         private const val BAND_GAIN: Float = 0.4f
         private const val GLYPH_FACING_THRESHOLD: Float = 0.15f
         private const val GLYPH_BACKGROUND_SHRINK: Float = 0.30f
+
+        // Where a held glyph sits in its envelope: the middle of the hold, at full strength.
+        private const val STILL_GLYPH_PROGRESS: Float = 0.5f
 
         internal fun evaluatePattern(
             pattern: AtmospherePattern,

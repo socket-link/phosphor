@@ -374,6 +374,22 @@ class TraceStateMachine(
     }
 
     /**
+     * Land whatever is in flight now — the transition, and any request held
+     * behind it — as if its remaining time had passed in one step. What reduced
+     * motion shows instead of the motion between; see `asFrameSource`.
+     *
+     * Time moves boundary to boundary, as in [advance], so the machine settles
+     * where an uninterrupted playback would have, and no frame is built on the
+     * way.
+     */
+    internal fun land() {
+        while (phase !is Phase.Settled) {
+            consume(nanosUntilBoundary().coerceAtLeast(0L))
+            crossBoundary()
+        }
+    }
+
+    /**
      * Emit the machine's output as a frame stream paced by [timeSource].
      *
      * Emits only when the frame changes. Both a held recorded frame and a held

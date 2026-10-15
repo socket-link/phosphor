@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.lumos.FramePhases
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrame
@@ -66,6 +68,10 @@ class SignalGenerator(
             probe = probe,
         )
 
+    // One stepping path whoever steps: nextFrame() at the fixed 1 / fps, a driver through
+    // asFrameSource() at its own pace.
+    private val live = LiveFrameSource(runtime, builder)
+
     private val dt: Float = 1f / fps
 
     /** Wall-clock duration of one simulated step, `1 / fps`. */
@@ -118,8 +124,25 @@ class SignalGenerator(
     /** Step the simulation once and transduce the snapshot into a frame. */
     fun nextFrame(): VoxelFrame {
         frameCount++
-        return builder.build(runtime.update(dt), dt)
+        return live.next(dt)
     }
+
+    /**
+     * This generator as a [LumosFrameSource], for a driver such as `LumosOrb`
+     * that owns the clock.
+     *
+     * The driver steps the scene by whatever time it measures, scaled by its
+     * speed — a variable step, which is right for a display and wrong for a
+     * recording, since nothing replays a stream whose step followed the
+     * machine's load. [nextFrame] and [frames] keep the fixed `1 / fps` step
+     * [Oscilloscope] records. Drive a generator one way at a time; driven both
+     * ways, its scene steps twice. [frameCount] counts fixed steps only.
+     *
+     * Reduced motion, the paused redraw, and the shared look clock behave as
+     * [LiveFrameSource] documents: the source is one over this generator's
+     * scene and frame builder.
+     */
+    fun asFrameSource(): LumosFrameSource = live
 
     /**
      * The [frames] frames this generator would have produced before the one
