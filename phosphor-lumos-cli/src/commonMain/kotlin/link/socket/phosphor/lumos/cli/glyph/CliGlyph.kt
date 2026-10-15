@@ -268,7 +268,7 @@ object CliGlyph {
         }
 
     /**
-     * [GlyphEnvelope.visibility] at [progress], so the overlay's stipple intensity
+     * `GlyphEnvelope.visibility` at [progress], so the overlay's stipple intensity
      * matches the 3D pipeline's voxel-color lerp factor at the same progress value.
      */
     internal fun visibilityFromProgress(progress: Float): Float = GlyphEnvelope.visibility(progress)
