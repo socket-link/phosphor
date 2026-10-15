@@ -17,8 +17,8 @@ import link.socket.phosphor.lumos.probe.measure
  * Mirrors CliLattice with three structural differences:
  * 1. **No aspect compression** — pixel cells are 1:1, so [aspectRatio] defaults to 1.0.
  * 2. **No per-cell winner aggregation** — every visible voxel is emitted as its own [CanvasVoxel].
- *    The output list is unsorted by z. Painter's-algorithm depth sorting is the composable's
- *    responsibility, keeping this projector pure.
+ *    The output list is sorted by z ascending (back to front, ties in lattice order), once per
+ *    projected frame, through a reusable key buffer. `LumosCanvas` therefore never sorts.
  * 3. **Orb rotation applied here** — each voxel's `(x, y, z)` lattice position is rotated by
  *    Euler angles from the [VoxelAmbient.orbRotationX], [VoxelAmbient.orbRotationY], and
  *    [VoxelAmbient.orbRotationZ] properties before projection.
@@ -83,6 +83,10 @@ class ComposeLattice(
      */
     fun project(frame: VoxelFrame): LumosCanvasFrame = probe.measure(FramePhase.PROJECT) { projectFrame(frame) }
 
+    // Reusable sort keys: (order-preserving z bits << 32) | index into `scratch`. Grown, never shrunk.
+    private var keys = LongArray(0)
+    private var scratch = arrayOfNulls<CanvasVoxel>(0)
+
     private fun projectFrame(frame: VoxelFrame): LumosCanvasFrame {
         val cells = frame.cells
         val ambient = frame.ambient
@@ -95,7 +99,11 @@ class ComposeLattice(
         val sinZ = sin(ambient.orbRotationZ.toDouble()).toFloat()
 
         val invAspect = 1f / aspectRatio
-        val out = ArrayList<CanvasVoxel>(cells.size)
+        if (keys.size < cells.size) {
+            keys = LongArray(cells.size)
+            scratch = arrayOfNulls(cells.size)
+        }
+        var count = 0
 
         for (cell in cells) {
             if (cell.scale <= 0f) continue
@@ -127,7 +135,7 @@ class ComposeLattice(
 
             if (screenX < 0f || screenX >= widthPx || screenY < 0f || screenY >= heightPx) continue
 
-            out +=
+            scratch[count] =
                 CanvasVoxel(
                     screenX = screenX,
                     screenY = screenY,
@@ -138,7 +146,19 @@ class ComposeLattice(
                     alpha = cell.alpha ?: 1.0f,
                     z = rz,
                 )
+            // Flip the magnitude bits of negatives so signed-int order matches float order.
+            val bits = rz.toRawBits()
+            val ordered = bits xor ((bits shr 31) and 0x7fffffff)
+            keys[count] = (ordered.toLong() shl 32) or count.toLong()
+            count++
         }
+
+        keys.sort(0, count)
+        val out = ArrayList<CanvasVoxel>(count)
+        for (i in 0 until count) {
+            out += scratch[keys[i].toInt()]!!
+        }
+        scratch.fill(null, 0, count)
 
         return LumosCanvasFrame(
             width = widthPx,

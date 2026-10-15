@@ -3,10 +3,10 @@ package link.socket.phosphor.lumos.compose
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -32,7 +32,8 @@ import link.socket.phosphor.lumos.probe.measure
  *
  * Each recomposition paints:
  * 1. An optional ambient halo (radial gradient behind the orb).
- * 2. All voxels back-to-front (painter's algorithm, sorted by [LumosCanvasFrame.CanvasVoxel.z] ascending).
+ * 2. All voxels back-to-front. No per-frame sort: [link.socket.phosphor.lumos.compose.projection.ComposeLattice]
+ *    emits voxels z-ascending; only a hand-built, out-of-order frame is sorted here.
  * 3. An optional glyph overlay at the canvas center, faded by [GlyphEnvelope.visibility] of
  *    [VoxelGlyphState.progress].
  *
@@ -64,9 +65,10 @@ fun LumosCanvas(
     showGlyphOverlay: Boolean = true,
     probe: FrameProbe = FrameProbe.Disabled,
 ) {
+    val style = remember { SquareCellStyle() }
     Canvas(modifier = modifier) {
         probe.measure(FramePhase.DRAW) {
-            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay)
+            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay, style)
         }
     }
 }
@@ -77,21 +79,37 @@ internal fun DrawScope.drawLumosFrame(
     backgroundColor: Color = Color.Transparent,
     showHalo: Boolean = true,
     showGlyphOverlay: Boolean = true,
+    style: CellStyle = SquareCellStyle(),
 ) {
     if (backgroundColor != Color.Transparent) {
         drawRect(backgroundColor)
     }
     if (showHalo) drawHalo(frame.ambient)
-    for (voxel in frame.voxels.sortedBy { it.z }) {
-        drawRect(
-            color = Color(voxel.red, voxel.green, voxel.blue, voxel.alpha),
-            topLeft = Offset(voxel.screenX - voxel.radiusPx, voxel.screenY - voxel.radiusPx),
-            size = Size(voxel.radiusPx * 2f, voxel.radiusPx * 2f),
-        )
-    }
+    drawVoxels(frame, style)
     if (showGlyphOverlay) {
         frame.glyph?.let { drawGlyph(it) }
     }
+}
+
+// Paints in list order, which is painter's order for any frame from ComposeLattice.project.
+// A hand-built frame that is out of order is sorted first (the only allocation on this path).
+internal fun DrawScope.drawVoxels(
+    frame: LumosCanvasFrame,
+    style: CellStyle,
+) {
+    var voxels = frame.voxels
+    for (i in 1 until voxels.size) {
+        if (voxels[i].z < voxels[i - 1].z) {
+            voxels = voxels.sortedBy { it.z }
+            break
+        }
+    }
+    style.begin(this, frame)
+    for (i in voxels.indices) {
+        val v = voxels[i]
+        style.cell(i, v.screenX, v.screenY, v.radiusPx, Color(v.red, v.green, v.blue, v.alpha), v.z)
+    }
+    style.end()
 }
 
 // Draws a radial gradient disk centered on the canvas to simulate the ambient breath ring.
