@@ -1,6 +1,7 @@
 package link.socket.phosphor.lumos
 
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.field.VoxelSphere
@@ -178,6 +179,7 @@ class VoxelFrameBuilder(
             phases = phases,
             glyphLifecycle = null,
             sample = current.sample(current.count, LumosLook.BASE, timestampEpochMillis / 1_000f),
+            framing = Framing.NONE,
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -240,6 +242,7 @@ class VoxelFrameBuilder(
                             GlyphLifecycle(it, totalDurationSeconds = 1f, ageSeconds = STILL_GLYPH_PROGRESS)
                         },
                     sample = sample,
+                    framing = framing(sample),
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
                 )
@@ -266,22 +269,38 @@ class VoxelFrameBuilder(
         val glyphLifecycle = advanceGlyph(dt)
         phases = phases.advanced(atmosphere, dt)
 
+        val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
         return frameAt(
             atmosphere = atmosphere,
             transition = snapshot.atmosphereTransition,
             phases = phases,
             glyphLifecycle = glyphLifecycle,
-            sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds),
+            sample = sample,
+            framing = framing(sample),
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
         )
     }
 
     /**
+     * How the current [form] is framed, for [sample]: a [FramedForm]'s scale and
+     * its cell size relative to the lattice's, `cellRadius · 2 · resolution`,
+     * so a renderer sizing cells by the atmosphere's resolution draws them the
+     * size the form asked for. The lattice, and any form that is not framed,
+     * is drawn as is.
+     */
+    private fun framing(sample: FormSample): Framing {
+        val framed = form as? FramedForm ?: return Framing.NONE
+        val cellScale = framed.cellRadius(sample.count) * 2f * max(lattice.resolution, 1)
+        return if (framed.scale == 1f && cellScale == 1f) Framing.NONE else Framing(framed.scale, cellScale)
+    }
+
+    /**
      * The pure core of a build: every input named, nothing read from the
      * builder but its lattice resolution and [config]. [build] advances state
      * and calls this; [buildSteadyState] calls it as it is. One cell per entry
-     * of [sample], in its order.
+     * of [sample], in its order, positioned at [Framing.formScale] times the
+     * form's and sized at [Framing.cellScale] times the lattice's cell.
      */
     private fun frameAt(
         atmosphere: AtmosphereState,
@@ -289,9 +308,12 @@ class VoxelFrameBuilder(
         phases: FramePhases,
         glyphLifecycle: GlyphLifecycle?,
         sample: FormSample,
+        framing: Framing,
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
+        val formScale = framing.formScale
+        val cellScale = framing.cellScale
         val pulse = 1f + sin(phases.pulsePhase) * atmosphere.pulseAmplitude
         // voxelGap is the fraction of a lattice cell left empty between cubes, so the
         // cube itself fills what remains. Clamped because an overshoot easing can carry
@@ -339,6 +361,8 @@ class VoxelFrameBuilder(
                 }
             val scale = voxelFill * pulse * boundaryShrink * glyphShrink
 
+            // Omission reads the atmosphere's own scale: a form's cell size changes how big a
+            // cell is drawn, not whether it is worth drawing.
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 
             val position = positions[index]
@@ -354,16 +378,16 @@ class VoxelFrameBuilder(
             val uy = direction.y
             val uz = direction.z
 
-            val finalX = (px + ux * bumpAmount) * pulse
-            val finalY = (py + uy * bumpAmount) * effectiveYSquash * pulse
-            val finalZ = (pz + uz * bumpAmount) * pulse
+            val finalX = (px + ux * bumpAmount) * pulse * formScale
+            val finalY = (py + uy * bumpAmount) * effectiveYSquash * pulse * formScale
+            val finalZ = (pz + uz * bumpAmount) * pulse * formScale
 
             cells +=
                 VoxelCell(
                     x = finalX,
                     y = finalY,
                     z = finalZ,
-                    scale = scale,
+                    scale = scale * cellScale,
                     red = color.red,
                     green = color.green,
                     blue = color.blue,
@@ -489,6 +513,17 @@ class VoxelFrameBuilder(
             orbRotationY = phases.orbRotationY,
             orbRotationZ = 0f,
         )
+    }
+
+    /**
+     * A [FramedForm]'s framing resolved against the lattice: [formScale]
+     * multiplies every position, [cellScale] every cell's scale. [NONE] is the
+     * lattice's own, and leaves every frame as it was before forms were framed.
+     */
+    private class Framing(val formScale: Float, val cellScale: Float) {
+        companion object {
+            val NONE = Framing(1f, 1f)
+        }
     }
 
     companion object {

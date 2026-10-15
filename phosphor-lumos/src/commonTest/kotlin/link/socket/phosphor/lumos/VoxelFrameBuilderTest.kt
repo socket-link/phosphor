@@ -592,6 +592,54 @@ class VoxelFrameBuilderTest {
     }
 
     @Test
+    fun `a framed form is drawn at its scale with cells sized against the lattice`() {
+        val rest = listOf(Vector3(0.5f, 0f, 0f), Vector3(0f, 0f, -0.5f))
+        val builder = VoxelFrameBuilder(initialResolution = 10)
+        builder.form =
+            object : FramedForm {
+                override val scale: Float get() = 1.2f
+
+                // A cell a tenth of a unit across: twice the lattice's at resolution 10.
+                override fun cellRadius(count: Int): Float = 0.1f
+
+                override fun sample(
+                    count: Int,
+                    look: LumosLook,
+                    time: Float,
+                ): FormSample = FormSample.derive(rest)
+            }
+        val still =
+            AtmospherePresets.IDLE.copy(
+                noise = 0f,
+                surfaceBump = 0f,
+                pulseAmplitude = 0f,
+                ySquash = 1f,
+                voxelGap = 0f,
+            )
+
+        val frame = builder.build(snapshot(atmosphere = still), dt = 0f)
+
+        assertEquals(
+            listOf(Vector3(0.6f, 0f, 0f), Vector3(0f, 0f, -0.6f)),
+            frame.cells.map { Vector3(it.x, it.y, it.z) },
+        )
+        frame.cells.forEach { assertEquals(2f, it.scale, 1e-6f) }
+    }
+
+    @Test
+    fun `an unframed form and the lattice are drawn as before`() {
+        val rest = listOf(Vector3(0.5f, 0f, 0f))
+        val builder = VoxelFrameBuilder(initialResolution = 10)
+        builder.form = LumosForm { _, _, _ -> FormSample.derive(rest) }
+        val still = AtmospherePresets.IDLE.copy(noise = 0f, surfaceBump = 0f, pulseAmplitude = 0f, ySquash = 1f)
+
+        val cell = builder.build(snapshot(atmosphere = still), dt = 0f).cells.single()
+
+        assertEquals(0.5f, cell.x)
+        assertEquals(1f - still.voxelGap, cell.scale, 1e-6f)
+    }
+
+    @Test
     fun `a resolution change replaces a lattice form and leaves another form alone`() {
         val latticeBuilder = VoxelFrameBuilder(initialResolution = 4)
         val formBuilder = VoxelFrameBuilder(initialResolution = 4)
