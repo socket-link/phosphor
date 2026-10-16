@@ -10,6 +10,7 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import link.socket.phosphor.math.Vector3
 
 /**
@@ -25,10 +26,12 @@ class FormCatalogueTest {
                 val sample = form.sample(count, LumosLook.BASE, 0f)
                 assertEquals(count, sample.count, "$name at count $count")
                 sample.positions.forEachIndexed { index, position ->
-                    assertTrue(
-                        position.length() <= 1f + BOUNDS_TOLERANCE,
-                        "$name at count $count: cell $index is at $position, length ${position.length()}",
-                    )
+                    // Build the message only on failure: this loop visits ~1.8M cells, and formatting
+                    // four floats per cell is what pushed the browser runners past mocha's timeout.
+                    val length = position.length()
+                    if (length > 1f + BOUNDS_TOLERANCE) {
+                        fail("$name at count $count: cell $index is at $position, length $length")
+                    }
                 }
             }
         }
