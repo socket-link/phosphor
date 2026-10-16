@@ -91,7 +91,9 @@ class MorphCaptureTest {
         val looped =
             config.copy(
                 durationMs = (idleFrames + morphFrames + 10) * 1_000L / fps,
-                segments = config.segments + TraceSegment("fibonacci", idleFrames + morphFrames, idleFrames + morphFrames + 9, loop = true),
+                segments =
+                    config.segments +
+                        TraceSegment("fibonacci", idleFrames + morphFrames, idleFrames + morphFrames + 9, loop = true),
                 seamBlendFrames = 3,
             )
         val trace = Oscilloscope.capture(looped).getOrThrow()

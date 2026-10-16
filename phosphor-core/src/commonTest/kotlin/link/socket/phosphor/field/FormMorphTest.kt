@@ -119,7 +119,9 @@ class FormMorphTest {
             var offLine = 0f
             while (morph.isSettling) {
                 morph.step(1f / 60f, target)
-                offLine = maxOf(offLine, sqrt(morph.positions[1] * morph.positions[1] + morph.positions[2] * morph.positions[2]))
+                val y = morph.positions[1]
+                val z = morph.positions[2]
+                offLine = maxOf(offLine, sqrt(y * y + z * z))
             }
             assertTrue(offLine > 0.02f, "$choreography should arc off the line, max was $offLine")
             assertPositions(target, morph.positions, 5e-3f)
@@ -203,7 +205,7 @@ class FormMorphTest {
     }
 
     @Test
-    fun `rejects mismatched sizes, bad assignments and negative time`() {
+    fun `rejects mismatched sizes and bad assignments and negative time`() {
         val morph = FormMorph(2)
         assertFailsWith<IllegalArgumentException> { morph.snapTo(from) }
         morph.snapTo(from.take(2))
