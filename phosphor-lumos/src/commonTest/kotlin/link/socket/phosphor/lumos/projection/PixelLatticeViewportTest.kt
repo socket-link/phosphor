@@ -19,7 +19,7 @@ import link.socket.phosphor.lumos.frame.LumosCanvasFrame.CanvasVoxel
  */
 class PixelLatticeViewportTest {
     @Test
-    fun `a viewport centred on the canvas projects as the fit-to-canvas lattice, voxel for voxel`() {
+    fun `a viewport centred on the canvas projects as the fit-to-canvas lattice voxel for voxel`() {
         val frame = frameOf(ball(), rotationX = 0.4f, rotationY = 1.1f, rotationZ = 0.2f)
         val viewport = OrbViewport(SIZE / 2f, SIZE / 2f, min(SIZE, SIZE) / 2f)
 
@@ -65,7 +65,7 @@ class PixelLatticeViewportTest {
     }
 
     @Test
-    fun `a viewport maps the unit sphere to centre plus or minus radius, Y up`() {
+    fun `a viewport maps the unit sphere to centre plus or minus radius with Y up`() {
         val viewport = OrbViewport(centerXPx = 300f, centerYPx = 120f, radiusPx = 80f)
         val lattice = PixelLattice(widthPx = 640, heightPx = 360, viewport = viewport)
 
@@ -80,7 +80,7 @@ class PixelLatticeViewportTest {
     }
 
     @Test
-    fun `a viewport divides only the radius by the aspect ratio, not the centre`() {
+    fun `a viewport divides only the radius by the aspect ratio and not the centre`() {
         val viewport = OrbViewport(centerXPx = 200f, centerYPx = 200f, radiusPx = 100f)
         val lattice = PixelLattice(widthPx = SIZE, heightPx = SIZE, aspectRatio = 2f, viewport = viewport)
 
