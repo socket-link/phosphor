@@ -86,6 +86,15 @@ object PixelForm {
      * Dots' element target: [perimeterFraction] of the cells on the rounded
      * perimeter, the rest on a grid clipped to it.
      *
+     * The spacing a count yields is [fillSpacingPx] inside and
+     * [outlineSpacingPx] round the edge. On a 128 × 40 button with 8 px
+     * corners at the default share: 4,801 cells, the hero orb's lattice at
+     * resolution 10, fill it every 1.1 px, which reads as a solid fill; 1,141,
+     * resolution 6, every 2.3 px, which reads as cells; and the inline orb's
+     * 80 every 8.8 px, with 14 cells 23 px apart on the outline, which no
+     * longer reads as an edge — [outlineFraction] gives a small count the
+     * share that keeps it one.
+     *
      * @param rect The element in root pixels; see [RoundedRect.rect].
      * @param viewport Where the orb sits in the same root.
      * @param perimeterFraction Share of the cells traced on the outline, `0..1`.
@@ -96,6 +105,66 @@ object PixelForm {
         viewport: OrbViewport,
         perimeterFraction: Float = PERIMETER_FRACTION,
     ): RoundedRect = RoundedRect(rect, viewport, perimeterFraction)
+
+    /**
+     * The mean spacing in pixels of the grid [roundedRect] fills [rect] with
+     * when [count] cells lay out on it: `√(area / fill)`, where the fill is
+     * the cells not on the outline. The outline's spacing when every cell is
+     * on it.
+     */
+    fun fillSpacingPx(
+        rect: RectPx,
+        count: Int,
+        perimeterFraction: Float = PERIMETER_FRACTION,
+    ): Float {
+        require(count >= 1) { "count must be >= 1, was $count" }
+        val outline = outlineCount(count, perimeterFraction)
+        val fill = count - outline
+        return if (fill >= 1) sqrt(rect.area / fill) else perimeterLength(rect) / outline
+    }
+
+    /**
+     * The arc-length spacing in pixels of the cells [roundedRect] traces round
+     * [rect]'s outline at [count]; infinite when no cell is on it.
+     */
+    fun outlineSpacingPx(
+        rect: RectPx,
+        count: Int,
+        perimeterFraction: Float = PERIMETER_FRACTION,
+    ): Float {
+        require(count >= 1) { "count must be >= 1, was $count" }
+        val outline = outlineCount(count, perimeterFraction)
+        return if (outline >= 1) perimeterLength(rect) / outline else Float.POSITIVE_INFINITY
+    }
+
+    /**
+     * The share of [count] cells to put on [rect]'s outline so that it reads
+     * as an edge: [PERIMETER_FRACTION] at Dots' counts, and more as the count
+     * falls, so the outline's cells stay [OUTLINE_DENSITY] times as close as
+     * the fill's, about the ratio Dots' share gives 1,141 cells on a 128 × 40
+     * button. Never below [PERIMETER_FRACTION]; 0.52 for the inline orb's 80
+     * cells on that button.
+     */
+    fun outlineFraction(
+        rect: RectPx,
+        count: Int,
+    ): Float {
+        require(count >= 1) { "count must be >= 1, was $count" }
+        // fill spacing = OUTLINE_DENSITY · outline spacing, solved for the share f:
+        // area · count · f² + b · f − b = 0, with b = (OUTLINE_DENSITY · perimeter)².
+        val a = rect.area.toDouble() * count
+        val b = (OUTLINE_DENSITY.toDouble() * perimeterLength(rect)).let { it * it }
+        val share = (-b + sqrt(b * b + 4.0 * a * b)) / (2.0 * a)
+        return share.toFloat().coerceIn(PERIMETER_FRACTION, 1f)
+    }
+
+    /** How much closer [outlineFraction] keeps the outline's cells than the fill's. */
+    const val OUTLINE_DENSITY: Float = 1.5f
+
+    private fun outlineCount(
+        count: Int,
+        perimeterFraction: Float,
+    ): Int = (count * perimeterFraction).roundToInt().coerceIn(0, count)
 
     /**
      * A rounded rectangle in root pixels as a form; see [roundedRect].

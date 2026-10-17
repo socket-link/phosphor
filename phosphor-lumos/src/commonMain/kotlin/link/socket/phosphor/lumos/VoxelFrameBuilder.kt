@@ -458,6 +458,9 @@ class VoxelFrameBuilder(
     // The framing the morph left from, blended toward the new form's by the morph's progress.
     private var morphFramingFrom: Framing = Framing.NONE
 
+    // The pattern the morph left from, blended toward the new form's the same way; see MixFrom.
+    private var morphMixFrom: MixFrom? = null
+
     // The last frame time the form was sampled at, so morphTo samples the form where build did.
     private var lastTimeSeconds: Float = 0f
 
@@ -527,14 +530,21 @@ class VoxelFrameBuilder(
      * unit-sphere space before the atmosphere's pulse, squash and bump, which
      * keep applying on top: the skin rides the body. A [FramedForm]'s scale and
      * cell size blend across with the spring's own progress, and so does a
-     * [FramedForm.rigid] form's hold on the skin. Once settled, the
-     * builder renders the new form exactly as it renders any form at rest, with
-     * no per-frame cost and with its cells in the matched order — which is what
+     * [FramedForm.rigid] form's hold on the skin. So does each cell's colour:
+     * the atmosphere's pattern is read where the cell sat in the form it left
+     * and where it is heading, and mixed by the same progress, so a form whose
+     * pattern reads differently does not recolour the orb on the first frame.
+     * A spawned cell starts from the colour of the cell it springs out of.
+     * Once settled, the builder renders the new form exactly as it renders any
+     * form at rest, with no per-frame cost and with its cells in the matched order — which is what
      * keeps a trace's per-index delta coding and a crossfade's cell pairing
      * working across the change.
      *
      * Equal counts are the common case. With a smaller [count], the cells with
-     * the highest indices are dropped and the rest are matched. With a larger
+     * the highest indices are dropped and the rest are matched, unless
+     * [survivors] names the ones to keep. On the lattice the highest indices
+     * are one side of the orb, so dropping a spread of cells takes a
+     * [survivors] list at an even stride. With a larger
      * one, the cells that exist are matched first and the new form's leftover
      * positions become new cells, which start at the current position of the
      * nearest existing cell and spring out from there. Either way, the frame on
@@ -562,8 +572,13 @@ class VoxelFrameBuilder(
      * @param durationSeconds How long the spring takes to settle. `0` snaps.
      * @param easingName An `Easing.byName` identifier that reshapes the arc's
      *  envelope only; null or unknown leaves it linear. The spring is not eased.
-     * @throws IllegalArgumentException when [count] is not positive or
-     *  [durationSeconds] is negative.
+     * @param survivors When the new form has fewer cells than the orb, the
+     *  cells that stay, by index, ascending: survivor `i` becomes cell `i`.
+     *  Null, the default, keeps the lowest indices. Ignored unless the count
+     *  shrinks.
+     * @throws IllegalArgumentException when [count] is not positive,
+     *  [durationSeconds] is negative, or [survivors] is not as many strictly
+     *  ascending indices of today's cells as the new form has.
      */
     fun morphTo(
         form: LumosForm,
@@ -571,6 +586,7 @@ class VoxelFrameBuilder(
         choreography: Choreography = Choreography.FLOW,
         durationSeconds: Float = DEFAULT_MORPH_SECONDS,
         easingName: String? = null,
+        survivors: IntArray? = null,
     ) {
         require(count >= 1) { "count must be >= 1, was $count" }
         require(durationSeconds >= 0f && durationSeconds.isFinite()) {
@@ -583,8 +599,22 @@ class VoxelFrameBuilder(
         val fromPermutation = permutation
         val fromMorph = morph
         val fromCount = fromSample.count
+        val toSample = sampleForm(target, lastTimeSeconds, phases, gaze = gaze)
+        val toCount = toSample.count
+        val matched = minOf(fromCount, toCount)
+        // Which of today's cells each surviving cell was: the lowest indices, or the survivors given.
+        val kept = survivors?.takeIf { toCount < fromCount }
+        if (kept != null) {
+            require(kept.size == toCount) { "survivors must name $toCount cells, named ${kept.size}" }
+            for (i in kept.indices) {
+                require(kept[i] in 0 until fromCount && (i == 0 || kept[i] > kept[i - 1])) {
+                    "survivors must be ascending indices below $fromCount, found ${kept[i]} at $i"
+                }
+            }
+        }
         val origins =
-            List(fromCount) { i ->
+            List(matched) { k ->
+                val i = kept?.get(k) ?: k
                 if (fromMorph != null) {
                     Vector3(fromMorph.positions[3 * i], fromMorph.positions[3 * i + 1], fromMorph.positions[3 * i + 2])
                 } else {
@@ -593,37 +623,45 @@ class VoxelFrameBuilder(
             }
         val framingFrom = effectiveFraming(fromSample)
 
-        val toSample = sampleForm(target, lastTimeSeconds, phases, gaze = gaze)
-        val toCount = toSample.count
-        val matched = minOf(fromCount, toCount)
-        val assignment = matcher.match(origins.subList(0, matched), toSample.positions)
+        val assignment = matcher.match(origins, toSample.positions)
         val nextPermutation = IntArray(toCount)
         assignment.copyInto(nextPermutation)
+        // The sample index each cell was coloured by in the form being left; a spawned cell takes its parent's.
+        val mixFromIndex = IntArray(toCount) { -1 }
+        for (k in 0 until matched) {
+            val i = kept?.get(k) ?: k
+            mixFromIndex[k] = fromPermutation?.get(i) ?: i
+        }
         val body = FormMorph(toCount)
-        for (i in 0 until matched) {
-            val origin = origins[i]
-            body.positions[3 * i] = origin.x
-            body.positions[3 * i + 1] = origin.y
-            body.positions[3 * i + 2] = origin.z
+        for (k in 0 until matched) {
+            val origin = origins[k]
+            body.positions[3 * k] = origin.x
+            body.positions[3 * k + 1] = origin.y
+            body.positions[3 * k + 2] = origin.z
             if (fromMorph != null) {
-                body.velocities[3 * i] = fromMorph.velocities[3 * i]
-                body.velocities[3 * i + 1] = fromMorph.velocities[3 * i + 1]
-                body.velocities[3 * i + 2] = fromMorph.velocities[3 * i + 2]
+                val i = kept?.get(k) ?: k
+                body.velocities[3 * k] = fromMorph.velocities[3 * i]
+                body.velocities[3 * k + 1] = fromMorph.velocities[3 * i + 1]
+                body.velocities[3 * k + 2] = fromMorph.velocities[3 * i + 2]
             }
         }
         // A burst keeps its own clock, so moving it to the new body carries it on where it was. The
         // pointer's repel moves with it, and the next build aims it at the new body.
         if (fromMorph != null) body.forces.addAll(fromMorph.forces)
-        if (toCount > fromCount) spawnLeftovers(nextPermutation, assignment, origins, toSample.positions, body)
+        if (toCount > fromCount) {
+            spawnLeftovers(nextPermutation, assignment, origins, toSample.positions, body, mixFromIndex)
+        }
 
         // Not through the public setter, which would reset the identity just built.
         adoptForm(target)
         permutation = nextPermutation
         if (durationSeconds == 0f) {
             morph = null
+            morphMixFrom = null
             return
         }
         morphFramingFrom = framingFrom
+        morphMixFrom = MixFrom(body, fromSample, mixFromIndex)
         body.retarget(
             targets = toSample.positions,
             assignment = nextPermutation,
@@ -691,6 +729,7 @@ class VoxelFrameBuilder(
             durationSeconds = durationSeconds,
         )
         morphFramingFrom = framing(sample)
+        morphMixFrom = null
         morph = body
         return body
     }
@@ -706,6 +745,7 @@ class VoxelFrameBuilder(
         origins: List<Vector3>,
         targets: List<Vector3>,
         body: FormMorph,
+        mixFromIndex: IntArray,
     ) {
         val taken = BooleanArray(targets.size)
         for (j in assignment) taken[j] = true
@@ -716,13 +756,16 @@ class VoxelFrameBuilder(
             val target = targets[j]
             var nearest = Vector3.ZERO
             var nearestDistance = Float.POSITIVE_INFINITY
-            for (origin in origins) {
-                val d = (origin - target).lengthSquared()
+            var parent = -1
+            for (k in origins.indices) {
+                val d = (origins[k] - target).lengthSquared()
                 if (d < nearestDistance) {
                     nearestDistance = d
-                    nearest = origin
+                    nearest = origins[k]
+                    parent = k
                 }
             }
+            if (parent >= 0) mixFromIndex[cell] = mixFromIndex[parent]
             body.positions[3 * cell] = nearest.x
             body.positions[3 * cell + 1] = nearest.y
             body.positions[3 * cell + 2] = nearest.z
@@ -1050,6 +1093,7 @@ class VoxelFrameBuilder(
             permutation = permutation,
             morphPositions = body?.positions,
             framing = if (body == null) framing(sample) else effectiveFraming(sample),
+            mixFrom = morphMixFrom?.takeIf { it.body === body && it.body.isSettling },
             modulator = modulator,
             outgoing = outgoing,
             outgoingTime = outgoingTime,
@@ -1101,6 +1145,7 @@ class VoxelFrameBuilder(
         val body = restingBody?.takeIf { it.count == sample.count } ?: FormMorph(sample.count)
         body.snapTo(sample.positions, permutation)
         restingBody = body
+        morphMixFrom = null
         morph = body
         return body
     }
@@ -1299,6 +1344,7 @@ class VoxelFrameBuilder(
         permutation: IntArray?,
         morphPositions: FloatArray?,
         framing: Framing,
+        mixFrom: MixFrom? = null,
         modulator: LookModulator?,
         outgoing: LookModulator?,
         outgoingTime: Float,
@@ -1359,7 +1405,16 @@ class VoxelFrameBuilder(
         val cells = ArrayList<VoxelCell>(sample.count)
         for (cell in 0 until sample.count) {
             val index = permutation?.get(cell) ?: cell
-            val mix = computeMix(atmosphere, transition, sample, index, phases.patternPhase)
+            var mix = computeMix(atmosphere, transition, sample, index, phases.patternPhase)
+            if (mixFrom != null) {
+                // Mid-morph a cell's pattern turns from the form it left to the one it is heading for,
+                // with the spring, so its colour travels with it rather than cutting on the first frame.
+                val fromIndex = mixFrom.indices[cell]
+                if (fromIndex >= 0) {
+                    val left = computeMix(atmosphere, transition, mixFrom.sample, fromIndex, phases.patternPhase)
+                    mix = left + (mix - left) * mixFrom.body.progress
+                }
+            }
             val boundaryShrink = computeBoundaryShrink(atmosphere.bipolarStrength, mix)
             val baseColor = computeVoxelColor(atmosphere, transition, mix)
             val direction = directions[index]
@@ -1593,12 +1648,23 @@ class VoxelFrameBuilder(
     }
 
     /**
+     * Where a morph's colours start: the sample the form being left was drawn from, and the index
+     * each of [body]'s cells read in it, or -1. Applies only while [body] is the morph in flight.
+     */
+    private class MixFrom(
+        val body: FormMorph,
+        val sample: FormSample,
+        val indices: IntArray,
+    )
+
+    /**
      * A [FramedForm]'s framing resolved against the lattice: [formScale]
      * multiplies every position, [cellScale] every cell's scale, and
      * [rigidity], `0..1`, is how much of the atmosphere's skin is held off:
      * `1` for a [FramedForm.rigid] form at rest. [NONE] is the lattice's own,
      * and leaves every frame as it was before forms were framed.
      */
+
     private class Framing(val formScale: Float, val cellScale: Float, val rigidity: Float = 0f) {
         companion object {
             val NONE = Framing(1f, 1f)

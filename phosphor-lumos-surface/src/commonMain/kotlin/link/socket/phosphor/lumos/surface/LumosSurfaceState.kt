@@ -13,13 +13,17 @@ import link.socket.phosphor.lumos.LiveFrameSource
 import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.LumosForm
+import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.OrbStepper
 import link.socket.phosphor.lumos.OrbViewport
 import link.socket.phosphor.lumos.PixelForm
 import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.RectPx
+import link.socket.phosphor.lumos.SurfaceStyle
+import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * Owns an assembly: the orb's source and where it sits, the pixel form the cells fly to, the
@@ -30,15 +34,22 @@ import link.socket.phosphor.lumos.probe.FrameProbe
  * from anywhere. The [phase] says where things are, and every target reads [alphaFor].
  *
  * - **One driver per source.** While the phase is [SurfacePhase.Orb], [LumosSurfaceOrb] composes a
- *   `LumosOrb` on [source] and that orb steps it. The frame [assembleInto] starts flying, the slot
- *   drops its orb and this state's own [OrbStepper] takes the source over, projecting it at the
- *   [viewport] on the surface; the two never run together. On [SurfacePhase.Solid] nothing steps.
+ *   `LumosOrb` on [source] and that orb steps it. It keeps it through [assembleInto] until the
+ *   flight starts, and the frame it does, an [OrbStepper] of this state's own takes the source over,
+ *   projecting it at the [viewport] on the surface, and the slot drops its orb once the overlay has
+ *   that frame to draw: the orb never blinks out between the two. On that one frame both step the
+ *   source, but the overlay's stepper is new each flight and its first step is `dt = 0`, so the
+ *   orb still moves by one frame's time. On [SurfacePhase.Solid] nothing steps.
  * - **Measured arrival.** Each frame, [arrival] is the mean distance in pixels of the projected
  *   cells outside the target's rounded rectangle, through Dots' window `(8 − meanErr) / 6`,
  *   smoothstepped. Never the morph's own progress, which ignores the choreography's arc. The
  *   control's alpha is the arrival; the cells grow `× (1 + 0.6 · arrival)` and fade
  *   `× (1 − arrival)` on the same curve, and lerp toward a tint when one is given. Solid when
  *   arrival reaches 1 or the morph settles, whichever first.
+ * - **Count.** By default every cell flies, however densely that packs the control; with
+ *   [SurfaceSurplus.Fade] the cells the control does not need fade out under the burst and are
+ *   dropped when the morph starts. A count too small to draw the control's edge puts more of its
+ *   cells on the outline; see `PixelForm.outlineFraction`.
  * - **Follow.** The form reads the target's live bounds every step, so a control that scrolls
  *   mid-flight is tracked with the spring's own momentum.
  * - **Reduced motion.** `config.reducedMotion || PlatformMotionPreference.reduceMotion`, read once
@@ -56,12 +67,14 @@ import link.socket.phosphor.lumos.probe.FrameProbe
  * @param viewport Where the orb's unit sphere sits, in the surface's pixels. Null, the default,
  *  measures it from [LumosSurfaceOrb]'s slot; a host with no slot passes one.
  * @param config How the orb is driven and drawn, shared by the slot's orb and the overlay so the
- *  cells keep their speed, size, tilt and style across the switch.
+ *  cells keep their speed, size, tilt and style across the switch. [SurfaceStyle.Dots] by default,
+ *  not `LumosConfig`'s Squares: at the inline orb's 20 px, Squares on a button merge into a slab
+ *  with holes, and Dots stay cells (PHO-76).
  */
 class LumosSurfaceState(
     val source: LiveFrameSource,
     viewport: OrbViewport? = null,
-    val config: LumosConfig = LumosConfig(),
+    val config: LumosConfig = LumosConfig(style = SurfaceStyle.Dots),
 ) {
     /** Where the surface is. Compose state. */
     var phase: SurfacePhase by mutableStateOf(SurfacePhase.Orb)
@@ -111,9 +124,27 @@ class LumosSurfaceState(
     /** The platform's reduced-motion request; a test replaces it. */
     internal var platformReducesMotion: () -> Boolean = { PlatformMotionPreference.reduceMotion }
 
-    /** The form the cells are flying to, from the frame the morph starts until Solid. */
+    /** The share of a count's cells the form puts on the control's outline; a test replaces it. */
+    internal var outlineFraction: (RectPx, Int) -> Float = PixelForm::outlineFraction
+
+    /** The form the cells are flying to, from the frame the flight starts until Solid. */
     internal var form: PixelForm.RoundedRect? = null
         private set
+
+    /**
+     * Under [SurfaceSurplus.Fade], which of the orb's cells are fading, by index, until the morph
+     * drops them; otherwise null.
+     */
+    internal var surplus: BooleanArray? = null
+        private set
+
+    /** How far [surplus] has faded, `0..1`. */
+    internal var surplusFade: Float = 0f
+        private set
+
+    // What this state's stepper steps: the source, with the surplus faded while it is. The
+    // projection sorts by depth, so the fade is applied here, where cell i is still cell i.
+    private val fadingSource = FadingSource()
 
     private var solidIds: Set<String> by mutableStateOf(emptySet())
     private val targets = HashMap<String, Target>()
@@ -125,6 +156,10 @@ class LumosSurfaceState(
     private var heightPx = 0
     private var request: Request? = null
     private var homeForm: LumosForm? = null
+
+    // A fade in flight: the cells that stay, out of the surplus mask's count, and when the fade began.
+    private var survivors: IntArray? = null
+    private var fadeStartNanos: Long = 0L
 
     /**
      * Target [id]'s alpha: 1 once the cells have become it, the [arrival] while they are on
@@ -152,6 +187,8 @@ class LumosSurfaceState(
      *  completes before it does.
      * @param tint A colour the cells lerp toward on the arrival curve, so the hand-off reads as
      *  one material changing state; null leaves their colours alone.
+     * @param surplus What to do with the cells the control does not need; every cell flies by
+     *  default. Under [SurfaceSurplus.Fade] the morph starts once the surplus has faded.
      * @throws IllegalArgumentException when [burst] is not finite or [durationSeconds] is not
      *  positive and finite.
      */
@@ -160,6 +197,7 @@ class LumosSurfaceState(
         burst: Float = DEFAULT_BURST,
         durationSeconds: Float = DEFAULT_DURATION_SECONDS,
         tint: Color? = null,
+        surplus: SurfaceSurplus = SurfaceSurplus.Keep,
     ) {
         require(burst.isFinite()) { "burst must be finite, was $burst" }
         require(durationSeconds > 0f && durationSeconds.isFinite()) {
@@ -174,7 +212,7 @@ class LumosSurfaceState(
         }
         this.tint = tint
         arrival = 0f
-        request = Request(id, burst, durationSeconds)
+        request = Request(id, burst, durationSeconds, surplus)
         phase = SurfacePhase.Assembling(id)
     }
 
@@ -196,15 +234,16 @@ class LumosSurfaceState(
         phase = SurfacePhase.Orb
     }
 
+    /**
+     * Whether [LumosSurfaceOrb]'s slot draws the orb: as an orb, and through an assembly until the
+     * overlay has the flight's first frame to draw, so nothing blinks out between the two. Compose state.
+     */
+    internal val orbInSlot: Boolean
+        get() = phase is SurfacePhase.Orb || (phase is SurfacePhase.Assembling && canvasFrame == null)
+
     /** The surface composed under [clock]: the stepper that takes the source over steps on it. */
     internal fun attach(clock: LookClock) {
-        if (this.clock === clock) return
         this.clock = clock
-        stepper =
-            OrbStepper(source, clock, platformReducesMotion).also {
-                it.update(config, FrameProbe.Disabled)
-                if (widthPx > 0 && heightPx > 0) it.resize(widthPx, heightPx)
-            }
     }
 
     /** Where the surface's box sits in the composition root; targets and the slot are measured relative to it. */
@@ -247,14 +286,14 @@ class LumosSurfaceState(
     }
 
     /**
-     * One frame of flight: start the morph if the target and viewport have just become known,
-     * follow the target, step and project the source, measure arrival, and finish when the cells
-     * have arrived or the spring has settled.
+     * One frame of flight: start the flight if the target and viewport have just become known,
+     * fade any surplus and then start the morph, follow the target, step and project the source,
+     * measure arrival, and finish when the cells have arrived or the spring has settled.
      */
     internal fun step(frameTimeNanos: Long) {
         val assembling = phase as? SurfacePhase.Assembling ?: return
         val request = request ?: return
-        val stepper = stepper ?: return
+        val clock = clock ?: return
         val target = targets[assembling.id] ?: return
         if (widthPx <= 0 || heightPx <= 0) return
         val builder = source.builder
@@ -264,17 +303,29 @@ class LumosSurfaceState(
                 val viewport = viewport ?: return
                 val rect = target.rectPx(originX, originY) ?: return
                 target.dirty = false
-                PixelForm.roundedRect(rect, viewport).also { started ->
+                val count = builder.currentCount
+                val keep = (request.surplus as? SurfaceSurplus.Fade)?.keep(rect, count) ?: count
+                PixelForm.roundedRect(rect, viewport, outlineFraction(rect, keep)).also { started ->
                     form = started
                     homeForm = builder.form
-                    stepper.place(viewport)
-                    stepper.rejoin()
+                    // New each flight, so its first step is dt = 0: the slot's orb has stepped this frame.
+                    stepper =
+                        OrbStepper(fadingSource, clock, platformReducesMotion).also {
+                            it.update(config, FrameProbe.Disabled)
+                            it.resize(widthPx, heightPx)
+                            it.place(viewport)
+                            it.rejoin()
+                        }
                     builder.burst(request.burst)
-                    builder.morphTo(
-                        form = started,
-                        choreography = Choreography.FLOW,
-                        durationSeconds = request.durationSeconds,
-                    )
+                    if (keep < count) {
+                        val kept = evenSurvivors(count, keep)
+                        survivors = kept
+                        surplus = BooleanArray(count) { true }.also { mask -> for (i in kept) mask[i] = false }
+                        surplusFade = 0f
+                        fadeStartNanos = frameTimeNanos
+                    } else {
+                        morph(started, count, request)
+                    }
                 }
             }
         if (target.dirty) {
@@ -282,20 +333,52 @@ class LumosSurfaceState(
             target.dirty = false
         }
 
+        val fading = survivors
+        if (fading != null) {
+            val fade = request.surplus as SurfaceSurplus.Fade
+            val elapsedNanos = (frameTimeNanos - fadeStartNanos).coerceAtLeast(0L)
+            surplusFade = (elapsedNanos / fade.duration.inWholeNanoseconds.toDouble()).toFloat().coerceAtMost(1f)
+            if (surplusFade >= 1f) {
+                // Faded out under the burst: the morph drops them, and nothing visible is cut. A
+                // resolution change mid-fade was a cut already, so the survivors no longer apply.
+                val stillCounted = builder.currentCount == surplus?.size
+                morph(flying, fading.size, request, fading.takeIf { stillCounted })
+                survivors = null
+                surplus = null
+            }
+        }
+
+        val stepper = stepper ?: return
         stepper.step(frameTimeNanos)?.let { canvasFrame = it }
         val frame = stepper.frame ?: return
         val arrived = arrivalOf(frame, flying.rect)
         arrival = arrived
-        if (arrived >= 1f || !builder.isMorphing) finish(assembling.id)
+        if (survivors == null && (arrived >= 1f || !builder.isMorphing)) finish(assembling.id)
     }
+
+    private fun morph(
+        form: PixelForm.RoundedRect,
+        count: Int,
+        request: Request,
+        survivors: IntArray? = null,
+    ) = source.builder.morphTo(
+        form = form,
+        count = count,
+        choreography = Choreography.FLOW,
+        durationSeconds = request.durationSeconds,
+        survivors = survivors,
+    )
 
     private fun finish(id: String) {
         // A cut, back to the form the orb wore: nothing draws the cells now, so nothing jumps.
         homeForm?.let { source.builder.form = it }
         homeForm = null
         form = null
+        survivors = null
+        surplus = null
+        surplusFade = 0f
         request = null
-        stepper?.place(null)
+        stepper = null
         canvasFrame = null
         arrival = 1f
         solidIds = solidIds + id
@@ -326,10 +409,38 @@ class LumosSurfaceState(
         return t * t * (3f - 2f * t)
     }
 
+    private inner class FadingSource : LumosFrameSource {
+        override val revision: Long get() = source.revision
+        override val lookKey: String? get() = source.lookKey
+
+        override fun next(dt: Float): VoxelFrame = faded(source.next(dt))
+
+        override fun still(dt: Float): VoxelFrame = faded(source.still(dt))
+
+        override fun align(lookTime: Double) = source.align(lookTime)
+
+        override fun alignLook(lookTime: Double) = source.alignLook(lookTime)
+
+        override fun setInput(input: LumosInput) = source.setInput(input)
+
+        private fun faded(frame: VoxelFrame): VoxelFrame {
+            val mask = surplus ?: return frame
+            if (mask.size != frame.cells.size) return frame
+            val keep = 1f - surplusFade
+            return frame.copy(
+                cells =
+                    frame.cells.mapIndexed { i, cell ->
+                        if (mask[i]) cell.copy(alpha = (cell.alpha ?: 1f) * keep) else cell
+                    },
+            )
+        }
+    }
+
     private class Request(
         val id: String,
         val burst: Float,
         val durationSeconds: Float,
+        val surplus: SurfaceSurplus,
     )
 
     // A target's last bounds, in root pixels, updated in place so a scrolling target allocates

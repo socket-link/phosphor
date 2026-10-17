@@ -39,7 +39,8 @@ val isPublishingToMavenLocal =
         it == "publishToMavenLocal" || it.endsWith(":publishToMavenLocal")
     }
 
-// Per-test timeout for the browser runners; mocha's default is 2 s.
+// Per-test timeout for the JS browser runner; mocha's default is 2 s. The wasmJs runner ignores
+// useMocha and takes the same 60 s from karma.config.d/mocha-timeout.js.
 val browserTestTimeout = "60s"
 
 kotlin {
@@ -73,11 +74,8 @@ kotlin {
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser {
-            testTask {
-                useMocha { timeout = browserTestTimeout }
-            }
-        }
+        // No useMocha here: KGP skips it on a wasm target. The timeout is in karma.config.d.
+        browser()
         binaries.executable()
     }
 

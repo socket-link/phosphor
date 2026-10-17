@@ -13,6 +13,8 @@ import link.socket.phosphor.lumos.LiveFrameSource
 import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.OrbViewport
+import link.socket.phosphor.lumos.RectPx
+import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
@@ -119,6 +121,125 @@ class LumosSurfaceStateTest {
         assertEquals(0f, seen.first(), "the cells start out on the orb")
         assertTrue(seen.any { it in 0.2f..0.9f }, "arrival jumped rather than rose: $seen")
         assertTrue(seen.zipWithNext().all { (a, b) -> b >= a - 0.25f }, "arrival fell back hard: $seen")
+    }
+
+    @Test
+    fun `the slot keeps its orb until the overlay has a frame to draw`() {
+        val state = surface()
+        assertTrue(state.orbInSlot)
+        state.assembleInto(TARGET)
+
+        state.run(frames = 3)
+        assertTrue(state.orbInSlot, "the flight waits for the target's bounds and the orb stays")
+
+        state.targetPositioned(TARGET, BUTTON, CORNER)
+        state.run(frames = 1)
+        assertNotNull(state.canvasFrame)
+        assertFalse(state.orbInSlot, "the overlay has the cells")
+
+        state.run(frames = 4 * FPS)
+        assertEquals(SurfacePhase.Solid(TARGET), state.phase)
+        assertFalse(state.orbInSlot)
+        state.release()
+        assertTrue(state.orbInSlot)
+    }
+
+    @Test
+    fun `the surface draws Dots by default`() {
+        assertEquals(SurfaceStyle.Dots, LumosSurfaceState(LiveFrameSource(AtmospherePresets.IDLE)).config.style)
+    }
+
+    @Test
+    fun `every cell flies by default`() {
+        val state = surface()
+        val count = state.source.builder.currentCount
+        state.assembleInto(TARGET)
+        state.targetPositioned(TARGET, BUTTON, CORNER)
+
+        state.run(frames = 1)
+
+        assertTrue(state.source.builder.isMorphing)
+        assertEquals(count, state.source.builder.currentCount)
+        assertNull(state.surplus)
+    }
+
+    @Test
+    fun `a faded surplus flies and fades under the burst then the morph keeps the rest`() {
+        val state = surface()
+        val builder = state.source.builder
+        val home = builder.form
+        val count = builder.currentCount
+        val fade = SurfaceSurplus.Fade(spacingPx = 8f)
+        val keep = fade.keep(BUTTON_RECT, count)
+        assertTrue(keep < count, "the test needs a surplus: keeps $keep of $count")
+        state.assembleInto(TARGET, surplus = fade)
+        state.targetPositioned(TARGET, BUTTON, CORNER)
+
+        state.run(frames = 1)
+
+        val mask = assertNotNull(state.surplus, "the fade starts with the flight")
+        assertEquals(count - keep, mask.count { it })
+        assertEquals(count, builder.currentCount, "nothing is dropped while it fades")
+        assertTrue(builder.isMorphing, "the burst is in flight")
+        assertSame(home, builder.form, "the morph waits for the fade")
+        // Survivors are spread through the orb, not one side of it: both halves of the index range keep cells.
+        assertTrue(mask.take(count / 2).any { !it } && mask.drop(count / 2).any { !it })
+        val drawn = assertNotNull(state.canvasFrame)
+        assertTrue(drawn.voxels.isNotEmpty())
+
+        state.run(frames = 3)
+        assertTrue(state.surplusFade > 0f && state.surplusFade < 1f, "fading, at ${state.surplusFade}")
+
+        state.run(frames = 4)
+        assertNull(state.surplus, "faded out after 200 ms")
+        assertEquals(keep, builder.currentCount, "the morph dropped the surplus")
+        assertNotNull(state.form)
+
+        state.run(frames = 4 * FPS)
+        assertEquals(SurfacePhase.Solid(TARGET), state.phase)
+        assertSame(home, builder.form, "the builder is cut back to the orb's form")
+        assertEquals(count, builder.currentCount)
+    }
+
+    @Test
+    fun `a faded surplus dims the frame the overlay draws while it fades`() {
+        val state = surface()
+        state.assembleInto(TARGET, surplus = SurfaceSurplus.Fade(spacingPx = 8f))
+        state.targetPositioned(TARGET, BUTTON, CORNER)
+        state.run(frames = 1)
+        val unfaded = assertNotNull(state.canvasFrame).voxels.sumOf { it.alpha.toDouble() }
+
+        state.run(frames = 3)
+
+        // About five in eight cells are leaving, at half alpha by now: the frame's ink falls by about a third.
+        assertTrue(state.surplusFade in 0.4f..0.6f, "fading, at ${state.surplusFade}")
+        val fading = assertNotNull(state.canvasFrame).voxels.sumOf { it.alpha.toDouble() }
+        assertTrue(fading < 0.8 * unfaded, "the frame did not dim: $fading of $unfaded")
+    }
+
+    @Test
+    fun `a control that needs every cell keeps them all under Fade`() {
+        val state = surface()
+        val count = state.source.builder.currentCount
+        state.assembleInto(TARGET, surplus = SurfaceSurplus.Fade())
+        state.targetPositioned(TARGET, BUTTON, CORNER)
+
+        state.run(frames = 1)
+
+        assertNull(state.surplus)
+        assertTrue(state.source.builder.isMorphing)
+        assertEquals(count, state.source.builder.currentCount)
+    }
+
+    @Test
+    fun `Fade keeps the fill its spacing needs — at most the count and at least one`() {
+        val fade = SurfaceSurplus.Fade()
+        // PHO-68's button: 1,168 cells at 2.3 px, Dots' 18 % on the outline.
+        assertEquals(1168, fade.keep(BUTTON_RECT, 4801))
+        assertEquals(500, fade.keep(BUTTON_RECT, 500))
+        assertEquals(1, SurfaceSurplus.Fade(spacingPx = 1000f).keep(BUTTON_RECT, 4801))
+        assertEquals(listOf(0, 3, 6), evenSurvivors(9, 3).toList())
+        assertEquals(listOf(0, 2, 5, 7), evenSurvivors(10, 4).toList())
     }
 
     @Test
@@ -274,5 +395,6 @@ class LumosSurfaceStateTest {
         // The orb's slot: centre (200, 100), radius 64. The button: 128 × 40 at the bottom right.
         val SLOT = Rect(136f, 36f, 264f, 164f)
         val BUTTON = Rect(248f, 196f, 376f, 236f)
+        val BUTTON_RECT = RectPx(248f, 196f, 128f, 40f, CORNER)
     }
 }
