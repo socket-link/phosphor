@@ -22,6 +22,7 @@ import link.socket.phosphor.render.CognitiveWaveform
 import link.socket.phosphor.signal.AgentVisualState
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * Deterministic orchestration API for Phosphor scene subsystems.
@@ -96,6 +97,7 @@ class CognitiveSceneRuntime(
             height = configuration.height,
         )
 
+    private var input: LumosInput = LumosInput.NONE
     private var frameIndex: Long = 0
     private var elapsedTimeSeconds: Float = 0f
     private var latestSnapshot: SceneSnapshot = captureSnapshot(camera = cameraOrbit?.currentCamera())
@@ -177,6 +179,18 @@ class CognitiveSceneRuntime(
                 "Unknown atmosphere preset: '$name'"
             }
         choreographer.setAtmosphere(state, targetPresetName = name, spec = spec)
+    }
+
+    /**
+     * Replace what the person is doing to the orb's surface.
+     *
+     * Like [setAtmosphere], it lands on the next [update]: [snapshot] is
+     * unchanged until then. Only the value is stored, and each snapshot
+     * carries the same reference, so a surface may call this every frame. No
+     * subsystem reads it; see [LumosInput].
+     */
+    fun setInput(input: LumosInput) {
+        this.input = input
     }
 
     /**
@@ -319,6 +333,7 @@ class CognitiveSceneRuntime(
             choreographyPhase = dominantPhase(sortedAgents),
             atmosphere = atmosphereChoreographer?.currentState,
             atmosphereTransition = atmosphereChoreographer?.activeTransition,
+            input = input,
         )
     }
 

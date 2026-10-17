@@ -239,7 +239,7 @@ class FormMorphTest {
             }
         assertContentEquals(positions, emptied.first)
         assertContentEquals(velocities, emptied.second)
-        // A Repel is declared but not applied yet: it must not touch the body either.
+        // A Repel that has not been aimed pushes nothing: it must not touch the body either.
         val repelled = stepped { it.forces.add(Force.Repel()) }
         assertContentEquals(positions, repelled.first)
         assertContentEquals(velocities, repelled.second)
@@ -376,14 +376,25 @@ class FormMorphTest {
     }
 
     @Test
-    fun `a burst on a settled body waits for the next trip`() {
+    fun `a burst on a body at rest pushes at once and comes home without opening a trip`() {
         val morph = FormMorph(ring.size)
         morph.snapTo(ring)
         val burst = Force.Burst(6f)
         morph.forces.add(burst)
         morph.step(1f / 60f, ring)
-        assertContentEquals(flatten(ring), morph.positions)
-        assertEquals(0f, burst.elapsedSeconds)
+        assertTrue(radii(morph).all { it > 1f + 1e-3f }, "every cell moves out")
+        assertEquals(1f / 60f, burst.elapsedSeconds, 1e-6f)
+        assertFalse(morph.isSettling, "a burst at rest opens no trip")
+        assertEquals(0f, morph.elapsedSeconds)
+        assertTrue(morph.isDisturbed)
+
+        var steps = 0
+        while (morph.isDisturbed) {
+            morph.step(1f / 60f, ring)
+            assertTrue(++steps < 600, "the body should come home")
+        }
+        assertTrue(morph.forces.isEmpty())
+        assertPositions(ring, morph.positions, 1e-4f)
     }
 
     @Test
@@ -391,6 +402,222 @@ class FormMorphTest {
         assertFailsWith<IllegalArgumentException> { Force.Burst(Float.NaN) }
         assertFailsWith<IllegalArgumentException> { Force.Burst(6f, durationSeconds = 0f) }
         assertFailsWith<IllegalArgumentException> { Force.Burst(6f, durationSeconds = Float.POSITIVE_INFINITY) }
+    }
+
+    @Test
+    fun `a resting body with a repel parts the targets inside the radius and leaves the rest exactly home`() {
+        val assignment = IntArray(plane.size) { plane.size - 1 - it }
+        val morph = FormMorph(plane.size)
+        morph.snapTo(plane, assignment)
+        val positions = morph.positions
+        val velocities = morph.velocities
+        morph.forces.add(aimedRepel())
+
+        repeat(240) {
+            morph.step(1f / 60f, plane)
+            // Outside the radius, and on the line itself, nothing moves at all.
+            for (i in 0 until morph.count) {
+                val target = plane[assignment[i]]
+                if (displacement(target) == null) assertCell(target, morph, i, exact = true)
+            }
+        }
+        assertTrue(positions === morph.positions && velocities === morph.velocities)
+        assertFalse(morph.isSettling, "a resting body has no trip")
+        assertEquals(0f, morph.elapsedSeconds)
+
+        var parted = 0
+        for (i in 0 until morph.count) {
+            val target = plane[assignment[i]]
+            val push = displacement(target) ?: continue
+            parted++
+            // Perpendicular to the line of sight (z) and away from it by (r − d)·k.
+            assertEquals(target.z, morph.positions[3 * i + 2], 1e-6f, "cell $i must not move along the line")
+            assertCell(Vector3(target.x + push.x, target.y + push.y, target.z), morph, i, exact = false)
+        }
+        assertTrue(parted >= 4, "the aim should part a handful of cells, parted $parted")
+        assertTrue(morph.isDisturbed, "parted cells are off their targets")
+    }
+
+    @Test
+    fun `with the repel removed every cell comes home without crossing its target`() {
+        val morph = FormMorph(plane.size)
+        morph.snapTo(plane)
+        val repel = aimedRepel()
+        morph.forces.add(repel)
+        repeat(240) { morph.step(1f / 60f, plane) }
+        val pushes = plane.map { displacement(it) }
+
+        morph.forces.remove(repel)
+        var steps = 0
+        while (morph.isDisturbed) {
+            morph.step(1f / 60f, plane)
+            assertTrue(++steps < 600, "the body should come home")
+            for (i in plane.indices) {
+                val push = pushes[i] ?: continue
+                // The offset along the push never changes sign: no overshoot.
+                val along =
+                    (morph.positions[3 * i] - plane[i].x) * push.x +
+                        (morph.positions[3 * i + 1] - plane[i].y) * push.y
+                assertTrue(along >= 0f, "cell $i crossed its target on step $steps: $along")
+            }
+        }
+        assertPositions(plane, morph.positions, 1e-4f)
+        assertTrue(morph.velocities.all { abs(it) <= 1e-3f })
+
+        // Home, undisturbed and unforced, the body stops stepping.
+        val home = morph.positions.copyOf()
+        morph.step(1f / 60f, plane)
+        assertContentEquals(home, morph.positions)
+    }
+
+    @Test
+    fun `removing a repel mid-motion keeps velocity continuous`() {
+        val morph = FormMorph(plane.size)
+        morph.snapTo(plane)
+        val repel = aimedRepel()
+        morph.forces.add(repel)
+        repeat(6) { morph.step(1f / 60f, plane) }
+        val moving = morph.velocities.copyOf()
+        assertTrue(moving.any { abs(it) > 0.1f }, "the parting cells should be moving")
+
+        morph.forces.remove(repel)
+        assertContentEquals(moving, morph.velocities, "removing the force must not touch velocity")
+        morph.step(1e-4f, plane)
+        for (c in moving.indices) {
+            assertEquals(moving[c], morph.velocities[c], 5e-3f, "component $c jumped")
+        }
+    }
+
+    @Test
+    fun `a repel during a trip parts the cells and leaves the trip ending at its duration`() {
+        fun travelled(repel: Boolean): Pair<Int, FloatArray> {
+            val morph = FormMorph(3)
+            morph.snapTo(from)
+            morph.retarget(to, choreography = Choreography.FLOW, durationSeconds = 2.4f)
+            if (repel) morph.forces.add(Force.Repel().apply { aim(0f, -0.4f, 0f, 0f, 0f, 1f) })
+            var steps = 0
+            while (morph.isSettling) {
+                morph.step(1f / 60f, to)
+                steps++
+            }
+            assertEquals(2.4f, morph.durationSeconds)
+            assertEquals(1f, morph.progress)
+            return steps to morph.positions.copyOf()
+        }
+        val (plainSteps, plain) = travelled(repel = false)
+        val (repelledSteps, repelled) = travelled(repel = true)
+        assertEquals(plainSteps, repelledSteps, "a repel does not hold the trip open")
+        assertTrue(repelledSteps in 144..145)
+        // Cell 1 heads for (0, −0.5, 0), 0.1 from the line: it is held off its target.
+        assertTrue(repelled[4] < plain[4] - 0.1f, "cell 1 should be pushed down, ${repelled[4]} vs ${plain[4]}")
+        assertEquals(plain[0], repelled[0], "cell 0 is far outside the radius")
+    }
+
+    @Test
+    fun `a trip alone does not disturb the body and it stops at the trip's end`() {
+        val morph = FormMorph(3)
+        morph.snapTo(from)
+        morph.retarget(to, choreography = Choreography.FLOW, durationSeconds = 2.4f)
+        while (morph.isSettling) {
+            morph.step(1f / 60f, to)
+            assertFalse(morph.isDisturbed)
+        }
+        val settled = morph.positions.copyOf()
+        repeat(60) { morph.step(1f / 60f, to) }
+        assertContentEquals(settled, morph.positions)
+    }
+
+    @Test
+    fun `an undisturbed resting body with no forces does not move`() {
+        val morph = FormMorph(3)
+        morph.snapTo(to, intArrayOf(2, 0, 1))
+        val resting = morph.positions.copyOf()
+        // Even handed different targets: there is nothing to step.
+        repeat(60) { morph.step(1f / 60f, from) }
+        assertContentEquals(resting, morph.positions)
+        assertTrue(morph.velocities.all { it == 0f })
+        assertFalse(morph.isDisturbed)
+        assertFalse(morph.isSettling)
+    }
+
+    @Test
+    fun `snapTo through an assignment stands each cell on its assigned target`() {
+        val morph = FormMorph(3)
+        morph.snapTo(to, intArrayOf(1, 2, 0))
+        assertPositions(listOf(to[1], to[2], to[0]), morph.positions, 0f)
+        assertTrue(morph.velocities.all { it == 0f })
+        assertFalse(morph.isSettling)
+        assertFalse(morph.isDisturbed)
+    }
+
+    @Test
+    fun `snapTo clears a disturbance and keeps the repel`() {
+        val morph = FormMorph(plane.size)
+        morph.snapTo(plane)
+        val repel = aimedRepel()
+        morph.forces.add(repel)
+        repeat(10) { morph.step(1f / 60f, plane) }
+        assertTrue(morph.isDisturbed)
+        morph.snapTo(plane)
+        assertFalse(morph.isDisturbed)
+        assertEquals(listOf<Force>(repel), morph.forces)
+    }
+
+    @Test
+    fun `repel and snapTo reject bad arguments`() {
+        assertFailsWith<IllegalArgumentException> { Force.Repel(radius = 0f) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(radius = -0.1f) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(radius = Float.NaN) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(radius = Float.POSITIVE_INFINITY) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(strength = -0.1f) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(strength = Float.NaN) }
+        assertFailsWith<IllegalArgumentException> { Force.Repel(strength = Float.POSITIVE_INFINITY) }
+        Force.Repel(strength = 0f)
+
+        val repel = Force.Repel()
+        assertFalse(repel.isAimed)
+        assertFailsWith<IllegalArgumentException> { repel.aim(Float.NaN, 0f, 0f, 0f, 0f, 1f) }
+        assertFailsWith<IllegalArgumentException> { repel.aim(0f, 0f, 0f, 0f, 0f, 0f) }
+        assertFailsWith<IllegalArgumentException> { repel.aim(0f, 0f, 0f, 0f, Float.POSITIVE_INFINITY, 1f) }
+        assertFalse(repel.isAimed, "a rejected aim leaves the repel unaimed")
+
+        val morph = FormMorph(3)
+        assertFailsWith<IllegalArgumentException> { morph.snapTo(to.take(2)) }
+        assertFailsWith<IllegalArgumentException> { morph.snapTo(to, intArrayOf(0, 1)) }
+        assertFailsWith<IllegalArgumentException> { morph.snapTo(to, intArrayOf(0, 1, 3)) }
+        morph.snapTo(to.take(2), intArrayOf(0, 1, 1))
+    }
+
+    // A 7×7 grid in the view plane, at assorted depths: the line of sight runs along z, so depth never matters.
+    private val plane =
+        List(49) { i ->
+            val x = (i % 7 - 3) * 0.1f
+            val y = (i / 7 - 3) * 0.1f
+            Vector3(x, y, ((i * 37) % 11 - 5) * 0.1f)
+        } + Vector3(AIM_X, AIM_Y, 0.4f) // exactly on the line
+
+    private fun aimedRepel(): Force.Repel = Force.Repel().apply { aim(AIM_X, AIM_Y, -2f, 0f, 0f, 3f) }
+
+    /** Where the default repel aimed by [aimedRepel] moves [target] in x and y, or null when it stays. */
+    private fun displacement(target: Vector3): Vector3? {
+        val qx = target.x - AIM_X
+        val qy = target.y - AIM_Y
+        val d = sqrt(qx * qx + qy * qy)
+        if (d >= Force.Repel.DEFAULT_RADIUS || d == 0f) return null
+        val scale = (Force.Repel.DEFAULT_RADIUS - d) * Force.Repel.DEFAULT_STRENGTH / d
+        return Vector3(qx * scale, qy * scale, 0f)
+    }
+
+    private fun assertCell(
+        expected: Vector3,
+        morph: FormMorph,
+        i: Int,
+        exact: Boolean,
+    ) {
+        val tolerance = if (exact) 0f else 1e-4f
+        assertEquals(expected.x, morph.positions[3 * i], tolerance, "cell $i x")
+        assertEquals(expected.y, morph.positions[3 * i + 1], tolerance, "cell $i y")
+        assertEquals(expected.z, morph.positions[3 * i + 2], tolerance, "cell $i z")
     }
 
     // Six cells on the axes: a body whose centroid is the origin.
@@ -413,6 +640,11 @@ class FormMorphTest {
         morph.snapTo(points)
         morph.retarget(points, choreography = Choreography.DIRECT, durationSeconds = durationSeconds)
         return morph
+    }
+
+    private companion object {
+        const val AIM_X = 0.05f
+        const val AIM_Y = 0.12f
     }
 
     private fun radii(morph: FormMorph): FloatArray =
