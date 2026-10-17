@@ -178,3 +178,11 @@ plugins.withId("signing") {
 tasks.withType<Sign>().configureEach {
     enabled = hasSigningCredentials && !isPublishingToMavenLocal
 }
+
+// PHO-66: the consumer docs are generated from this module's catalogues by a JVM main in
+// :phosphor-lumos-cli, which depends on this module, so the task lives there and answers here.
+tasks.register("generateAgentDocs") {
+    group = "documentation"
+    description = "Generate docs/lumos/llms.txt and the skills/lumos agent skill from the Lumos catalogues (PHO-66)."
+    dependsOn(":phosphor-lumos-cli:generateAgentDocs")
+}

@@ -228,3 +228,28 @@ tasks.register<JavaExec>("runLookDemo") {
     standardInput = System.`in`
     args((project.findProperty("seconds") as String?) ?: "")
 }
+
+// PHO-66: write the consumer-facing Lumos docs, docs/lumos/llms.txt and skills/lumos/, from the
+// catalogues. AgentDocsTest fails jvmTest while the committed files differ from what this writes.
+// Usage: ./gradlew :phosphor-lumos:generateAgentDocs   (an alias for this task)
+tasks.register<JavaExec>("generateAgentDocs") {
+    group = "documentation"
+    description = "Generate docs/lumos/llms.txt and the skills/lumos agent skill from the Lumos catalogues (PHO-66)."
+    val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+    classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    mainClass.set("link.socket.phosphor.lumos.cli.docs.GenerateAgentDocsKt")
+    args(rootDir.absolutePath)
+}
+
+// The committed docs and the compiled examples they print are inputs of AgentDocsTest, so a hand
+// edit to either reruns the check rather than restoring a cached pass.
+tasks.named<Test>("jvmTest") {
+    inputs
+        .files(
+            rootProject.fileTree("docs/lumos"),
+            rootProject.fileTree("skills/lumos"),
+            rootProject.fileTree("phosphor-lumos-compose/src/jvmTest/kotlin/link/socket/phosphor/lumos/compose/docs"),
+        ).withPropertyName("agentDocs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}

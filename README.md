@@ -173,7 +173,7 @@ fun ThinkingOrb() {
         modifier = Modifier.size(160.dp),
     )
 
-    // 3. Change what it shows from anywhere, and it carries on from where it is:
+    // 3. Change what it shows from the UI thread, and it carries on from where it is:
     //    source.runtime.setAtmospherePreset("ready")
 }
 ```
@@ -228,6 +228,17 @@ The orb follows the `<svg>`'s CSS size. It stops while scrolled out of view or w
 **Resolution.** Every cell is one SVG element. A preset's resolution of 10 is 4,801 cells, which holds 60 Hz in Chrome; for an orb a few tens of pixels across use `resolution: 4` or less. At 20 px and resolution 10, three quarters of the cells sit on the 0.45 px floor and the page does sixty times the work for nothing.
 
 The distribution also carries two example pages beside the module: `index.html`, every style at 200 px and 20 px, and `react.html`. Serve the directory over HTTP to open them; an ES module does not load from `file://`.
+
+
+### For coding agents
+
+[`docs/lumos/llms.txt`](docs/lumos/llms.txt) is one page an agent can read to integrate Lumos: every form, look, atmosphere preset, surface style, material and glyph, the `LumosConfig` table with defaults and constraints, the agent-state-to-look table, and compiled examples. The same content is an installable agent skill:
+
+```bash
+npx skills add socket-link/phosphor --skill lumos
+```
+
+Both are generated from the code by `./gradlew :phosphor-lumos:generateAgentDocs`, and CI fails when they fall behind it.
 
 ---
 

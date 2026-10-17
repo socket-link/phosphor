@@ -1,0 +1,446 @@
+# Phosphor Lumos
+
+> Lumos is a voxel orb that shows what an AI agent is doing (thinking, searching, working, waiting on a person) as light. It ships as Kotlin Multiplatform libraries: `LumosOrb` for Compose Multiplatform, a terminal renderer, and a recorded-trace format for baked clips.
+
+An orb is a sphere of cells, from a few dozen to a few thousand. Three independent things decide what
+it shows. The **atmosphere** colours it and sets its pattern and spin (`AtmospherePresets`). The
+**look** decides how its cells move for a cognitive moment (`LumosLook`). The **form** decides where
+its cells rest (`Forms`). A **glyph** is a one-shot mark carved into the cells, such as a check on
+completion. On screen, a **surface style** decides the mark each cell leaves and a **material** how
+that mark takes the light; both are fields of `LumosConfig`.
+
+`LumosOrb` is the driver. It owns the clock, steps a `LumosFrameSource` once a frame, and draws the
+frame it returns. A source is a live scene (`LiveFrameSource`, or `SignalGenerator` from
+`:phosphor-trace` when an agent's state drives it) or a recording (`LumosSource.Trace`). Classes are
+in `link.socket.phosphor.lumos` unless an import says otherwise.
+
+## Install
+
+```kotlin
+// build.gradle.kts. <version> is the latest release on Maven Central.
+dependencies {
+    implementation("link.socket:phosphor-lumos-compose:<version>") // LumosOrb, LumosCanvas
+    implementation("link.socket:phosphor-trace:<version>") // SignalGenerator, LumosSource.Trace; optional
+}
+```
+
+| Artifact | What it holds |
+|---|---|
+| `phosphor-lumos` | The framework-free orb: `VoxelFrameBuilder`, `LiveFrameSource`, forms, looks, `LumosConfig`. A dependency of the others. |
+| `phosphor-lumos-compose` | `LumosOrb`, the driver, and `LumosCanvas`, which draws one projected frame. |
+| `phosphor-trace` | `SignalGenerator` (an agent's state drives the orb), recordings (`VoxelTrace`, `TraceCodec`) and `LumosSource`. |
+| `phosphor-lumos-cli` | `CliOrb`, the same orb as ANSI in a JVM terminal. |
+
+## A minimal orb
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.palette.AtmospherePresets
+
+@Composable
+fun ThinkingOrb() {
+    // 1. A live scene with nothing in it but an atmosphere
+    val source = remember { LiveFrameSource(AtmospherePresets.THINKING) }
+
+    // 2. The orb owns the clock: speed, pause, reduced motion and the label are config
+    LumosOrb(
+        source = source,
+        config = LumosConfig(label = "Lumos is thinking"),
+        modifier = Modifier.size(160.dp),
+    )
+
+    // 3. Change what it shows from the UI thread, and it carries on from where it is:
+    //    source.runtime.setAtmospherePreset("ready")
+}
+```
+
+`LumosOrb` stops while it is scrolled off screen or its window is in the background, holds still when the platform asks for reduced motion, and is one labelled image to a screen reader, or hidden from one without a `label`. Orbs on the same look and atmosphere share a clock, so a column of them breathes together.
+
+## `LumosOrb` parameters
+
+`link.socket.phosphor.lumos.compose.LumosOrb`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `source` | `LumosFrameSource` | required | Where frames come from. `remember` it: a new source restarts the orb. |
+| `config` | `LumosConfig` | `LumosConfig()` | Speed, pause, reduced motion, label, style, material; see `LumosConfig`. |
+| `modifier` | `Modifier` | `Modifier` | Must give the orb an explicit, square size. |
+| `backgroundColor` | `Color` | `Color.Transparent` | An opaque background drawn before the halo and cells. |
+| `showHalo` | `Boolean` | `true` | Paint the ambient breath-ring gradient behind the orb. |
+| `showGlyphOverlay` | `Boolean` | `true` | Overlay the active glyph at the centre when the frame carries one. |
+| `probe` | `FrameProbe` | `FrameProbe.Disabled` | Per-phase timing sink, for benchmarks. |
+
+## `LumosConfig`
+
+`LumosConfig` is a serializable data class: how the orb is driven and shown. Its constructor throws on a value outside the constraint.
+
+| Field | Type | Default | Constraint | Meaning |
+|---|---|---|---|---|
+| `speed` | `Float` | `1f` | 0.1..3 | Multiplies every step of time the driver hands the source: breath, pattern, spin, transitions, glyph windows. An atmosphere's own rates never change. |
+| `density` | `Float` | `1f` | > 0 | Cell-count multiplier for forms whose count is free to vary. The lattice ignores it. |
+| `dotSize` | `Float` | `1f` | > 0 | Multiplies the drawn radius of every cell. |
+| `tiltDegrees` | `Float` | `0f` | finite | How far above the equator the viewer sits. 0 looks straight on. |
+| `paused` | `Boolean` | `false` | — | Stop the clock and hold the last frame. A new atmosphere set while paused still draws, once, held still. |
+| `reducedMotion` | `Boolean` | `false` | — | Hold still: no breath, drift or spin; transitions land at once; a glyph shows at full strength. The platform's reduced-motion setting turns this on too, and a config cannot turn it off. |
+| `label` | `String?` | `null` | — | What the orb means, for screen readers. Null hides the orb from them. |
+| `style` | `SurfaceStyle` | `SurfaceStyle.Squares` | — | The mark each cell is drawn as; see Surface styles. |
+| `material` | `Material` | `Material.Flat` | — | What each cell is made of; see Materials. A surface that cannot draw one draws `Material.Flat`. |
+
+## Forms
+
+Where the cells rest. The default is `Forms.Lattice(resolution)`, the sphere-shaped integer lattice: its count is fixed by the atmosphere's resolution (171 at 3, 1,141 at 6, 4,801 at 10) and it follows a resolution change. `Forms.All` lists the catalogue forms, which take the count they are given; `Forms.byName(name)` finds one.
+
+| Name | Kotlin | Scale | Tip | Meaning |
+|---|---|---|---|---|
+| `fibonacci` | `Forms.Fibonacci` | 1 | 0° | `count` points spread evenly over the sphere's surface on the golden-angle spiral. The inline orb's form; any count from 1 works. |
+| `cube` | `Forms.Cube` | 1.2 | 0° | A cube inscribed in the sphere: the smallest `6n² + 2`-point surface grid that holds `count`, thinned evenly to exactly `count`. At 8 it is the corners. |
+
+Scale is how much larger than the unit sphere a framed form is drawn: a solid whose corners touch the sphere is drawn larger so its faces reach it too. Tip is the view angle a form asks for; pass it as `LumosConfig.tiltDegrees`.
+
+Set a form once, when the source is made: `source.builder.form = Forms.Cube.counted(200)`. `counted(n)` pins any form to `n` cells. To reshape a running orb, `morphTo`; see Changing the orb over time.
+
+### A small orb
+
+Size the cell count to the orb. `Forms.inlineOrbCount(sizePx, density)` is `sizePx × 4 × density`, never fewer than 8: 80 cells at 20 px. A resolution-10 lattice at that size is 4,801 cells, most of them below the 0.45 px floor every style draws at.
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.Forms
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.lumos.counted
+import link.socket.phosphor.palette.AtmospherePresets
+
+@Composable
+fun InlineOrb() {
+    // A 20 dp orb beside a line of text: the Fibonacci sphere at 80 cells, not the 4,801-cell lattice
+    val source =
+        remember {
+            LiveFrameSource(AtmospherePresets.THINKING).also { live ->
+                live.builder.form = Forms.Fibonacci.counted(Forms.inlineOrbCount(sizePx = 20))
+            }
+        }
+
+    LumosOrb(
+        source = source,
+        config = LumosConfig(label = "Lumos is thinking"),
+        modifier = Modifier.size(20.dp),
+    )
+}
+```
+
+## Looks
+
+How the cells move for a cognitive moment: Thinking Orbs' catalogue, one look per agent state. Wear one with `Look(LumosLook.WORKING)` or a variant with `Look(LumosLook.WORKING, "gyro")`; the constructor throws on a variant the look does not offer. Every orb on one look shares its clock, so they move in step.
+
+| Look | Variant | Key | Period | Drawn | Meaning |
+|---|---|---|---|---|---|
+| `BASE` | `default` | `base` | — | yes | Idle, or anything without a look of its own. The atmosphere's own spin. |
+| `WORKING` | `default` | `working` | 1.7 s | yes | Busy, running a tool. A ring of light runs down the sphere. |
+| `WORKING` | `gyro` | `working-gyro` | 1.7 s | as `default` |  |
+| `REASONING` | `default` | `reasoning` | 0.22 s | yes | Thinking. A lit walk hops between neighbouring cells, steered toward the viewer. |
+| `REASONING` | `twins` | `reasoning-twins` | 0.22 s | as `default` |  |
+| `SEARCHING` | `default` | `searching` | 1.8 s | yes | Searching the web or files. A lens hops between spots on the front of the sphere, magnifying what it covers. |
+| `SEARCHING` | `lighthouse` | `searching-lighthouse` | 1.8 s | as `default` |  |
+| `BACKGROUND` | `default` | `background` | — | as BASE | Background work nobody is watching, like a dev server. |
+| `BACKGROUND` | `spiral` | `background-spiral` | — | as BASE |  |
+| `RETRYING` | `default` | `retrying` | 1.6 s | yes | Retrying after an error. The orb turns, brakes, springs back 60 % of the turn and tries again; it owns the spin while worn. |
+| `RETRYING` | `surge` | `retrying-surge` | 1.6 s | as `default` |  |
+| `COMPACTING` | `default` | `compacting` | — | as BASE | Compacting the context window, or consolidating what was learned. |
+| `COMPACTING` | `squeeze` | `compacting-squeeze` | — | as BASE |  |
+| `COMPACTING` | `fuse` | `compacting-fuse` | — | as BASE |  |
+| `WAITING` | `default` | `waiting` | — | as BASE | Waiting on a human: worn while an agent is escalated. |
+
+Period is how often the look's timing repeats: a loop capture of it wants a multiple. *Drawn* says what you see today: "as BASE" is a look that is declared but not yet ported, and draws the resting spin; "as `default`" is a variant that draws its look's default motion. Write the look you mean anyway: it starts drawing as itself when it is ported.
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.Look
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.LumosLook
+import link.socket.phosphor.lumos.Material
+import link.socket.phosphor.lumos.SurfaceStyle
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.palette.AtmospherePresets
+
+@Composable
+fun WorkingOrb(working: Boolean) {
+    val source = remember { LiveFrameSource(AtmospherePresets.THINKING) }
+
+    // A look is how the cells move; lookTo blends to it. LaunchedEffect runs on the UI thread,
+    // the thread LumosOrb steps the source on, so the builder is never touched from two threads.
+    LaunchedEffect(working) {
+        source.builder.lookTo(if (working) Look(LumosLook.WORKING) else Look(LumosLook.BASE))
+    }
+
+    LumosOrb(
+        source = source,
+        config =
+            LumosConfig(
+                style = SurfaceStyle.Dots,
+                material = Material.Neon(glow = 0.5f),
+                label = if (working) "Lumos is working" else "Lumos is thinking",
+            ),
+        modifier = Modifier.size(160.dp),
+    )
+}
+```
+
+## Agent state to look
+
+`CognitiveLookSwitch.DEFAULT` is the table that picks a look from an agent's PROPEL phase (`link.socket.phosphor.signal.CognitivePhase`) and activity (`AgentActivityState`). `SignalGenerator` installs it; see Driving the orb from an agent's state.
+
+| Phase | Activity | Look | Glyph on arrival |
+|---|---|---|---|
+| `PERCEIVE` | any | `SEARCHING` | — |
+| `RECALL` | any | `REASONING` | — |
+| `OBSERVE` | any | `SEARCHING` · `lighthouse` | — |
+| `PLAN` | any | `REASONING` · `twins` | — |
+| `EXECUTE` | any | `WORKING` | — |
+| `LEARN` | any | `COMPACTING` · `fuse` | — |
+| `LOOP` | any | `BASE` | — |
+| `NONE` | `IDLE` | `BASE` | — |
+| `NONE` | `PROCESSING` | `WORKING` · `gyro` | — |
+| any | `SPAWNING` | `BASE` | — |
+| any | `COMPLETE` | `BASE` | `CHECK` |
+
+Precedence, highest first:
+
+1. Escalated, whatever the table says: `WAITING`, with `QUESTION`.
+2. Unattended (`LumosRenderConfig.unattended`, an orb nobody is watching): the look becomes `BACKGROUND` · `spiral`, keeping the row's glyph.
+3. The table, most specific key first: phase and activity, then activity alone, then phase alone, then `BASE` with no glyph.
+
+So an activity-only row is a lifecycle override that beats any phase, and a phase-only row holds
+across activities. Pass your own map to `CognitiveLookSwitch(table = ...)` to change a row: a host
+that fires its own CHECK on completion drops that row's glyph.
+
+## Atmospheres
+
+What colours the orb and how its colour moves: `AtmosphereState`, in `link.socket.phosphor.signal`. `AtmospherePresets` (in `link.socket.phosphor.palette`) holds the five a host normally uses, by constant (`AtmospherePresets.THINKING`) or by name (`AtmospherePresets.byName("thinking")`). Start a live source on one with `LiveFrameSource(AtmospherePresets.THINKING)`.
+
+| Preset | Use for | Hues | Pattern | Pattern speed | Spin (y, x) | Bipolar | Resolution |
+|---|---|---|---|---|---|---|---|
+| `idle` | Nothing in flight. | 250° → 175° | `LONGITUDE` | 0.25 | 0.14, 0 | 0 | 10 (4,801 cells) |
+| `listening` | Taking input: the person is speaking or typing. | 195° → 270° | `PLASMA` | 1.15 | 0.16, 0.1 | 0 | 10 (4,801 cells) |
+| `thinking` | Working on it. | 244° → 185° | `SPIRAL` | 0.7 | 0.45, 0.1 | 0 | 10 (4,801 cells) |
+| `uncertain` | Unsure, or waiting on a human: two hues held apart. | 32° → 280° | `SPIRAL` | 1 | 0.1, 0.1 | 0.45 | 10 (4,801 cells) |
+| `ready` | Done, with something to show. | 249° → 197° | `PULSE` | 1.3 | 0.2, -0.2 | 0 | 10 (4,801 cells) |
+
+Bipolar above 0 holds the two hues apart as two poles instead of blending them. Every preset's other fields are in `catalog.json`. Patterns:
+
+| Pattern | Meaning |
+|---|---|
+| `LONGITUDE` | Bands around the vertical axis. |
+| `LATITUDE` | Bands around the polar axis. |
+| `SPIRAL` | A combined sweep of both angles. |
+| `SCAN` | A sweep along the vertical axis. |
+| `PLASMA` | Three-axis noise. |
+| `PULSE` | Rings out from the centre. |
+| `SOLID` | No variation. |
+
+Change the atmosphere with `source.runtime.setAtmospherePreset("ready")` or `source.runtime.setAtmosphere(state)`: it blends from wherever it is, over a duration the preset pair sets. Pass `AtmosphereTransitionSpec.Immediate` (`link.socket.phosphor.choreography`) as `spec` to snap.
+
+## Surface styles
+
+The mark each cell leaves: `LumosConfig.style`, a `SurfaceStyle`. A flat style ignores the viewer's tilt. Every style draws a cell at least 0.45 px across.
+
+| Style | Flat | Meaning |
+|---|---|---|
+| `SurfaceStyle.Squares` | false | A square per cell, two radii on a side. What every orb drew before styles existed. |
+| `SurfaceStyle.Dots` | false | A circle per cell. |
+| `SurfaceStyle.Dashes` | false | A round-capped stroke per cell along the spin, 1.8 radii each way at full speed and 0.9 radii wide, so a turning orb reads as motion even when small. |
+
+## Materials
+
+What each cell is made of: `LumosConfig.material`, a `Material`. A style decides the mark; a material how it takes the light. Any material dresses any style.
+
+| Material | Fields and defaults | Drawn | Meaning |
+|---|---|---|---|
+| `Material.Flat` | — | every target, no shader | The style's own mark. |
+| `Material.Ink` | `grain: Float = 0.5f` (0..1), `intensity: Float = 1f` (>= 0) | every target, no shader | Paper grain: each cell's alpha and radius wander by `grain`, drawn as a soft edge under an opaque core. |
+| `Material.Neon` | `glow: Float = 0.5f` (0..1), `intensity: Float = 1f` (>= 0) | every target, no shader | An emissive tube: a tinted envelope under a white filament, and the orb's halo widened by `glow`. |
+| `Material.Metal` | `roughness: Float = 0.15f`, `lightDegrees: Float = -35f`, `chromatic: Float = 0.35f`, `flow: Float = 1f` | not yet: draws `Flat`, reports `Unavailable` | Brushed metal lit from `lightDegrees`. Declared so the type can be written today. |
+| `Material.Glass` | `refraction: Float = 0.65f`, `dispersion: Float = 0.2f`, `frost: Float = 0.03f` | not yet: draws `Flat`, reports `Unavailable` | Refracting glass. Declared so the type can be written today. |
+
+`LumosOrb` falls back silently. To learn whether a material drew, draw the frame with `LumosCanvas(frame, onMaterialStatus = ...)`, which reports `MaterialStatus.Ready` or `MaterialStatus.Unavailable` once per material.
+
+## Glyphs
+
+A one-shot mark carved into the cells and overlaid at the centre, fading in and out over its window: `LumosGlyph`. Fire one with `source.builder.queueGlyph(LumosGlyph.CHECK)` (1.5 s by default); it replaces any glyph showing. Under the look switch, a row's glyph fires by itself when the row is reached.
+
+| Glyph | Meaning | Accent (HSL) |
+|---|---|---|
+| `CHECK` | Done: a task completed. | 145°, 65 %, 55 % |
+| `EXCLAIM` | Attention required: a warning. | 32°, 95 %, 55 % |
+| `QUESTION` | Uncertain, or needs a human: fired when an agent escalates. | 280°, 70 %, 60 % |
+| `HEART` | Affirmation, or a preference noted. | 340°, 80 %, 60 % |
+| `STAR` | An achievement or milestone. | 50°, 95 %, 65 % |
+| `LIGHTNING` | Active execution: a spark. | 244°, 85 %, 60 % |
+
+## Changing the orb over time
+
+Every change below carries on from where the orb is. Make it on the UI thread, where `LumosOrb` steps the source: in a `LaunchedEffect`, a `SideEffect` or a UI callback.
+
+| Change | Call | Default |
+|---|---|---|
+| Look | `source.builder.lookTo(look, durationSeconds)` | blends over 0.6 s |
+| Form | `source.builder.morphTo(form, count, choreography, durationSeconds)` | springs over 2.4 s on `FLOW` |
+| A push | `source.builder.burst(strength)` | cells fly out and spring home; Dots' burst is about 6 |
+| Atmosphere | `source.runtime.setAtmospherePreset(name)` | blends over the preset pair's duration |
+| Glyph | `source.builder.queueGlyph(glyph, durationSeconds)` | shows for 1.5 s |
+| Agent state | `generator.setPhase(...)`, `setActivity(...)`, `setEscalated(...)` | picks the look by the table above and blends to it |
+
+Setting `source.builder.look` or `source.builder.form` directly is a cut: the next frame wears the
+new look, or rests on the new form, outright. A look asked for mid-blend waits for the blend to land,
+so a signal that flickers changes the look at most once per blend; asking for the look being left
+reverses in place. `morphTo` keeps every cell's identity and springs it to the nearest free place in
+the new form; calling it mid-morph starts a new trip from wherever the cells are.
+
+| Choreography | How cells travel in a morph |
+|---|---|
+| `FLOW` | A gentle arc scaled to the distance: the body reshaping. The default. |
+| `SCATTER` | Every cell flies out before settling: the body bursts and regathers. |
+| `DIRECT` | The straight line each cell's spring gives it. |
+
+## Driving the orb from an agent's state
+
+`SignalGenerator` (`:phosphor-trace`) runs the scene and its frame builder together. Its first setter adds an agent to the scene and installs the look switch, so the orb follows the agent-state table above and fires its glyphs. `setLook(look)` picks a look by hand.
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.palette.AtmospherePresets
+import link.socket.phosphor.runtime.SceneConfiguration
+import link.socket.phosphor.signal.AgentActivityState
+import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.trace.SignalGenerator
+
+@Composable
+fun AgentOrb(
+    phase: CognitivePhase,
+    activity: AgentActivityState,
+    escalated: Boolean,
+) {
+    // 1. A scene with nothing in it but an atmosphere; the first setter adds one agent to it
+    //    and installs CognitiveLookSwitch's default phase → look table
+    val generator =
+        remember {
+            SignalGenerator(
+                SceneConfiguration(
+                    width = 1,
+                    height = 1,
+                    enableWaveform = false,
+                    enableParticles = false,
+                    enableFlow = false,
+                    enableEmitters = false,
+                    enableCamera = false,
+                    enableAtmosphere = true,
+                    initialAtmosphere = AtmospherePresets.THINKING,
+                ),
+            )
+        }
+    val source = remember(generator) { generator.asFrameSource() }
+
+    // 2. Hand it the agent's signal; the orb picks its look and fires the row's glyph
+    LaunchedEffect(phase, activity, escalated) {
+        generator.setPhase(phase)
+        generator.setActivity(activity)
+        generator.setEscalated(escalated)
+    }
+
+    LumosOrb(
+        source = source,
+        config = LumosConfig(label = "Lumos, ${phase.name.lowercase()}"),
+        modifier = Modifier.size(160.dp),
+    )
+}
+```
+
+The generator is the handle: it keeps its scene and frame builder to itself, so there is no `generator.builder`. `setAtmospherePreset(name)`, `setAtmosphere(state)`, `morphTo(form, count, choreography, durationSeconds)`, `queueGlyph(glyph)` and `setLook(look)` do what the `source.runtime` and `source.builder` calls above do. To give it a small orb's form, call `generator.morphTo(Forms.Fibonacci, count = Forms.inlineOrbCount(sizePx = 20), durationSeconds = 0f)` once, inside its `remember`: a duration of 0 snaps.
+
+Drive a generator one way at a time. Through `asFrameSource()` the orb steps it; its own `frames()` and `nextFrame()` step it at a fixed rate for recording, and using both steps the scene twice.
+
+## Replaying a recording
+
+A `.vxt` is a recorded orb: `VoxelTrace`, encoded by `TraceCodec` (`:phosphor-trace`). `LumosSource.Trace` plays one; `asFrameSource()` hands it to `LumosOrb`. Projection, rotation, halo and the glyph overlay stay live over a replay.
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LumosConfig
+import link.socket.phosphor.lumos.compose.LumosOrb
+import link.socket.phosphor.trace.LumosSource
+import link.socket.phosphor.trace.TraceCodec
+import link.socket.phosphor.trace.asFrameSource
+
+@Composable
+fun ReplayedOrb(vxt: ByteArray) {
+    // 1. Decode a recorded .vxt once; the bytes come from your resources, a file or the network.
+    //    LumosSource.Trace(trace, initialSegment = "thinking") starts on a named segment.
+    val replay = remember(vxt) { LumosSource.Trace(TraceCodec.decode(vxt).getOrThrow()) }
+    val source = remember(replay) { replay.asFrameSource() }
+
+    // 2. The same orb and the same config as a live one: only the source changed
+    LumosOrb(
+        source = source,
+        config = LumosConfig(label = "Lumos, replayed"),
+        modifier = Modifier.size(160.dp),
+    )
+
+    // 3. The player is the handle, on the UI thread: replay.player.pause(), .play(), .setSegment("ready")
+}
+```
+
+A looping segment's rotation is carried across its seam, so the orb does not drop back each pass; pass `carryRotation = false` for the recording untouched. `setSegment` and `seek` are cuts.
+
+## Do not
+
+- Do not make a source in composition without `remember`. A new source restarts the orb.
+- Do not step one source from two `LumosOrb`s. It runs twice as fast. To show one orb twice, project its frame once and draw it with two `LumosCanvas`es.
+- Do not touch a source, its `builder` or its `runtime` off the UI thread. They are single-threaded and `LumosOrb` steps them on the UI thread, so change them from `LaunchedEffect`, `SideEffect` or a UI callback.
+- Do not leave `LumosOrb` unsized. Give it an explicit, square size.
+- Do not set `builder.look` or `builder.form` to change a running orb. Both cut. Use `lookTo` and `morphTo`.
+- Do not change the cell count or the atmosphere's resolution while a morph is in flight. Either is a cut, and the cells lose their identity.
+- Do not put a small orb on the default lattice. At 20 px a resolution-10 lattice is 4,801 cells, most below the 0.45 px floor. Use `Forms.Fibonacci.counted(Forms.inlineOrbCount(sizePx))`, or on a `SignalGenerator` `generator.morphTo(Forms.Fibonacci, count = Forms.inlineOrbCount(sizePx), durationSeconds = 0f)`.
+- Do not try to turn motion back on under the platform's reduced-motion setting. `reducedMotion = false` cannot overrule it.
+- Do not pass `speed` outside 0.1..3, or `density` or `dotSize` at or below 0. `LumosConfig` throws.
+- Do not expect `Material.Metal` or `Material.Glass` to draw yet. They draw `Material.Flat`.
+- Do not drive a `SignalGenerator` through `asFrameSource()` and `frames()` at once. Its scene steps twice.
+- Do not leave the orb without a `label` when it carries meaning. Without one, screen readers skip it.
+
+## More
+
+- The same docs as an installable agent skill: `npx skills add socket-link/phosphor --skill lumos`
+- Source, README and the web (SVG) surface: https://github.com/socket-link/phosphor
+- Every catalogue as JSON: https://github.com/socket-link/phosphor/blob/main/skills/lumos/catalog.json
+
+---
+
+Generated from the Lumos catalogues by `./gradlew :phosphor-lumos:generateAgentDocs`. Do not edit by hand.
