@@ -15,8 +15,13 @@ import link.socket.phosphor.lumos.frame.LumosCanvasFrame
  *
  * One painter per [SurfaceStyle], from [painter]. A painter is reused across frames and
  * owns whatever it needs between them; it must not allocate per cell.
+ *
+ * Public so a sibling surface can draw a frame the way the orb does and decorate it:
+ * `:phosphor-lumos-surface` wraps a style's painter to grow, fade and tint cells as they hand
+ * off to a layout element, through [drawVoxels]. A painter is not a frame: it has no idea where
+ * a cell is in the body, only where it lands and what it looks like.
  */
-internal interface SurfacePainter {
+interface SurfacePainter {
     fun begin(
         scope: DrawScope,
         frame: LumosCanvasFrame,
@@ -41,7 +46,7 @@ internal interface SurfacePainter {
 }
 
 /** The painter that draws [this] style; a new instance each call, so remember it. */
-internal fun SurfaceStyle.painter(): SurfacePainter =
+fun SurfaceStyle.painter(): SurfacePainter =
     when (this) {
         SurfaceStyle.Squares -> SquaresPainter()
         SurfaceStyle.Dots -> DotsPainter()

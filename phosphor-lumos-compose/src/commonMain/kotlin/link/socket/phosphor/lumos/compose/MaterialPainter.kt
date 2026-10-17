@@ -14,7 +14,7 @@ import link.socket.phosphor.lumos.frame.LumosCanvasFrame
  * is [inner] itself; a material [LumosCanvas] cannot draw is [inner] too, and [canvasStatus]
  * says so. A new instance each call, so remember it.
  */
-internal fun Material.painter(inner: SurfacePainter): SurfacePainter =
+fun Material.painter(inner: SurfacePainter): SurfacePainter =
     when (this) {
         Material.Flat -> inner
         is Material.Ink -> InkPainter(inner, this)

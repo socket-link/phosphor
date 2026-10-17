@@ -18,8 +18,14 @@ import link.socket.phosphor.lumos.projection.PixelLattice
  * ([LumosFrameSource.alignLook]), so a look switch takes up its siblings' phase without the spin
  * snapping. A change of speed alone moves the orb to another clock key but aligns nothing. Under
  * reduced motion the source draws stills instead. The projection is reused until the size, the
- * dot size, the tilt or the lattice's resolution changes, and a frame the source hands back
- * unchanged is not projected again.
+ * dot size, the tilt, the [viewport] or the lattice's resolution changes, and a frame the source
+ * hands back unchanged is not projected again.
+ *
+ * By default the orb fills the surface. Given a [viewport] through [place], it is projected at
+ * that centre and radius on a surface larger than itself — a root-sized overlay whose cells fly
+ * from the orb to a layout element — with each voxel sized by the viewport's radius instead of the
+ * surface's shorter side, so an orb that moves from its own canvas to a viewport of the same
+ * radius keeps its cell size.
  *
  * Every call that can draw returns the frame it projected, or null when what is drawn did not
  * change, so a surface hands only new frames on: Compose's `LumosOrb` puts them in its state.
@@ -39,6 +45,10 @@ class OrbStepper(
 ) {
     /** The frame drawn last; null until a frame has been projected. */
     var frame: LumosCanvasFrame? = null
+        private set
+
+    /** Where the orb sits on the surface, or null when it fills the surface; set by [place]. */
+    var viewport: OrbViewport? = null
         private set
 
     private var config: LumosConfig = LumosConfig()
@@ -91,6 +101,16 @@ class OrbStepper(
     ): LumosCanvasFrame? {
         this.widthPx = widthPx
         this.heightPx = heightPx
+        return reproject()
+    }
+
+    /**
+     * Project the orb at [viewport] on the surface, or fit it to the surface again with null.
+     *
+     * @return The held frame projected at the new place, or null if nothing was drawn again.
+     */
+    fun place(viewport: OrbViewport?): LumosCanvasFrame? {
+        this.viewport = viewport
         return reproject()
     }
 
@@ -186,16 +206,20 @@ class OrbStepper(
     }
 
     // Half a lattice cell, as Socket and the trace equivalence tests size it: neighbouring voxels
-    // sit 1 / resolution apart in [-1, 1], which is min(w, h) / (2 · resolution) pixels.
+    // sit 1 / resolution apart in [-1, 1], which is min(w, h) / (2 · resolution) pixels — or, in a
+    // viewport, radiusPx / resolution pixels, the same number when the viewport is the surface.
     private fun latticeFor(resolution: Int): PixelLattice? {
         if (widthPx <= 0 || heightPx <= 0) return null
-        val radius = min(widthPx, heightPx) / (4f * max(resolution, 1)) * config.dotSize
+        val viewport = viewport
+        val span = if (viewport == null) min(widthPx, heightPx) / 2f else viewport.radiusPx
+        val radius = span / (2f * max(resolution, 1)) * config.dotSize
         val current = lattice
         if (current != null &&
             current.widthPx == widthPx &&
             current.heightPx == heightPx &&
             current.voxelRadiusPx == radius &&
             current.tiltDegrees == config.tiltDegrees &&
+            current.viewport == viewport &&
             latticeProbe === probe
         ) {
             return current
@@ -207,6 +231,7 @@ class OrbStepper(
             voxelRadiusPx = radius,
             probe = probe,
             tiltDegrees = config.tiltDegrees,
+            viewport = viewport,
         ).also { lattice = it }
     }
 

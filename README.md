@@ -46,6 +46,7 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state — builds every `VoxelFrame`, defines the `LumosRenderer` contract, and holds what every pixel surface shares: the `LumosCanvasFrame` DTO, the `PixelLattice` projection and the `OrbStepper` clock, with no UI framework dependency |
 | `:phosphor-lumos-cli` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
 | `:phosphor-lumos-compose` | Compose Multiplatform Canvas rendering surface (`LumosCanvas`, `LumosOrb`) for projected Lumos voxel frames |
+| `:phosphor-lumos-surface` | Compose Multiplatform surface (`LumosSurface`, `Modifier.lumosTarget`) on which the orb's cells assemble into a real layout element and hand off to it |
 | `:phosphor-lumos-dom` | Kotlin/JS DOM/SVG surface for web pages without Compose: an ES module whose `mount(svg, options)` draws a live orb into an `<svg>` |
 | `:phosphor-trace` | Recorded `VoxelTrace` format, capture, codec, and playback for Lumos voxel frames |
 
@@ -180,6 +181,29 @@ fun ThinkingOrb() {
 
 The orb stops while it is scrolled off screen or its window is in the background, holds still when the platform asks for reduced motion, and is one labelled image to a screen reader — or hidden from one, without a label. Orbs in the same state share a clock, so a column of them breathes together. To drive a runtime and frame builder you already own, wrap them in `LiveFrameSource(runtime, builder)`; to play a recording from `:phosphor-trace`, open it with `asFrameSource()`. The snippet is compiled by `ReadmeLumosQuickStartTest`.
 
+### The orb becomes a control
+
+`:phosphor-lumos-surface` lets the orb's cells leave their slot, fly to a real layout element and become it, with the element keeping focus, click and semantics throughout and nothing ticking once it is solid:
+
+```kotlin
+val state = remember { LumosSurfaceState(LiveFrameSource(AtmospherePresets.IDLE)) }
+
+LumosSurface(state, Modifier.fillMaxSize()) {
+    // The orb's slot: LumosOrb draws here until the cells leave
+    LumosSurfaceOrb(state, Modifier.align(Alignment.TopCenter).size(128.dp))
+
+    // The control. Laid out and clickable from the start, invisible until the cells become it
+    Button(onClick = onTurnOn, modifier = Modifier.align(Alignment.BottomEnd).lumosTarget("turn-on", cornerRadiusPx = 8f)) {
+        Text("Turn on")
+    }
+}
+
+// Later, from anywhere:
+state.assembleInto("turn-on", tint = accent)
+```
+
+The cells burst, flow to the control's rounded rectangle and fade as it rises; arrival is measured on screen, in pixels, not read from the spring. Under reduced motion the control appears at once and no cell flies. Live only: a layout target cannot be recorded to a `.vxt`.
+
 ### A Lumos orb on a web page
 
 `:phosphor-lumos-dom` draws the same orb into an `<svg>` on any page — plain HTML, React, anything that can hand over an element — with no Compose, no Skia and no npm package. It is Kotlin/JS, built as one ES module:
@@ -255,7 +279,7 @@ emitters.emit(
 Phosphor compiles to:
 
 - **JVM** (Java 21)
-- **Android** (minSdk 24 — `:phosphor-core`, `:phosphor-lumos` and `:phosphor-lumos-compose`)
+- **Android** (minSdk 24 — `:phosphor-core`, `:phosphor-lumos`, `:phosphor-lumos-compose` and `:phosphor-lumos-surface`)
 - **JavaScript** (Kotlin/JS IR)
 - **WebAssembly** (Kotlin/WASM)
 - **iOS** (x64, ARM64, Simulator ARM64 — packaged as XCFrameworks)
