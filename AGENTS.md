@@ -41,6 +41,39 @@ as part of a PR — every parallel PR editing the same "Unreleased" section
 guarantees merge conflicts and resets CI on unrelated branches. Release notes
 are generated at release time from commit/PR history instead.
 
+## Dependencies and the Yarn Lockfiles
+
+`phosphor-core`, `phosphor-lumos` and `phosphor-lumos-compose` have JS and Wasm
+targets, so the npm packages that Kotlin dependencies bring in (kotlinx-datetime's
+`@js-joda/core`, Compose's webpack and Skiko tooling) are pinned in two committed lockfiles: `kotlin-js-store/yarn.lock` (JS) and
+`kotlin-js-store/wasm/yarn.lock` (Wasm). CI's Web job fails before any test runs
+when either one is out of date:
+
+```
+Execution failed for task ':kotlinStoreYarnLock'.
+> Lock file was changed. Run the `kotlinUpgradeYarnLock` task to actualize lock file
+```
+
+That breaks main for every open branch, not only yours. #160 removed
+kotlinx-datetime without regenerating the lockfiles, got merged on a red Web job,
+and every PR after it inherited the failure.
+
+- If you add, remove, or bump a dependency (any `build.gradle.kts` dependency
+  block, a plugin version, or the Kotlin or Compose version), regenerate
+  both lockfiles in the same PR and commit what changes under `kotlin-js-store/`:
+  ```bash
+  ./gradlew kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock
+  ```
+  These tasks resolve dependencies and run yarn. They don't compile Kotlin, so
+  running them costs much less than `jvmTest`.
+- If you didn't touch dependencies, the lockfiles shouldn't change. If they do,
+  find out why before committing them.
+- A Web job that fails on `kotlinStoreYarnLock` or `kotlinWasmStoreYarnLock` is
+  never a flake. Don't merge on it. If main already fails this way, fix it on main
+  in its own PR. Don't regenerate the lockfiles on an unrelated branch.
+- Don't edit the lockfiles by hand. Removing one dependency's stanza is the only
+  exception, and only when nothing else in the file lists it under `dependencies:`.
+
 ## Architecture at a Glance
 
 Phosphor is a layered rendering pipeline: cognitive signals flow in, visible characters flow out. Each layer depends only on the layer below it — signal code never imports from palette, field code never imports from render.
@@ -128,6 +161,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 - **Never** assume ANSI color support — surface adapters handle capability detection
 - **Never** commit binary test assets without approval
 - **Never** create `CHANGELOG.md` or add a changelog entry to a PR — see [Changelog](#changelog)
+- **Never** change a dependency without regenerating and committing `kotlin-js-store/` — see [Dependencies and the Yarn Lockfiles](#dependencies-and-the-yarn-lockfiles)
+- **Never** merge on a red Web job that failed on `kotlinStoreYarnLock` / `kotlinWasmStoreYarnLock`; it is not a flake
 - **Never** push a `v*` tag without `scripts/release-preflight.sh` passing on that exact commit — Maven Central is permanent
 - **Always** run `./gradlew jvmTest` before considering work complete
 - **Always** run `./gradlew ktlintFormat` before committing
