@@ -47,8 +47,9 @@ fun interface LookModulator {
      * and `VoxelAmbient.orbRotationY`, so the surfaces turn the orb by it at
      * projection and a trace records it where rotation carry reads it. It is a
      * function of [t] alone, so every orb of the look turns alike, and lies in
-     * `0..2π` as the atmosphere's does. Called once per frame before
-     * [beginFrame], and twice more for the rate the spin carries cells at
+     * `0..2π` as the atmosphere's does. Called more than once a frame, always
+     * before [beginFrame]: for the frame's yaw, for an interactive orb's aim at
+     * the pointer, and twice more for the rate the spin carries cells at
      * ([ViewPoint.dx]).
      */
     fun yaw(t: Float): Float? = null

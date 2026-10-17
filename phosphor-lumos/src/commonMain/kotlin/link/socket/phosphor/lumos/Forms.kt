@@ -9,6 +9,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import link.socket.phosphor.field.VoxelSphere
 import link.socket.phosphor.lumos.look.ViewRotation
+import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
 
 /**
@@ -222,13 +223,19 @@ object Forms {
 /**
  * This form at a fixed [count], whatever count the builder has budget for: the
  * way a host runs an 80-cell inline orb on a builder whose atmosphere is at
- * resolution 10. Look, time and the form's framing pass through, and a
- * [ViewForm] stays one, still handed the frame's rotation.
+ * resolution 10. Look, time and the form's framing pass through, a
+ * [ViewForm] stays one, still handed the frame's rotation, and a [GazingForm]
+ * stays one, still handed the gaze. A form that is both stays a view form, as
+ * the builder samples it.
  *
  * @throws IllegalArgumentException when [count] is not positive.
  */
 fun LumosForm.counted(count: Int): FramedForm =
-    if (this is ViewForm) CountedViewForm(this, count) else CountedForm(this, count)
+    when (this) {
+        is ViewForm -> CountedViewForm(this, count)
+        is GazingForm -> GazingCountedForm(this, count)
+        else -> CountedForm(this, count)
+    }
 
 private open class CountedForm(
     private val inner: LumosForm,
@@ -274,4 +281,25 @@ private class CountedViewForm(
         look: LumosLook,
         time: Float,
     ): FormSample = inner.sample(fixedCount, look, time)
+}
+
+/** A [CountedForm] over a [GazingForm], handing the gaze on. */
+private class GazingCountedForm(
+    private val gazing: GazingForm,
+    fixedCount: Int,
+) : CountedForm(gazing, fixedCount),
+    GazingForm {
+    override fun sample(
+        count: Int,
+        look: LumosLook,
+        time: Float,
+        gaze: Vector2?,
+    ): FormSample = gazing.sample(fixedCount, look, time, gaze)
+
+    // Both supertypes say what this one is: the inner form with no gaze, either way.
+    override fun sample(
+        count: Int,
+        look: LumosLook,
+        time: Float,
+    ): FormSample = sample(count, look, time, gaze = null)
 }

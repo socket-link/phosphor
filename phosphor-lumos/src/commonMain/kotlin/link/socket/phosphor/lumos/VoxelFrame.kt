@@ -1,6 +1,8 @@
 package link.socket.phosphor.lumos
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * Serializable snapshot of one voxel-orb render tick.
@@ -30,6 +32,11 @@ import kotlinx.serialization.Serializable
  *  overall rotation, atmospheric color (for halo/glow effects).
  * @property glyph Active glyph state, if any. Null when no glyph is being rendered.
  *  Populated by PHO-18; included in the DTO now so the shape is stable.
+ * @property input What the person was doing to the surface when this frame was built, for the
+ *  surface's light: the snapshot's [LumosInput], which [VoxelFrameBuilder.build] carries unless it
+ *  is [LumosInput.NONE]. Null when nothing pointed or pressed, and always on a still, a steady
+ *  state and a recorded frame. Never serialized, so a trace cannot record it and the frame's JSON
+ *  shape is what it was: input is live only.
  */
 @Serializable
 data class VoxelFrame(
@@ -39,6 +46,7 @@ data class VoxelFrame(
     val cells: List<VoxelCell>,
     val ambient: VoxelAmbient,
     val glyph: VoxelGlyphState? = null,
+    @Transient val input: LumosInput? = null,
 )
 
 /**

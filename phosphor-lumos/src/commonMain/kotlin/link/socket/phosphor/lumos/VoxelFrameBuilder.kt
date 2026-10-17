@@ -17,6 +17,7 @@ import link.socket.phosphor.lumos.look.ViewRotation
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
+import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AgentActivityState
@@ -25,6 +26,7 @@ import link.socket.phosphor.signal.AtmospherePattern
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.AtmosphereTransition
 import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.signal.LumosInput
 import link.socket.phosphor.timeline.Easing
 
 /**
@@ -449,7 +451,8 @@ class VoxelFrameBuilder(
     // its index across a form change, cleared by anything that cuts (setting form, a resolution change).
     private var permutation: IntArray? = null
 
-    // The body in flight, or null when the form is at rest and frames read the sample directly.
+    // The body: in flight after a morphTo or a burst, or standing at rest for the pointer to push.
+    // Null when frames read the sample directly.
     private var morph: FormMorph? = null
 
     // The framing the morph left from, blended toward the new form's by the morph's progress.
@@ -457,6 +460,18 @@ class VoxelFrameBuilder(
 
     // The last frame time the form was sampled at, so morphTo samples the form where build did.
     private var lastTimeSeconds: Float = 0f
+
+    // The pointer the last frame's form was sampled with, so morphTo samples a gazing form where build did.
+    private var gaze: Vector2? = null
+
+    // The one repel the pointer aims, re-aimed every frame and on the body's forces only while it pushes.
+    private val repel = Force.Repel()
+
+    // Carries the pointer back into the body's space by the frame's own angles; see aimRepel.
+    private val aimRotation = ViewRotation()
+
+    // The last body stood for the pointer, reused by the next while the count holds.
+    private var restingBody: FormMorph? = null
 
     private var activeGlyph: GlyphLifecycle? = null
 
@@ -486,8 +501,14 @@ class VoxelFrameBuilder(
             )
     }
 
-    /** Whether a [morphTo] is in flight: cells are still springing to the new form's positions. */
+    /**
+     * Whether a [morphTo] is in flight: cells are still springing to the new form's positions. A
+     * body standing at rest under the pointer is not a morph; see [build].
+     */
     val isMorphing: Boolean get() = morph?.isSettling == true
+
+    /** The body frames are read from, in flight or at rest, or null when they are read from the sample. */
+    internal val currentBody: FormMorph? get() = morph
 
     /**
      * How many cells the current [form] yields at the atmosphere's budget: the
@@ -520,7 +541,10 @@ class VoxelFrameBuilder(
      * which the count changes is a cut for anything that pairs cells by index.
      *
      * Calling this mid-morph starts a new trip from wherever the cells are,
-     * keeping their velocity and any [burst] still pushing them. A
+     * keeping their velocity and any [burst] still pushing them. So does
+     * calling it while the cells stand parted under the pointer ([build]): the
+     * trip starts where the pointer pushed them, and the pointer goes on
+     * pushing the new form. A
      * [LumosConfig.reducedMotion] host draws through [buildStill], which
      * snaps the morph to its destination. A resolution
      * change during a morph is a cut: the lattice's count changes, so the morph
@@ -569,7 +593,7 @@ class VoxelFrameBuilder(
             }
         val framingFrom = effectiveFraming(fromSample)
 
-        val toSample = sampleForm(target, lastTimeSeconds, phases)
+        val toSample = sampleForm(target, lastTimeSeconds, phases, gaze = gaze)
         val toCount = toSample.count
         val matched = minOf(fromCount, toCount)
         val assignment = matcher.match(origins.subList(0, matched), toSample.positions)
@@ -587,7 +611,8 @@ class VoxelFrameBuilder(
                 body.velocities[3 * i + 2] = fromMorph.velocities[3 * i + 2]
             }
         }
-        // A burst keeps its own clock, so moving it to the new body carries it on where it was.
+        // A burst keeps its own clock, so moving it to the new body carries it on where it was. The
+        // pointer's repel moves with it, and the next build aims it at the new body.
         if (fromMorph != null) body.forces.addAll(fromMorph.forces)
         if (toCount > fromCount) spawnLeftovers(nextPermutation, assignment, origins, toSample.positions, body)
 
@@ -620,7 +645,8 @@ class VoxelFrameBuilder(
      *
      * With nothing in flight, there is nothing for the cells to spring back
      * on, so this starts one: a [Choreography.DIRECT] trip from where the
-     * cells rest to the same places, `max(0.3, durationSeconds)` long. [form]
+     * cells are to where they rest, `max(0.3, durationSeconds)` long — from
+     * their rest positions, or from where the pointer has parted them. [form]
      * does not change, but [isMorphing] is true until the cells are home, so
      * [buildSteadyState] refuses until then, as it does mid-morph.
      *
@@ -648,14 +674,16 @@ class VoxelFrameBuilder(
     }
 
     /**
-     * Start a [Choreography.DIRECT] trip from where every cell rests to the
-     * same place, so a force has a spring to act against.
+     * Start a [Choreography.DIRECT] trip from where every cell is to where it
+     * rests, so a force has a spring to act against: from rest, or on the body
+     * standing under the pointer, which keeps its cells where they were pushed.
      */
     private fun startRestingTrip(durationSeconds: Float): FormMorph {
         val sample = currentSample()
         val order = permutation
-        val body = FormMorph(sample.count)
-        body.snapTo(List(sample.count) { sample.positions[order?.get(it) ?: it] })
+        val body =
+            morph?.takeIf { it.count == sample.count }
+                ?: FormMorph(sample.count).also { it.snapTo(sample.positions, order) }
         body.retarget(
             targets = sample.positions,
             assignment = order,
@@ -703,12 +731,13 @@ class VoxelFrameBuilder(
     }
 
     /** The current form sampled where the last build sampled it. */
-    private fun currentSample(): FormSample = sampleForm(form, lastTimeSeconds, phases)
+    private fun currentSample(): FormSample = sampleForm(form, lastTimeSeconds, phases, gaze = gaze)
 
     /**
      * [form] at the lattice's budget, the [look]'s idiom and [timeSeconds]. A
-     * [ViewForm] is handed the rotation of a frame at [phases]; every other
-     * form is sampled exactly as it always was.
+     * [ViewForm] is handed the rotation of a frame at [phases], and a
+     * [GazingForm] the pointer, [gaze]; every other form is sampled exactly as
+     * it always was. A form that is both is sampled as a view form.
      *
      * The frame's yaw is a look's own when it owns one, mixed across a blend
      * when [live] (a steady state or a still wears one look), and the looks'
@@ -724,7 +753,9 @@ class VoxelFrameBuilder(
         timeSeconds: Float,
         phases: FramePhases,
         live: Boolean = true,
+        gaze: Vector2? = null,
     ): FormSample {
+        if (form is GazingForm && form !is ViewForm) return form.sample(lattice.count, look.look, timeSeconds, gaze)
         val viewForm = form as? ViewForm ?: return form.sample(lattice.count, look.look, timeSeconds)
         val outgoingTime = outgoingSeconds.toFloat()
         val weight = if (live) lookBlendProgress else 1f
@@ -771,6 +802,32 @@ class VoxelFrameBuilder(
     /**
      * Produce a [VoxelFrame] from [snapshot], advancing phase accumulators
      * and rotations by [dt] seconds.
+     *
+     * [snapshot]'s [input][SceneSnapshot.input] reaches the frame three ways,
+     * and nothing else: the atmosphere, the phases and the look clock never
+     * see it.
+     *
+     * - **The light.** The frame carries it as [VoxelFrame.input], unless it is
+     *   [LumosInput.NONE], for the surface to light the orb by.
+     * - **The gaze.** A [GazingForm] is sampled looking toward its pointer.
+     * - **The push.** With [LumosRenderConfig.interactive], the cells near the
+     *   pointer's line of sight part around it ([Force.Repel]). The line is
+     *   the pointer carried back into the body's space by the frame's own
+     *   rotation and pulse and the form's scale, ignoring the atmosphere's
+     *   squash, jitter and bump — under 5% in `y` on every preset — and it
+     *   runs through the whole orb, so the cells behind are parted too. The
+     *   force acts on the morph in flight, or on a body the builder stands at
+     *   rest for it and keeps only while it has something to answer. Once the
+     *   pointer leaves, the cells spring home, and when every one is home and
+     *   no trip is in flight the body is dropped: frames are read straight
+     *   from the form again, exactly as for an orb nobody touched. A body at
+     *   rest is not a morph: [isMorphing] stays false, and [buildSteadyState]
+     *   still renders the form at rest. [morphTo] starts its trip from where
+     *   the pointer pushed the cells; a cut — setting [form], a resolution
+     *   change — and [buildStill] drop the body.
+     *
+     * With no pointer, every frame is exactly the frame the builder produced
+     * before input existed.
      *
      * @throws IllegalStateException when the atmosphere subsystem is disabled
      *  on the runtime that produced [snapshot]
@@ -840,6 +897,7 @@ class VoxelFrameBuilder(
             outgoingTime = 0f,
             weight = 1f,
             presence = 1f,
+            input = null,
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -863,6 +921,12 @@ class VoxelFrameBuilder(
      * stay those of the call that built it. Only a still that is actually
      * built is measured by the probe.
      *
+     * [snapshot]'s input is not read: a still neither parts around the pointer
+     * nor gazes at it, drops any body standing under it, and carries no
+     * [VoxelFrame.input], so it stays the same instance while the pointer
+     * moves. A surface that lights the orb by the pointer under reduced
+     * motion reads the pointer itself.
+     *
      * @throws IllegalStateException when the atmosphere subsystem is disabled
      *  on the runtime that produced [snapshot].
      */
@@ -878,7 +942,8 @@ class VoxelFrameBuilder(
 
         followResolution(atmosphere)
         // Reduced motion snaps: the body is already where the morph was heading, the look is the
-        // one the blend was heading to, and a spawning agent is fully present.
+        // one the blend was heading to, and a spawning agent is fully present. Nothing is pushed
+        // and nothing gazes: those are motion.
         morph = null
         readSignal(snapshot)
         landBlend()
@@ -887,6 +952,7 @@ class VoxelFrameBuilder(
 
         val glyph = advanceGlyph(dt)?.glyph
         lastTimeSeconds = snapshot.elapsedTimeSeconds
+        gaze = null
         val sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
         stillFrame?.let { held ->
             if (atmosphere === stillAtmosphere &&
@@ -920,6 +986,7 @@ class VoxelFrameBuilder(
                     outgoingTime = 0f,
                     weight = 1f,
                     presence = 1f,
+                    input = null,
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
                 )
@@ -951,8 +1018,10 @@ class VoxelFrameBuilder(
         stepBlend(dt)
         stepSpawn(dt)
 
+        val input = snapshot.input
         lastTimeSeconds = snapshot.elapsedTimeSeconds
-        var sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
+        gaze = input.pointer
+        var sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases, gaze = gaze)
         if (outgoingLook != null) {
             val began = blendSample
             if (began == null) {
@@ -964,7 +1033,14 @@ class VoxelFrameBuilder(
                 if (form is ViewForm) sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
             }
         }
-        val body = stepMorph(sample, dt)
+        followCount(sample)
+        val modulator = modulatorFor(sample)
+        val outgoing = outgoingModulatorFor(sample)
+        val outgoingTime = outgoingSeconds.toFloat()
+        val weight = lookBlendProgress
+        val pointer = if (config.interactive) input.pointer else null
+        val push = pointer != null && aimRepel(pointer, atmosphere, modulator, outgoing, outgoingTime, weight)
+        val body = stepMorph(sample, dt, push)
         return frameAt(
             atmosphere = atmosphere,
             transition = snapshot.atmosphereTransition,
@@ -974,38 +1050,134 @@ class VoxelFrameBuilder(
             permutation = permutation,
             morphPositions = body?.positions,
             framing = if (body == null) framing(sample) else effectiveFraming(sample),
-            modulator = modulatorFor(sample),
-            outgoing = outgoingModulatorFor(sample),
-            outgoingTime = outgoingSeconds.toFloat(),
-            weight = lookBlendProgress,
+            modulator = modulator,
+            outgoing = outgoing,
+            outgoingTime = outgoingTime,
+            weight = weight,
             presence = presence,
+            input = input.takeUnless { it == LumosInput.NONE },
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
         )
     }
 
     /**
-     * Advance the morph in flight by [dt] toward [sample]'s positions and return
-     * it, or null when there is none or it has just settled — from which frame
-     * on the sample is rendered directly, so a settled form costs nothing.
+     * Advance the body by [dt] toward [sample]'s positions and return it, or
+     * null when there is none or it has nothing left to do — no trip in flight,
+     * no force acting, every cell home — from which frame on the sample is
+     * rendered directly, so a form at rest costs nothing.
+     *
+     * When [push], the aimed [repel] acts on the body: the morph in flight, or
+     * else a body stood at rest for it ([standBody]). Otherwise the repel comes
+     * off, and a body it pushed is stepped until its cells are home.
      */
     private fun stepMorph(
         sample: FormSample,
         dt: Float,
+        push: Boolean,
     ): FormMorph? {
-        val body = morph ?: return null
-        if (body.count != sample.count) {
-            // The form's count moved under the morph: a cut, as before morphs existed.
-            morph = null
-            permutation = null
-            return null
+        var body = morph
+        if (push) {
+            if (body == null) body = standBody(sample)
+            if (repel !in body.forces) body.forces.add(repel)
+        } else {
+            if (body == null) return null
+            body.forces.remove(repel)
         }
         body.step(dt, sample.positions)
-        if (!body.isSettling) {
+        if (!body.isSettling && body.forces.isEmpty() && !body.isDisturbed) {
             morph = null
             return null
         }
         return body
+    }
+
+    /**
+     * Stand a body at rest on [sample]'s positions, read through the
+     * permutation, for the pointer to push: the last one stood when its count
+     * still fits, so a pointer that comes and goes allocates nothing.
+     */
+    private fun standBody(sample: FormSample): FormMorph {
+        val body = restingBody?.takeIf { it.count == sample.count } ?: FormMorph(sample.count)
+        body.snapTo(sample.positions, permutation)
+        restingBody = body
+        morph = body
+        return body
+    }
+
+    /**
+     * Aim [repel] along [pointer]'s line of sight, carried back into the body's
+     * own space, and say whether it can push.
+     *
+     * A cell is drawn at `rest · pulse · formScale`, rotated by the frame's own
+     * angles — the ones the ambient carries to the surfaces, a look's yaw
+     * included — so the pointer is divided by this frame's pulse and form scale
+     * and un-rotated by those angles: that is the line's point. Its direction
+     * is the view axis carried back the same way, `(−sin y, sin x · cos y,
+     * cos x · cos y)`. The atmosphere's squash, jitter and bump are ignored.
+     * Writes into the repel's floats and allocates nothing.
+     *
+     * @return False, with the repel left as it was, when the line is not finite:
+     *  a pointer so far past the orb that carrying it back overflows, or a pulse
+     *  of zero.
+     */
+    @Suppress("LongParameterList")
+    private fun aimRepel(
+        pointer: Vector2,
+        atmosphere: AtmosphereState,
+        modulator: LookModulator?,
+        outgoing: LookModulator?,
+        outgoingTime: Float,
+        weight: Float,
+    ): Boolean {
+        aimRotation.set(phases.orbRotationX, frameYaw(phases, modulator, outgoing, outgoingTime, weight), 0f, 0f)
+        val scale = drawScale(atmosphere)
+        val ox = pointer.x / scale
+        val oy = pointer.y / scale
+        val x = aimRotation.unrotateX(ox, oy)
+        val y = aimRotation.unrotateY(ox, oy)
+        val z = aimRotation.unrotateZ(ox, oy)
+        if (!x.isFinite() || !y.isFinite() || !z.isFinite()) return false
+        repel.aim(
+            x = x,
+            y = y,
+            z = z,
+            dx = -aimRotation.sinY,
+            dy = aimRotation.sinX * aimRotation.cosY,
+            dz = aimRotation.cosX * aimRotation.cosY,
+        )
+        return true
+    }
+
+    /**
+     * How much larger than its rest position a cell is drawn this frame, before
+     * the squash: the pulse times the form's scale, as [frameAt] draws them.
+     * The framing is [effectiveFraming]'s, worked without building a
+     * [Framing] — the form's own, or mid-morph the blend from where the morph
+     * left — and a rigid form holds the pulse off by its rigidity.
+     */
+    private fun drawScale(atmosphere: AtmosphereState): Float {
+        val framed = form as? FramedForm
+        var formScale = framed?.scale ?: 1f
+        var rigidity = if (framed?.rigid == true) 1f else 0f
+        val body = morph?.takeIf { it.isSettling }
+        if (body != null) {
+            val from = morphFramingFrom
+            val t = body.progress
+            formScale = from.formScale + (formScale - from.formScale) * t
+            rigidity = from.rigidity + (rigidity - from.rigidity) * t
+        }
+        val pulseAmplitude =
+            if (rigidity == 0f) atmosphere.pulseAmplitude else atmosphere.pulseAmplitude * (1f - rigidity)
+        return (1f + sin(phases.pulsePhase) * pulseAmplitude) * formScale
+    }
+
+    /** Drop the body when the form's count moved under it: a cut, as before morphs existed. */
+    private fun followCount(sample: FormSample) {
+        val body = morph ?: return
+        if (body.count == sample.count) return
+        morph = null
+        permutation = null
     }
 
     /** The framing to draw: the form's own, or mid-morph the blend from where the morph left. */
@@ -1114,7 +1286,8 @@ class VoxelFrameBuilder(
      * every cell's modulation is `outgoing · (1 − weight) + incoming · weight`;
      * the yaw and its rate mix the same way, the yaw along the short arc.
      * [presence] multiplies every cell's alpha and the ambient glow; at 1 it
-     * leaves both exactly as they were.
+     * leaves both exactly as they were. [input] rides on the frame as
+     * [VoxelFrame.input], and is read by nothing here.
      */
     @Suppress("LongParameterList")
     private fun frameAt(
@@ -1131,6 +1304,7 @@ class VoxelFrameBuilder(
         outgoingTime: Float,
         weight: Float,
         presence: Float,
+        input: LumosInput?,
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
@@ -1308,6 +1482,7 @@ class VoxelFrameBuilder(
                             blue = glyphColor.blue,
                         )
                     },
+            input = input,
         )
     }
 

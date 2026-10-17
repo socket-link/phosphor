@@ -7,6 +7,7 @@ import link.socket.phosphor.lumos.LumosLook
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * A mounted orb's live scene, addressed by name as the page addresses it: a [LiveFrameSource] whose
@@ -57,6 +58,8 @@ internal class MountedScene(
     override fun align(lookTime: Double) = live.align(lookTime)
 
     override fun alignLook(lookTime: Double) = live.alignLook(lookTime)
+
+    override fun setInput(input: LumosInput) = live.setInput(input)
 
     private fun stateOf(name: String): AtmosphereState {
         val state = AtmospherePresets.byName(name)!!

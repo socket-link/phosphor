@@ -1,5 +1,7 @@
 package link.socket.phosphor.lumos
 
+import link.socket.phosphor.signal.LumosInput
+
 /**
  * Where a driver's frames come from.
  *
@@ -13,9 +15,10 @@ package link.socket.phosphor.lumos
  *
  * The other members have defaults, and a source that can do better overrides them: [still] holds
  * a pose for reduced motion and for a paused orb's redraw, [revision] tells a paused driver that
- * something changed, and [lookKey], [align] and [alignLook] let orbs of one look share a phase.
- * [LiveFrameSource] overrides all of them for a live scene; `:phosphor-trace` adapts its players
- * with `asFrameSource()`.
+ * something changed, [lookKey], [align] and [alignLook] let orbs of one look share a phase, and
+ * [setInput] hands a live scene the pointer. [LiveFrameSource] overrides all of them for a live
+ * scene; `:phosphor-trace` adapts its players with `asFrameSource()`, which keep [setInput]'s
+ * default.
  *
  * One driver per source: two drivers stepping one source run it twice as fast. To show one orb in
  * two places, draw its frame twice.
@@ -76,4 +79,17 @@ fun interface LumosFrameSource {
      * so the switch shows no jump.
      */
     fun alignLook(lookTime: Double) {}
+
+    /**
+     * What the person is doing to the surface the orb is drawn on, from the next frame on: where
+     * they point, in the orb's view space, and whether they press. A surface may call this every
+     * frame, or only when the pointer moves; the last input given holds.
+     *
+     * A live source hands it to its scene, and the next frame answers it: the cells part around
+     * the pointer when the orb is [interactive][LumosRenderConfig.interactive], a [GazingForm]
+     * looks at it, and the frame carries it for the surface's light ([VoxelFrame.input]). A
+     * recording cannot answer, so by default this does nothing, which is what keeps input live
+     * only: no trace records a pointer.
+     */
+    fun setInput(input: LumosInput) {}
 }
