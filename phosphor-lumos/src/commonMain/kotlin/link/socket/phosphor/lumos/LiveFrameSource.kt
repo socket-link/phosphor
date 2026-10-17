@@ -122,13 +122,12 @@ class LiveFrameSource(
     var sequence: LumosSequencePlayer? = null
         private set
 
-    private var clocked: Boolean = false
+    // The sequence is followed through two closures set by follow(), not through members that
+    // name the sequence types, so a bundle that never follows one — :phosphor-lumos-dom — carries
+    // none of the format, the player or their serializers.
+    private var beforeFrame: (() -> Unit)? = null
+    private var afterFrame: ((Float) -> Unit)? = null
     private var releaseConnection: (() -> Unit)? = null
-    private var appliedCycle: Int = -1
-    private var appliedStep: Int = -1
-    private var appliedPreset: String? = null
-    private var appliedForm: String? = null
-    private var appliedLook: Look? = null
 
     /**
      * Follow [player], or stop following with null.
@@ -147,99 +146,39 @@ class LiveFrameSource(
         releaseConnection?.invoke()
         releaseConnection = null
         sequence = player
-        clocked = clock && player != null
-        appliedCycle = -1
-        appliedStep = -1
+        beforeFrame = null
+        afterFrame = null
         if (player == null) return
-        appliedPreset = presetNameOf(choreographer.activeTransition?.to ?: choreographer.currentState)
-        appliedForm = formNameOf(builder.form)
-        appliedLook = builder.look
-        if (clock) releaseConnection = player.connect()
-        applyStep(player.snapshot)
+        val follower = SequenceFollower(this)
+        beforeFrame = { follower.apply(player.snapshot) }
+        if (clock) {
+            releaseConnection = player.connect()
+            afterFrame = { dt -> player.advance(dt) }
+        }
+        follower.apply(player.snapshot)
     }
 
     override fun next(dt: Float): VoxelFrame {
-        sequence?.let { applyStep(it.snapshot) }
+        beforeFrame?.invoke()
         val frame = builder.build(runtime.update(dt), dt)
-        if (clocked) sequence?.advance(dt)
+        afterFrame?.invoke(dt)
         return frame
     }
 
     override fun still(dt: Float): VoxelFrame {
-        sequence?.let { applyStep(it.snapshot) }
+        beforeFrame?.invoke()
         choreographer.activeTransition?.let { transition ->
             choreographer.setAtmosphere(transition.to, transition.toPresetName, AtmosphereTransitionSpec.Immediate)
         }
         val frame = builder.buildStill(runtime.update(dt), dt)
-        if (clocked) sequence?.advance(dt)
+        afterFrame?.invoke(dt)
         return frame
     }
 
-    // Apply the snapshot's step if it is not the one applied last; a wrapped sequence re-enters
-    // its steps, so the cycle counts too.
-    private fun applyStep(snapshot: LumosSequenceSnapshot) {
-        if (snapshot.cycle == appliedCycle && snapshot.stepIndex == appliedStep) return
-        appliedCycle = snapshot.cycle
-        appliedStep = snapshot.stepIndex
-        val step = snapshot.step
-        val transition = step.transition
-        var applied = false
-
-        step.atmospherePreset?.lowercase()?.let { preset ->
-            if (preset != appliedPreset) {
-                appliedPreset = preset
-                applied = true
-                runtime.setAtmospherePreset(
-                    preset,
-                    transition?.let { AtmosphereTransitionSpec(it.durationSeconds, it.easingName) },
-                )
-            }
-        }
-        step.form?.lowercase()?.let { formName ->
-            if (formName != appliedForm) {
-                appliedForm = formName
-                applied = true
-                val form =
-                    if (formName == LumosStep.LATTICE_FORM_NAME) {
-                        Forms.Lattice((choreographer.activeTransition?.to ?: choreographer.currentState).resolution)
-                    } else {
-                        requireNotNull(Forms.byName(formName)) { "Unknown form: '$formName'" }
-                    }
-                if (transition == null) {
-                    builder.morphTo(form)
-                } else {
-                    builder.morphTo(
-                        form = form,
-                        choreography = transition.choreography,
-                        durationSeconds = transition.durationSeconds,
-                        easingName = transition.easingName,
-                    )
-                }
-            }
-        }
-        step.look?.let { look ->
-            if (look != appliedLook) {
-                appliedLook = look
-                applied = true
-                builder.lookTo(look, transition?.durationSeconds ?: VoxelFrameBuilder.LOOK_BLEND_SECONDS)
-            }
-        }
-        step.glyph?.let { glyph ->
-            val window = transition?.durationSeconds?.takeIf { it > 0f } ?: DEFAULT_GLYPH_SECONDS
-            builder.queueGlyph(glyph, window)
-        }
-        if (applied) changes++
+    /** Something that changes what [still] draws happened without the atmosphere moving; see [revision]. */
+    internal fun noteChange() {
+        changes++
     }
-
-    private fun presetNameOf(state: AtmosphereState): String? =
-        AtmospherePresets.ALL.firstOrNull { (_, preset) -> preset == state }?.first
-
-    private fun formNameOf(form: LumosForm): String? =
-        if (form is Forms.Lattice) {
-            LumosStep.LATTICE_FORM_NAME
-        } else {
-            Forms.All.firstOrNull { (_, catalogued) -> catalogued === form }?.first
-        }
 
     // The choreographer allocates a transition each time an atmosphere is set, and replaces it only
     // when the runtime steps, so while a driver is paused identity alone says whether one was set.

@@ -291,7 +291,7 @@ data class LumosSequence(
     }
 
     /** This sequence as JSON, as [fromJson] reads it. Defaults are left out. */
-    fun toJson(): String = json.encodeToString(serializer(), this)
+    fun toJson(): String = json().encodeToString(serializer(), this)
 
     /** The index of the step called [name], or -1. */
     fun indexOf(name: String): Int = steps.indexOfFirst { it.name == name }
@@ -424,7 +424,10 @@ data class LumosSequence(
          */
         const val BOUNDARY_TOLERANCE_SECONDS: Float = 1e-4f
 
-        private val json: Json =
+        // A function, not a property: a companion property's initialiser runs whenever the class is
+        // reached, and would carry kotlinx-serialization-json into every bundle that steps an orb —
+        // :phosphor-lumos-dom reaches LumosSequence through OrbStepper and never parses one.
+        private fun json(): Json =
             Json {
                 ignoreUnknownKeys = true
                 prettyPrint = false
@@ -439,7 +442,7 @@ data class LumosSequence(
          */
         fun fromJson(text: String): Result<LumosSequence> =
             try {
-                Result.success(json.decodeFromString(serializer(), text))
+                Result.success(json().decodeFromString(serializer(), text))
             } catch (error: LumosSequenceError) {
                 Result.failure(error)
             } catch (error: SerializationException) {

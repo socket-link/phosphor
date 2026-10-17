@@ -3,6 +3,16 @@ package link.socket.phosphor.lumos
 import kotlin.math.min
 
 /**
+ * A clock an orb's driver moves with its frames: `OrbStepper` calls [tick] with every step it
+ * hands the source. [LumosSequencePlayer] is one; the interface is what the stepper names, so a
+ * bundle that steps orbs without a sequence carries no player.
+ */
+fun interface SequenceClock {
+    /** [dt] seconds have passed for the orb. */
+    fun tick(dt: Float)
+}
+
+/**
  * The clock of a [LumosSequence], with no framework in it: whoever owns the loop advances it, and
  * everyone showing the sequence reads [snapshot].
  *
@@ -25,7 +35,7 @@ import kotlin.math.min
 class LumosSequencePlayer(
     val sequence: LumosSequence,
     autoplay: Boolean = true,
-) {
+) : SequenceClock {
     /** Sequence time, in seconds from the start of the first pass. */
     var timeSeconds: Float = 0f
         private set
@@ -107,6 +117,11 @@ class LumosSequencePlayer(
             }
         }
         return snapshot
+    }
+
+    /** [advance], as a driver's [SequenceClock]. */
+    override fun tick(dt: Float) {
+        advance(dt)
     }
 
     private inline fun once(crossinline release: () -> Unit): () -> Unit {

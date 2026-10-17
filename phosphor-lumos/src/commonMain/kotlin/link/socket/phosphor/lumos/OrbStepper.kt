@@ -41,21 +41,21 @@ import link.socket.phosphor.signal.LumosInput
  *
  * Main-thread only, like the source it steps.
  *
- * With a [player], every step advances the sequence clock by the same `dt` it hands the source,
- * before the source is stepped, so a source following that player ([LiveFrameSource.follow])
+ * With a [sequence], every step ticks that clock by the same `dt` it hands the source, before the
+ * source is stepped, so a source following a [LumosSequencePlayer] ([LiveFrameSource.follow])
  * sees the step the frame falls in. Connecting to the player is the surface's job: the stepper
  * does not know when the orb is on screen.
  *
  * @param source What the orb draws.
  * @param clock The look clocks this orb shares with its peers.
- * @param player A sequence clock to advance in step with the source, or null.
+ * @param sequence A sequence clock to tick in step with the source, or null; a [LumosSequencePlayer].
  * @param platformReducesMotion Whether the platform asks for reduced motion; read once a second
  *  while stepping. Defaults to [PlatformMotionPreference.reduceMotion].
  */
 class OrbStepper(
     private val source: LumosFrameSource,
     private val clock: LookClock,
-    private val player: LumosSequencePlayer? = null,
+    private val sequence: SequenceClock? = null,
     private val platformReducesMotion: () -> Boolean = { PlatformMotionPreference.reduceMotion },
 ) {
     /** The frame drawn last; null until a frame has been projected. */
@@ -179,7 +179,7 @@ class OrbStepper(
         steppedLook = look
         rejoining = false
 
-        player?.advance(dt)
+        sequence?.tick(dt)
         return show(if (reducedMotion) source.still(dt) else source.next(dt))
     }
 
