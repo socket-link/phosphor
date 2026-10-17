@@ -1,6 +1,7 @@
 package link.socket.phosphor.lumos.compose
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -24,34 +25,67 @@ import link.socket.phosphor.palette.AtmospherePresets
  * [MORPH_STRIP_STEP_SECONDS] further into the cycle than the one to its left. Read left to right
  * at any instant it is a frame strip of the morph; watched, every orb morphs in turn.
  *
+ * Below the strip, a pair on the same clock (PHO-74): the plain morph on the left, and on the
+ * right the same morph with a [MORPH_BURST_STRENGTH] burst fired before each one, as Dots does.
+ *
  * Like [LumosOrbPreview], for a host project's preview pane or sample app, not a test.
  */
 @Composable
 fun LumosMorphPreview() {
-    Row(horizontalArrangement = Arrangement.spacedBy(MORPH_PREVIEW_GAP)) {
-        for (index in 0 until MORPH_STRIP_ORBS) {
-            MorphOrb(
-                startSeconds = index * MORPH_STRIP_STEP_SECONDS,
-                size = MORPH_PREVIEW_SIZE,
-                config = LumosConfig(label = "Lumos, morphing"),
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(MORPH_PREVIEW_GAP)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(MORPH_PREVIEW_GAP)) {
+            for (index in 0 until MORPH_STRIP_ORBS) {
+                MorphOrb(
+                    startSeconds = index * MORPH_STRIP_STEP_SECONDS,
+                    size = MORPH_PREVIEW_SIZE,
+                    config = LumosConfig(label = "Lumos, morphing"),
+                )
+            }
         }
+        BurstMorphPair(startSeconds = 0f, size = MORPH_PREVIEW_SIZE)
     }
 }
 
-/** One orb of the morph strip, [startSeconds] into its cycle when first drawn. */
+/** The plain morph and the burst-then-morph side by side, both [startSeconds] into the cycle. */
+@Composable
+internal fun BurstMorphPair(
+    startSeconds: Float,
+    size: Dp,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(MORPH_PREVIEW_GAP)) {
+        MorphOrb(
+            startSeconds = startSeconds,
+            size = size,
+            config = LumosConfig(label = "Lumos, morphing"),
+        )
+        MorphOrb(
+            startSeconds = startSeconds,
+            size = size,
+            config = LumosConfig(label = "Lumos, bursting then morphing"),
+            burstStrength = MORPH_BURST_STRENGTH,
+        )
+    }
+}
+
+/**
+ * One orb of the morph strip, [startSeconds] into its cycle when first drawn, firing a
+ * [burstStrength] burst before each morph when it is not null.
+ */
 @Composable
 internal fun MorphOrb(
     startSeconds: Float,
     size: Dp,
     config: LumosConfig = LumosConfig(),
     choreography: Choreography = Choreography.FLOW,
+    burstStrength: Float? = null,
 ) {
     val source =
-        remember(startSeconds, choreography) {
-            MorphingFrameSource(LiveFrameSource(AtmospherePresets.IDLE), choreography = choreography).also {
-                it.advance(startSeconds)
-            }
+        remember(startSeconds, choreography, burstStrength) {
+            MorphingFrameSource(
+                LiveFrameSource(AtmospherePresets.IDLE),
+                choreography = choreography,
+                burstStrength = burstStrength,
+            ).also { it.advance(startSeconds) }
         }
     LumosOrb(
         source = source,
@@ -63,8 +97,9 @@ internal fun MorphOrb(
 
 /**
  * A live orb that morphs through [cycle] on its own clock: holds each form for [holdSeconds], then
- * morphs to the next over [morphSeconds], and round again. Everything but the schedule is the
- * [inner] source's.
+ * morphs to the next over [morphSeconds], and round again. With a [burstStrength], each morph is
+ * preceded in the same frame by a [VoxelFrameBuilder.burst] of that strength, which the morph
+ * carries on. Everything but the schedule is the [inner] source's.
  */
 class MorphingFrameSource(
     val inner: LiveFrameSource,
@@ -73,6 +108,7 @@ class MorphingFrameSource(
     private val holdSeconds: Float = DEFAULT_HOLD_SECONDS,
     private val morphSeconds: Float = VoxelFrameBuilder.DEFAULT_MORPH_SECONDS,
     private val choreography: Choreography = Choreography.FLOW,
+    private val burstStrength: Float? = null,
 ) : LumosFrameSource {
     init {
         require(cycle.isNotEmpty()) { "cycle must name at least one form" }
@@ -85,6 +121,7 @@ class MorphingFrameSource(
     override fun next(dt: Float): VoxelFrame {
         clock += dt
         if (clock >= nextMorphAt) {
+            burstStrength?.let { inner.builder.burst(it) }
             inner.builder.morphTo(cycle[nextForm], choreography = choreography, durationSeconds = morphSeconds)
             nextForm = (nextForm + 1) % cycle.size
             nextMorphAt += holdSeconds + morphSeconds
@@ -123,6 +160,9 @@ const val MORPH_STRIP_ORBS: Int = 6
 
 /** How much further into the cycle each orb in the strip starts than its neighbour. */
 const val MORPH_STRIP_STEP_SECONDS: Float = 0.6f
+
+/** The burst the pair's right-hand orb fires before each morph: Dots' 380 px/s at a 64 px radius. */
+const val MORPH_BURST_STRENGTH: Float = 6f
 
 /** The strip orb's side. */
 val MORPH_PREVIEW_SIZE: Dp = 160.dp
