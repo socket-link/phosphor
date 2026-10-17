@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame.CanvasVoxel
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.trace.AtmosphereCue
 import link.socket.phosphor.trace.CaptureConfig

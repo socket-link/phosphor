@@ -25,7 +25,7 @@ sealed interface Force {
      * body's current one, taken once per step.
      *
      * A unit is the orb's radius: half the side of the square
-     * `ComposeLattice` projects into. So a pixel speed converts by dividing by
+     * `PixelLattice` projects into. So a pixel speed converts by dividing by
      * that radius in pixels. Dots' 380 px/s on a 1,000-dot pool 64 px in
      * radius is about 6 units/s.
      *

@@ -1,4 +1,4 @@
-package link.socket.phosphor.lumos.compose.projection
+package link.socket.phosphor.lumos.projection
 
 import kotlin.math.abs
 import kotlin.math.min
@@ -11,21 +11,21 @@ import link.socket.phosphor.lumos.OrbViewport
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame.CanvasVoxel
 
 /**
- * PHO-73: [ComposeLattice.viewport] draws the orb at a centre and radius in pixels on a canvas
+ * PHO-73: [PixelLattice.viewport] draws the orb at a centre and radius in pixels on a canvas
  * larger than itself, clipping only at the canvas edge.
  */
-class ComposeLatticeViewportTest {
+class PixelLatticeViewportTest {
     @Test
     fun `a viewport centred on the canvas projects as the fit-to-canvas lattice, voxel for voxel`() {
         val frame = frameOf(ball(), rotationX = 0.4f, rotationY = 1.1f, rotationZ = 0.2f)
         val viewport = OrbViewport(SIZE / 2f, SIZE / 2f, min(SIZE, SIZE) / 2f)
 
-        val fitted = ComposeLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = 20f).project(frame)
+        val fitted = PixelLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = 20f).project(frame)
         val framed =
-            ComposeLattice(
+            PixelLattice(
                 widthPx = SIZE,
                 heightPx = SIZE,
                 tiltDegrees = 20f,
@@ -53,8 +53,8 @@ class ComposeLatticeViewportTest {
         val frame = frameOf(listOf(cell(0f, 0f, 0f), outbound, offCanvas))
         val viewport = OrbViewport(centerXPx = 100f, centerYPx = 200f, radiusPx = 100f)
 
-        val fitted = ComposeLattice(widthPx = SIZE, heightPx = SIZE).project(frame)
-        val framed = ComposeLattice(widthPx = SIZE, heightPx = SIZE, viewport = viewport).project(frame)
+        val fitted = PixelLattice(widthPx = SIZE, heightPx = SIZE).project(frame)
+        val framed = PixelLattice(widthPx = SIZE, heightPx = SIZE, viewport = viewport).project(frame)
 
         assertEquals(1, fitted.voxels.size, "fit-to-canvas drops both cells past the rim")
         assertEquals(2, framed.voxels.size, "the viewport keeps the one still on the canvas")
@@ -67,7 +67,7 @@ class ComposeLatticeViewportTest {
     @Test
     fun `a viewport maps the unit sphere to centre plus or minus radius, Y up`() {
         val viewport = OrbViewport(centerXPx = 300f, centerYPx = 120f, radiusPx = 80f)
-        val lattice = ComposeLattice(widthPx = 640, heightPx = 360, viewport = viewport)
+        val lattice = PixelLattice(widthPx = 640, heightPx = 360, viewport = viewport)
 
         val voxels =
             lattice
@@ -82,7 +82,7 @@ class ComposeLatticeViewportTest {
     @Test
     fun `a viewport divides only the radius by the aspect ratio, not the centre`() {
         val viewport = OrbViewport(centerXPx = 200f, centerYPx = 200f, radiusPx = 100f)
-        val lattice = ComposeLattice(widthPx = SIZE, heightPx = SIZE, aspectRatio = 2f, viewport = viewport)
+        val lattice = PixelLattice(widthPx = SIZE, heightPx = SIZE, aspectRatio = 2f, viewport = viewport)
 
         val top = lattice.project(frameOf(listOf(cell(0f, 1f, 0f)))).voxels.single()
 
@@ -93,7 +93,7 @@ class ComposeLatticeViewportTest {
     fun `a viewport keeps the z sort`() {
         val zs = listOf(0.5f, -0.9f, 0.0f, 0.5f, -0.2f)
         val frame = frameOf(zs.mapIndexed { i, z -> cell(x = i * 0.4f - 0.8f, y = 0f, z = z) })
-        val lattice = ComposeLattice(widthPx = 1000, heightPx = SIZE, viewport = OrbViewport(600f, 200f, 300f))
+        val lattice = PixelLattice(widthPx = 1000, heightPx = SIZE, viewport = OrbViewport(600f, 200f, 300f))
 
         repeat(3) { assertEquals(zs.sorted(), lattice.project(frame).voxels.map { it.z }) }
     }

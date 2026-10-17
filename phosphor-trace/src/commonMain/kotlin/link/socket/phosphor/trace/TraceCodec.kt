@@ -47,7 +47,7 @@ sealed class TraceDecodeError(
  *
  * - **v1** — every cell channel at full `Float` precision. Lossless.
  * - **v2** — cell channels quantized to narrow integers (see [VoxelTrace]).
- *   Colour and scale decode to exactly what `ComposeLattice` and `CliLattice`
+ *   Colour and scale decode to exactly what `PixelLattice` and `CliLattice`
  *   would draw from the originals; positions carry an error of at most `2⁻¹³`
  *   lattice units for a Lumos orb. About 3.5× smaller than v1 on real captures.
  * - **v3** — v2's quantization, with each frame's position codes stored as the

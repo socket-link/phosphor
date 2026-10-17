@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import link.socket.phosphor.lumos.SurfaceStyle
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 
 /**
  * How [LumosCanvas] paints voxels: [begin] once per frame, [cell] per voxel in

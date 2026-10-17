@@ -30,7 +30,7 @@ import link.socket.phosphor.runtime.SceneConfiguration
  * without flooding a real terminal.
  *
  * This is the CLI projection/draw path: it is the only fully JVM-drawable
- * surface in the repo today. The Compose path (`ComposeLattice` + `LumosCanvas`,
+ * surface in the repo today. The Compose path (`PixelLattice` + `LumosCanvas`,
  * ~1,500-voxel `drawRect`) needs a Compose host and is out of scope here; the
  * gap is noted in the run output.
  *

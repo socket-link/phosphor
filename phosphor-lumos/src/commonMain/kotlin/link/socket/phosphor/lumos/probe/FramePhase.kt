@@ -10,7 +10,7 @@ package link.socket.phosphor.lumos.probe
  * - [BUILD] — `VoxelFrameBuilder.build(snapshot)`: turning a runtime snapshot
  *   into a [link.socket.phosphor.lumos.VoxelFrame] of voxel cells.
  * - [PROJECT] — projecting that voxel frame to a surface-specific 2D frame
- *   (`ComposeLattice.project` / `CliLattice.project`).
+ *   (`PixelLattice.project` / `CliLattice.project`).
  * - [DRAW] — painting the projected voxels to the surface (`LumosCanvas`
  *   composable / `CliOrb` terminal write).
  */

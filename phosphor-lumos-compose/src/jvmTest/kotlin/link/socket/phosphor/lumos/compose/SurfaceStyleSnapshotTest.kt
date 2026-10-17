@@ -23,7 +23,7 @@ import kotlin.test.fail
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame.CanvasVoxel
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.trace.CaptureConfig

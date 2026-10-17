@@ -50,7 +50,7 @@ data class StaticLattice(
  *   power-of-two step (`2⁻¹²` lattice units for an orb, so at most `2⁻¹³` of
  *   error), scale to 16-bit multiples of `1/6561`, and colour and alpha to the
  *   8-bit sRGB byte Compose draws. Colour and scale project through
- *   `ComposeLattice` and `CliLattice` exactly as the originals do; only position
+ *   `PixelLattice` and `CliLattice` exactly as the originals do; only position
  *   moves, and by under an eighth of a pixel on a 1080 px canvas. About 3.4–4.3
  *   bytes per voxel-frame on a real capture.
  * - **v3** (current) is v2 with each frame's position codes stored as the

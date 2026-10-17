@@ -18,7 +18,7 @@ import link.socket.phosphor.lumos.probe.measure
  * Each voxel's lattice position is first rotated by the frame's orb rotation
  * (`VoxelAmbient.orbRotationX`, `orbRotationY`, `orbRotationZ`;
  * **X first, then Y, then Z**), exactly as
- * ComposeLattice does, so the two surfaces agree on what a frame looks like.
+ * PixelLattice does, so the two surfaces agree on what a frame looks like.
  * The rotated `(x, y)` maps to a character cell, ignoring `z` for placement
  * but using the rotated `z` for occlusion priority (closer voxels win the
  * cell). A frame whose rotation is zero projects its recorded positions

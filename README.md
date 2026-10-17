@@ -43,9 +43,9 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | Module | Purpose |
 |--------|---------|
 | `:phosphor-core` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
-| `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state — builds every `VoxelFrame` and defines the `LumosRenderer` contract, with no UI framework dependency |
+| `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state — builds every `VoxelFrame`, defines the `LumosRenderer` contract, and holds what every pixel surface shares: the `LumosCanvasFrame` DTO, the `PixelLattice` projection and the `OrbStepper` clock, with no UI framework dependency |
 | `:phosphor-lumos-cli` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
-| `:phosphor-lumos-compose` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
+| `:phosphor-lumos-compose` | Compose Multiplatform Canvas rendering surface (`LumosCanvas`, `LumosOrb`) for projected Lumos voxel frames |
 | `:phosphor-trace` | Recorded `VoxelTrace` format, capture, codec, and playback for Lumos voxel frames |
 
 ---
