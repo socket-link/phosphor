@@ -37,8 +37,9 @@ import org.jetbrains.skia.Image
  * PHO-67 Task A: the [Avatar] drawn through the real pipeline, for the visual verdict. Writes to
  * `build/lumos-previews/`: NEUTRAL at 200 px on the Dots style facing the viewer, the same on
  * Squares and wearing the atmosphere's skin, NEUTRAL turned by the IDLE spin, NEUTRAL gazing right,
- * the inline avatar at 20 px and magnified, and a contact sheet of the six expressions. The one assertion is the claim the form makes: the eyes read as
- * holes, darker than the cheek beside them, with nothing in the pipeline knowing about eyes.
+ * the inline avatar at 20 px and magnified, and a contact sheet of the six expressions. The one
+ * assertion is the claim the form makes: the eyes read as holes, darker than the cheek beside them,
+ * with nothing in the pipeline knowing about eyes.
  */
 class LumosAvatarPreviewTest {
     @Test
@@ -69,7 +70,9 @@ class LumosAvatarPreviewTest {
                 "squares-${ORB}px" to { AvatarOrb(Avatar(), ORB.dp, SurfaceStyle.Squares, spin = false) },
                 "dots-${ORB}px-skin" to { AvatarOrb(Avatar(rigid = false), ORB.dp, SurfaceStyle.Dots, spin = false) },
                 "dots-${ORB}px-idle-spin" to { AvatarOrb(Avatar(), ORB.dp, SurfaceStyle.Dots, spin = true) },
-                "dots-${ORB}px-gaze-right" to { AvatarOrb(Avatar(), ORB.dp, SurfaceStyle.Dots, spin = false, gazeX = 1f) },
+                "dots-${ORB}px-gaze-right" to {
+                    AvatarOrb(Avatar(), ORB.dp, SurfaceStyle.Dots, spin = false, gazeX = 1f)
+                },
             )
         for ((name, content) in variants) save(render(ORB, content), "lumos-avatar-neutral-$name.png")
 
