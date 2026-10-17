@@ -133,7 +133,7 @@ internal fun DrawScope.drawVoxels(
 }
 
 // Draws a radial gradient disk centered on the canvas to simulate the ambient breath ring.
-private fun DrawScope.drawHalo(ambient: VoxelAmbient) {
+internal fun DrawScope.drawHalo(ambient: VoxelAmbient) {
     if (ambient.glowIntensity <= 0f) return
     val center = Offset(size.width / 2f, size.height / 2f)
     val radius = min(size.width, size.height) * 0.55f

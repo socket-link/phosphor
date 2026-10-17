@@ -83,6 +83,14 @@ kotlin {
     }
 
     sourceSets {
+        // PHO-63 spike: one actual for every Skia-backed target (desktop, iOS, js, wasm), so the
+        // SkSL material shaders are written once; Android gets its own AGSL-backed actual.
+        val skikoMain by creating { dependsOn(commonMain.get()) }
+        jvmMain.get().dependsOn(skikoMain)
+        iosMain.get().dependsOn(skikoMain)
+        jsMain.get().dependsOn(skikoMain)
+        wasmJsMain.get().dependsOn(skikoMain)
+
         val commonMain by getting {
             dependencies {
                 api(project(":phosphor-lumos"))
@@ -101,6 +109,14 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
                 implementation(project(":phosphor-core"))
+            }
+        }
+        // PHO-63 spike: the on-device half of the material-shader prototype.
+        val androidInstrumentedTest by getting {
+            dependencies {
+                implementation("androidx.compose.ui:ui-test-junit4:1.7.1")
+                implementation("androidx.test:runner:1.6.2")
+                implementation("androidx.test.ext:junit:1.2.1")
             }
         }
         val jvmTest by getting {
@@ -128,12 +144,19 @@ android {
 
     defaultConfig {
         minSdk = providers.gradleProperty("android.minSdk").get().toInt()
+        // PHO-63 spike only.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
+
+// PHO-63 spike: an Activity for the instrumented Compose test to host the canvas in.
+dependencies {
+    "debugImplementation"("androidx.compose.ui:ui-test-manifest:1.7.1")
 }
 
 mavenPublishing {
