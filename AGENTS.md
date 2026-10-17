@@ -129,6 +129,16 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-lumos-dom/src/jsMain/` | SVG surface, rAF driver, browser facade and the `@JsExport` `mount` API |
 | `phosphor-lumos-dom/src/jsTest/` | Golden attribute sets per style and driver gates, against a fake DOM and a fake page (`:phosphor-lumos-dom:jsTest`) |
 
+## Consumer Docs Are Generated
+
+`docs/lumos/llms.txt` and the `skills/lumos/` agent skill (`npx skills add socket-link/phosphor --skill lumos`)
+are for agents *integrating* Lumos, not maintaining it. They are generated from the catalogues by
+`./gradlew :phosphor-lumos:generateAgentDocs` (the generator is `:phosphor-lumos-cli`'s `docs/` package),
+and `AgentDocsTest` in `:phosphor-lumos-cli:jvmTest` fails while the committed files differ from its output.
+Never edit them by hand. A new form, look, style, material, glyph, preset or `LumosConfig` field needs its
+one-line meaning in `LumosCatalog`, then a regenerate. The examples they print are the compiled files in
+`phosphor-lumos-compose/src/jvmTest/.../compose/docs/`.
+
 ## Before You Change Anything
 
 - Read the file you're modifying. Read its tests.

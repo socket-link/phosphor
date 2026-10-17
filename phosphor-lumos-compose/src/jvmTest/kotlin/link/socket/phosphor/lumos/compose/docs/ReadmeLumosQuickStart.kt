@@ -22,6 +22,6 @@ fun ThinkingOrb() {
         modifier = Modifier.size(160.dp),
     )
 
-    // 3. Change what it shows from anywhere, and it carries on from where it is:
+    // 3. Change what it shows from the UI thread, and it carries on from where it is:
     //    source.runtime.setAtmospherePreset("ready")
 }

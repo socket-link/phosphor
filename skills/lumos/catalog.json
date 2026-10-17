@@ -1,0 +1,626 @@
+{
+  "generatedBy": "Generated from the Lumos catalogues by `./gradlew :phosphor-lumos:generateAgentDocs`. Do not edit by hand.",
+  "config": [
+    {
+      "name": "speed",
+      "type": "Float",
+      "default": 1.0,
+      "constraint": "0.1..3",
+      "meaning": "Multiplies every step of time the driver hands the source: breath, pattern, spin, transitions, glyph windows. An atmosphere's own rates never change."
+    },
+    {
+      "name": "density",
+      "type": "Float",
+      "default": 1.0,
+      "constraint": "> 0",
+      "meaning": "Cell-count multiplier for forms whose count is free to vary. The lattice ignores it."
+    },
+    {
+      "name": "dotSize",
+      "type": "Float",
+      "default": 1.0,
+      "constraint": "> 0",
+      "meaning": "Multiplies the drawn radius of every cell."
+    },
+    {
+      "name": "tiltDegrees",
+      "type": "Float",
+      "default": 0.0,
+      "constraint": "finite",
+      "meaning": "How far above the equator the viewer sits. 0 looks straight on."
+    },
+    {
+      "name": "paused",
+      "type": "Boolean",
+      "default": false,
+      "constraint": null,
+      "meaning": "Stop the clock and hold the last frame. A new atmosphere set while paused still draws, once, held still."
+    },
+    {
+      "name": "reducedMotion",
+      "type": "Boolean",
+      "default": false,
+      "constraint": null,
+      "meaning": "Hold still: no breath, drift or spin; transitions land at once; a glyph shows at full strength. The platform's reduced-motion setting turns this on too, and a config cannot turn it off."
+    },
+    {
+      "name": "label",
+      "type": "String?",
+      "default": null,
+      "constraint": null,
+      "meaning": "What the orb means, for screen readers. Null hides the orb from them."
+    },
+    {
+      "name": "style",
+      "type": "SurfaceStyle",
+      "default": "SurfaceStyle.Squares",
+      "constraint": null,
+      "meaning": "The mark each cell is drawn as; see Surface styles."
+    },
+    {
+      "name": "material",
+      "type": "Material",
+      "default": "Material.Flat",
+      "constraint": null,
+      "meaning": "What each cell is made of; see Materials. A surface that cannot draw one draws `Material.Flat`."
+    }
+  ],
+  "forms": [
+    {
+      "name": "fibonacci",
+      "kotlin": "Forms.Fibonacci",
+      "scale": 1.0,
+      "tipDegrees": 0.0,
+      "meaning": "`count` points spread evenly over the sphere's surface on the golden-angle spiral. The inline orb's form; any count from 1 works."
+    },
+    {
+      "name": "cube",
+      "kotlin": "Forms.Cube",
+      "scale": 1.2,
+      "tipDegrees": 0.0,
+      "meaning": "A cube inscribed in the sphere: the smallest `6n² + 2`-point surface grid that holds `count`, thinned evenly to exactly `count`. At 8 it is the corners."
+    }
+  ],
+  "latticeCounts": [
+    {
+      "resolution": 3,
+      "count": 171
+    },
+    {
+      "resolution": 6,
+      "count": 1141
+    },
+    {
+      "resolution": 10,
+      "count": 4801
+    }
+  ],
+  "looks": [
+    {
+      "look": "BASE",
+      "variant": "default",
+      "key": "base",
+      "periodSeconds": 0.0,
+      "drawn": "yes",
+      "meaning": "Idle, or anything without a look of its own. The atmosphere's own spin."
+    },
+    {
+      "look": "WORKING",
+      "variant": "default",
+      "key": "working",
+      "periodSeconds": 1.7,
+      "drawn": "yes",
+      "meaning": "Busy, running a tool. A ring of light runs down the sphere."
+    },
+    {
+      "look": "WORKING",
+      "variant": "gyro",
+      "key": "working-gyro",
+      "periodSeconds": 1.7,
+      "drawn": "as_default",
+      "meaning": null
+    },
+    {
+      "look": "REASONING",
+      "variant": "default",
+      "key": "reasoning",
+      "periodSeconds": 0.22,
+      "drawn": "yes",
+      "meaning": "Thinking. A lit walk hops between neighbouring cells, steered toward the viewer."
+    },
+    {
+      "look": "REASONING",
+      "variant": "twins",
+      "key": "reasoning-twins",
+      "periodSeconds": 0.22,
+      "drawn": "as_default",
+      "meaning": null
+    },
+    {
+      "look": "SEARCHING",
+      "variant": "default",
+      "key": "searching",
+      "periodSeconds": 1.8,
+      "drawn": "yes",
+      "meaning": "Searching the web or files. A lens hops between spots on the front of the sphere, magnifying what it covers."
+    },
+    {
+      "look": "SEARCHING",
+      "variant": "lighthouse",
+      "key": "searching-lighthouse",
+      "periodSeconds": 1.8,
+      "drawn": "as_default",
+      "meaning": null
+    },
+    {
+      "look": "BACKGROUND",
+      "variant": "default",
+      "key": "background",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": "Background work nobody is watching, like a dev server."
+    },
+    {
+      "look": "BACKGROUND",
+      "variant": "spiral",
+      "key": "background-spiral",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": null
+    },
+    {
+      "look": "RETRYING",
+      "variant": "default",
+      "key": "retrying",
+      "periodSeconds": 1.6,
+      "drawn": "yes",
+      "meaning": "Retrying after an error. The orb turns, brakes, springs back 60 % of the turn and tries again; it owns the spin while worn."
+    },
+    {
+      "look": "RETRYING",
+      "variant": "surge",
+      "key": "retrying-surge",
+      "periodSeconds": 1.6,
+      "drawn": "as_default",
+      "meaning": null
+    },
+    {
+      "look": "COMPACTING",
+      "variant": "default",
+      "key": "compacting",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": "Compacting the context window, or consolidating what was learned."
+    },
+    {
+      "look": "COMPACTING",
+      "variant": "squeeze",
+      "key": "compacting-squeeze",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": null
+    },
+    {
+      "look": "COMPACTING",
+      "variant": "fuse",
+      "key": "compacting-fuse",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": null
+    },
+    {
+      "look": "WAITING",
+      "variant": "default",
+      "key": "waiting",
+      "periodSeconds": 0.0,
+      "drawn": "as_base",
+      "meaning": "Waiting on a human: worn while an agent is escalated."
+    }
+  ],
+  "agentStateToLook": [
+    {
+      "phase": "PERCEIVE",
+      "activity": null,
+      "look": "SEARCHING",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": "RECALL",
+      "activity": null,
+      "look": "REASONING",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": "OBSERVE",
+      "activity": null,
+      "look": "SEARCHING",
+      "variant": "lighthouse",
+      "glyph": null
+    },
+    {
+      "phase": "PLAN",
+      "activity": null,
+      "look": "REASONING",
+      "variant": "twins",
+      "glyph": null
+    },
+    {
+      "phase": "EXECUTE",
+      "activity": null,
+      "look": "WORKING",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": "LEARN",
+      "activity": null,
+      "look": "COMPACTING",
+      "variant": "fuse",
+      "glyph": null
+    },
+    {
+      "phase": "LOOP",
+      "activity": null,
+      "look": "BASE",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": "NONE",
+      "activity": "IDLE",
+      "look": "BASE",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": "NONE",
+      "activity": "PROCESSING",
+      "look": "WORKING",
+      "variant": "gyro",
+      "glyph": null
+    },
+    {
+      "phase": null,
+      "activity": "SPAWNING",
+      "look": "BASE",
+      "variant": "default",
+      "glyph": null
+    },
+    {
+      "phase": null,
+      "activity": "COMPLETE",
+      "look": "BASE",
+      "variant": "default",
+      "glyph": "CHECK"
+    }
+  ],
+  "escalated": {
+    "look": "WAITING",
+    "variant": "default",
+    "glyph": "QUESTION"
+  },
+  "unattended": {
+    "look": "BACKGROUND",
+    "variant": "spiral"
+  },
+  "atmospheres": [
+    {
+      "name": "idle",
+      "meaning": "Nothing in flight.",
+      "primaryHue": 250.0,
+      "secondaryHue": 175.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "bipolarStrength": 0.0,
+      "pattern": "LONGITUDE",
+      "patternSpeed": 0.25,
+      "pulseAmplitude": 0.025,
+      "pulseFrequency": 0.3,
+      "rotationY": 0.14,
+      "rotationX": 0.0,
+      "surfaceBump": 0.1,
+      "noise": 0.2,
+      "voxelGap": 0.05,
+      "ySquash": 0.95,
+      "resolution": 10,
+      "glow": 1.0
+    },
+    {
+      "name": "listening",
+      "meaning": "Taking input: the person is speaking or typing.",
+      "primaryHue": 195.0,
+      "secondaryHue": 270.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "bipolarStrength": 0.0,
+      "pattern": "PLASMA",
+      "patternSpeed": 1.15,
+      "pulseAmplitude": 0.06,
+      "pulseFrequency": 0.5,
+      "rotationY": 0.16,
+      "rotationX": 0.1,
+      "surfaceBump": 0.1,
+      "noise": 0.2,
+      "voxelGap": 0.05,
+      "ySquash": 0.95,
+      "resolution": 10,
+      "glow": 1.0
+    },
+    {
+      "name": "thinking",
+      "meaning": "Working on it.",
+      "primaryHue": 244.0,
+      "secondaryHue": 185.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "bipolarStrength": 0.0,
+      "pattern": "SPIRAL",
+      "patternSpeed": 0.7,
+      "pulseAmplitude": 0.025,
+      "pulseFrequency": 0.45,
+      "rotationY": 0.45,
+      "rotationX": 0.1,
+      "surfaceBump": 0.1,
+      "noise": 0.2,
+      "voxelGap": 0.05,
+      "ySquash": 0.95,
+      "resolution": 10,
+      "glow": 1.0
+    },
+    {
+      "name": "uncertain",
+      "meaning": "Unsure, or waiting on a human: two hues held apart.",
+      "primaryHue": 32.0,
+      "secondaryHue": 280.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "bipolarStrength": 0.45,
+      "pattern": "SPIRAL",
+      "patternSpeed": 1.0,
+      "pulseAmplitude": 0.06,
+      "pulseFrequency": 0.16,
+      "rotationY": 0.1,
+      "rotationX": 0.1,
+      "surfaceBump": 0.1,
+      "noise": 0.2,
+      "voxelGap": 0.05,
+      "ySquash": 0.95,
+      "resolution": 10,
+      "glow": 1.0
+    },
+    {
+      "name": "ready",
+      "meaning": "Done, with something to show.",
+      "primaryHue": 249.0,
+      "secondaryHue": 197.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "bipolarStrength": 0.0,
+      "pattern": "PULSE",
+      "patternSpeed": 1.3,
+      "pulseAmplitude": 0.04,
+      "pulseFrequency": 0.5,
+      "rotationY": 0.2,
+      "rotationX": -0.2,
+      "surfaceBump": 0.1,
+      "noise": 0.2,
+      "voxelGap": 0.05,
+      "ySquash": 0.95,
+      "resolution": 10,
+      "glow": 1.0
+    }
+  ],
+  "patterns": [
+    {
+      "name": "LONGITUDE",
+      "meaning": "Bands around the vertical axis."
+    },
+    {
+      "name": "LATITUDE",
+      "meaning": "Bands around the polar axis."
+    },
+    {
+      "name": "SPIRAL",
+      "meaning": "A combined sweep of both angles."
+    },
+    {
+      "name": "SCAN",
+      "meaning": "A sweep along the vertical axis."
+    },
+    {
+      "name": "PLASMA",
+      "meaning": "Three-axis noise."
+    },
+    {
+      "name": "PULSE",
+      "meaning": "Rings out from the centre."
+    },
+    {
+      "name": "SOLID",
+      "meaning": "No variation."
+    }
+  ],
+  "styles": [
+    {
+      "name": "Squares",
+      "flat": false,
+      "meaning": "A square per cell, two radii on a side. What every orb drew before styles existed."
+    },
+    {
+      "name": "Dots",
+      "flat": false,
+      "meaning": "A circle per cell."
+    },
+    {
+      "name": "Dashes",
+      "flat": false,
+      "meaning": "A round-capped stroke per cell along the spin, 1.8 radii each way at full speed and 0.9 radii wide, so a turning orb reads as motion even when small."
+    }
+  ],
+  "materials": [
+    {
+      "name": "Flat",
+      "fields": [],
+      "drawn": "every target, no shader",
+      "meaning": "The style's own mark."
+    },
+    {
+      "name": "Ink",
+      "fields": [
+        {
+          "name": "grain",
+          "type": "Float",
+          "default": 0.5,
+          "constraint": "0..1"
+        },
+        {
+          "name": "intensity",
+          "type": "Float",
+          "default": 1.0,
+          "constraint": ">= 0"
+        }
+      ],
+      "drawn": "every target, no shader",
+      "meaning": "Paper grain: each cell's alpha and radius wander by `grain`, drawn as a soft edge under an opaque core."
+    },
+    {
+      "name": "Neon",
+      "fields": [
+        {
+          "name": "glow",
+          "type": "Float",
+          "default": 0.5,
+          "constraint": "0..1"
+        },
+        {
+          "name": "intensity",
+          "type": "Float",
+          "default": 1.0,
+          "constraint": ">= 0"
+        }
+      ],
+      "drawn": "every target, no shader",
+      "meaning": "An emissive tube: a tinted envelope under a white filament, and the orb's halo widened by `glow`."
+    },
+    {
+      "name": "Metal",
+      "fields": [
+        {
+          "name": "roughness",
+          "type": "Float",
+          "default": 0.15,
+          "constraint": null
+        },
+        {
+          "name": "lightDegrees",
+          "type": "Float",
+          "default": -35.0,
+          "constraint": null
+        },
+        {
+          "name": "chromatic",
+          "type": "Float",
+          "default": 0.35,
+          "constraint": null
+        },
+        {
+          "name": "flow",
+          "type": "Float",
+          "default": 1.0,
+          "constraint": null
+        }
+      ],
+      "drawn": "not yet: draws `Flat`, reports `Unavailable`",
+      "meaning": "Brushed metal lit from `lightDegrees`. Declared so the type can be written today."
+    },
+    {
+      "name": "Glass",
+      "fields": [
+        {
+          "name": "refraction",
+          "type": "Float",
+          "default": 0.65,
+          "constraint": null
+        },
+        {
+          "name": "dispersion",
+          "type": "Float",
+          "default": 0.2,
+          "constraint": null
+        },
+        {
+          "name": "frost",
+          "type": "Float",
+          "default": 0.03,
+          "constraint": null
+        }
+      ],
+      "drawn": "not yet: draws `Flat`, reports `Unavailable`",
+      "meaning": "Refracting glass. Declared so the type can be written today."
+    }
+  ],
+  "glyphs": [
+    {
+      "name": "CHECK",
+      "hue": 145.0,
+      "saturation": 0.65,
+      "lightness": 0.55,
+      "meaning": "Done: a task completed."
+    },
+    {
+      "name": "EXCLAIM",
+      "hue": 32.0,
+      "saturation": 0.95,
+      "lightness": 0.55,
+      "meaning": "Attention required: a warning."
+    },
+    {
+      "name": "QUESTION",
+      "hue": 280.0,
+      "saturation": 0.7,
+      "lightness": 0.6,
+      "meaning": "Uncertain, or needs a human: fired when an agent escalates."
+    },
+    {
+      "name": "HEART",
+      "hue": 340.0,
+      "saturation": 0.8,
+      "lightness": 0.6,
+      "meaning": "Affirmation, or a preference noted."
+    },
+    {
+      "name": "STAR",
+      "hue": 50.0,
+      "saturation": 0.95,
+      "lightness": 0.65,
+      "meaning": "An achievement or milestone."
+    },
+    {
+      "name": "LIGHTNING",
+      "hue": 244.0,
+      "saturation": 0.85,
+      "lightness": 0.6,
+      "meaning": "Active execution: a spark."
+    }
+  ],
+  "choreographies": [
+    {
+      "name": "FLOW",
+      "meaning": "A gentle arc scaled to the distance: the body reshaping. The default."
+    },
+    {
+      "name": "SCATTER",
+      "meaning": "Every cell flies out before settling: the body bursts and regathers."
+    },
+    {
+      "name": "DIRECT",
+      "meaning": "The straight line each cell's spring gives it."
+    }
+  ],
+  "timing": {
+    "lookBlendSeconds": 0.6,
+    "morphSeconds": 2.4
+  }
+}
