@@ -46,6 +46,7 @@ Signal → Field → Palette → Render → Choreography → Emitter → Surface
 | `:phosphor-lumos` | Voxel-orb companion visualization module for cognitive state — builds every `VoxelFrame`, defines the `LumosRenderer` contract, and holds what every pixel surface shares: the `LumosCanvasFrame` DTO, the `PixelLattice` projection and the `OrbStepper` clock, with no UI framework dependency |
 | `:phosphor-lumos-cli` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
 | `:phosphor-lumos-compose` | Compose Multiplatform Canvas rendering surface (`LumosCanvas`, `LumosOrb`) for projected Lumos voxel frames |
+| `:phosphor-lumos-dom` | Kotlin/JS DOM/SVG surface for web pages without Compose: an ES module whose `mount(svg, options)` draws a live orb into an `<svg>` |
 | `:phosphor-trace` | Recorded `VoxelTrace` format, capture, codec, and playback for Lumos voxel frames |
 
 ---
@@ -179,6 +180,55 @@ fun ThinkingOrb() {
 
 The orb stops while it is scrolled off screen or its window is in the background, holds still when the platform asks for reduced motion, and is one labelled image to a screen reader — or hidden from one, without a label. Orbs in the same state share a clock, so a column of them breathes together. To drive a runtime and frame builder you already own, wrap them in `LiveFrameSource(runtime, builder)`; to play a recording from `:phosphor-trace`, open it with `asFrameSource()`. The snippet is compiled by `ReadmeLumosQuickStartTest`.
 
+### A Lumos orb on a web page
+
+`:phosphor-lumos-dom` draws the same orb into an `<svg>` on any page — plain HTML, React, anything that can hand over an element — with no Compose, no Skia and no npm package. It is Kotlin/JS, built as one ES module:
+
+```bash
+./gradlew :phosphor-lumos-dom:jsBrowserDistribution
+# phosphor-lumos-dom/build/dist/js/productionExecutable/phosphor-lumos-dom.mjs
+```
+
+```html
+<svg id="orb" style="width: 160px; height: 160px"></svg>
+<script type="module">
+  import { mount } from './phosphor-lumos-dom.mjs';
+
+  const orb = mount(document.getElementById('orb'), {
+    style: 'dots',             // 'squares' (default), 'dots' or 'dashes'
+    atmosphere: 'thinking',    // 'idle' (default), 'listening', 'thinking', 'uncertain', 'ready'
+    label: 'Lumos is thinking',
+  });
+  orb.setAtmosphere('ready');  // carries on from where it is
+  orb.setLook('working');      // blends over 0.6 s
+  // orb.pause(), orb.resume(), orb.stats(), orb.unmount()
+</script>
+```
+
+In React, mount in an effect and unmount in its cleanup:
+
+```jsx
+import { useEffect, useRef } from 'react';
+import { mount } from './phosphor-lumos-dom.mjs';
+
+export function LumosOrb({ atmosphere = 'idle', label, ...options }) {
+  const svg = useRef(null);
+  const orb = useRef(null);
+  useEffect(() => {
+    orb.current = mount(svg.current, { ...options, atmosphere, label });
+    return () => orb.current.unmount();
+  }, []);
+  useEffect(() => { orb.current?.setAtmosphere(atmosphere); }, [atmosphere]);
+  return <svg ref={svg} style={{ width: 160, height: 160 }} />;
+}
+```
+
+The orb follows the `<svg>`'s CSS size. It stops while scrolled out of view or while the page is hidden, holds still under `prefers-reduced-motion` or `reduceMotion: true`, and is one labelled image to a screen reader with a `label`, or hidden from one without. `tint: 'currentColor'` paints every cell in the CSS `color` of the `<svg>`, so an inline orb takes the colour of the text around it. Other options: `look`, `resolution`, `speed`, `dotSize`, `maxFps` (60 by default), `halo`, `glyph` and `paused`.
+
+**Resolution.** Every cell is one SVG element. A preset's resolution of 10 is 4,801 cells, which holds 60 Hz in Chrome; for an orb a few tens of pixels across use `resolution: 4` or less. At 20 px and resolution 10, three quarters of the cells sit on the 0.45 px floor and the page does sixty times the work for nothing.
+
+The distribution also carries two example pages beside the module: `index.html`, every style at 200 px and 20 px, and `react.html`. Serve the directory over HTTP to open them; an ES module does not load from `file://`.
+
 ---
 
 ## Metadata-Driven Emitters
@@ -211,6 +261,8 @@ Phosphor compiles to:
 - **iOS** (x64, ARM64, Simulator ARM64 — packaged as XCFrameworks)
 
 The `:phosphor-lumos-cli` module is JVM-only by design; non-terminal Lumos surfaces live in separate sibling modules.
+
+`:phosphor-lumos-dom` is JavaScript-only by design: the same adapter from WebAssembly is two to three times slower, because every attribute write crosses the wasm/JS boundary as a string.
 
 `:phosphor-trace` encodes only on the JVM and iOS. On JavaScript and WebAssembly it decodes and plays back `.vxt` traces but `TraceCodec.encode` throws, so encode on the JVM and ship the file to the browser.
 
