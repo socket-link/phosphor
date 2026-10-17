@@ -49,6 +49,7 @@ class TraceV3TemporalTest {
     }
 
     @Test
+    @NeedsBinary32
     fun `a jump wider than a 16-bit delta still decodes exactly`() {
         // Just inside ±8 lattice units keeps the 2⁻¹² step, so the codes reach
         // ±32767 and their difference overflows a Short. The delta wraps and must unwrap.
@@ -99,8 +100,8 @@ class TraceV3TemporalTest {
         val cells = assertIs<CellChannels.Quantized>(decoded.cells)
         val before = listOf(cells.cellX, cells.cellY, cells.cellZ).map { it.copyOf() }
 
-        val first = TraceCodec.encode(decoded)
-        val second = TraceCodec.encode(decoded)
+        val first = encodeForTest(decoded)
+        val second = encodeForTest(decoded)
 
         assertContentEquals(first, second, "a second encode saw different positions")
         listOf(cells.cellX, cells.cellY, cells.cellZ).zip(before).forEach { (after, original) ->
@@ -122,7 +123,7 @@ class TraceV3TemporalTest {
         }
     }
 
-    private fun roundTrip(trace: VoxelTrace): VoxelTrace = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+    private fun roundTrip(trace: VoxelTrace): VoxelTrace = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
     /** One x position code per cell, per frame, at the default step; y and z fixed. */
     private fun traceOfXCodes(frames: List<List<Int>>): VoxelTrace =

@@ -44,7 +44,7 @@ class OscilloscopeDeterminismTest {
         val second = Oscilloscope.capture(scenario()).getOrThrow()
 
         assertEquals(first, second)
-        assertContentEquals(TraceCodec.encode(first), TraceCodec.encode(second))
+        assertContentEquals(encodeForTest(first), encodeForTest(second))
     }
 
     @Test
@@ -54,7 +54,7 @@ class OscilloscopeDeterminismTest {
 
         assertEquals(1L, seedA.seed)
         assertEquals(2L, seedB.seed)
-        assertFalse(TraceCodec.encode(seedA).contentEquals(TraceCodec.encode(seedB)))
+        assertFalse(encodeForTest(seedA).contentEquals(encodeForTest(seedB)))
     }
 
     @Test
@@ -112,6 +112,6 @@ class OscilloscopeDeterminismTest {
         assertEquals(AtmospherePresets.IDLE.resolution, trace.staticLattice.resolution)
         val expectedCells = VoxelSphere(AtmospherePresets.IDLE.resolution).count
         assertTrue(trace.cellCounts.all { it == expectedCells })
-        assertTrue(TraceCodec.decode(TraceCodec.encode(trace)).isSuccess)
+        assertTrue(TraceCodec.decode(encodeForTest(trace)).isSuccess)
     }
 }

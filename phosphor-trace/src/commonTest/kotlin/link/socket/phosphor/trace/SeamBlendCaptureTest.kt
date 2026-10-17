@@ -44,7 +44,7 @@ class SeamBlendCaptureTest {
                 Oscilloscope
                     .capture(loopAt(preset, start = BLEND_FRAMES, blendFrames = BLEND_FRAMES))
                     .getOrThrow()
-            val decoded = TraceCodec.decode(TraceCodec.encode(captured)).getOrThrow()
+            val decoded = TraceCodec.decode(encodeForTest(captured)).getOrThrow()
 
             val before = captured.seamErrors().single()
             val after = decoded.seamErrors().single()

@@ -80,6 +80,7 @@ class TracePlayerTest {
     }
 
     @Test
+    @NeedsBinary32
     fun reconstructedFramesEqualTheRecordedFrames() {
         val recorded = framesOf(frameCount = 6)
         val player = TracePlayer(traceFrom(recorded))

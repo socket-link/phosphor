@@ -32,6 +32,7 @@ import link.socket.phosphor.runtime.SceneConfiguration
 @OptIn(ExperimentalCoroutinesApi::class)
 class TraceEquivalenceTest {
     @Test
+    @NeedsBinary32
     fun aReplayedTraceEqualsTheLiveSimulationFrameByFrame() =
         runTest {
             val trace = Oscilloscope.capture(captureConfig()).getOrThrow()
@@ -55,6 +56,7 @@ class TraceEquivalenceTest {
         }
 
     @Test
+    @NeedsBinary32
     fun aReplayedTraceEqualsALiveSimulationThroughAnAtmosphereTransition() {
         // Cues fire immediately before the step that produces their frame, so the
         // live side applies the same change at the same frame index to match.
@@ -77,12 +79,13 @@ class TraceEquivalenceTest {
     }
 
     @Test
+    @NeedsBinary32
     fun theCodecRoundTripStaysWithinTheV2Tolerance() {
         // v2 quantizes cell channels, so a trace read back from bytes is no longer
         // float-identical to the one recorded — it is within the PHO-42 tolerance,
         // and the lattice modules check that tolerance down to pixels and glyphs.
         val trace = Oscilloscope.capture(captureConfig()).getOrThrow()
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         TraceTestData.assertV2Equivalent(trace, decoded)
 
@@ -123,6 +126,7 @@ class TraceEquivalenceTest {
     }
 
     @Test
+    @NeedsBinary32
     fun equivalenceHoldsAtEveryFrameNotJustInAggregate() {
         val trace = Oscilloscope.capture(captureConfig()).getOrThrow()
         val generator = SignalGenerator(configuration = liveScene(), fps = FPS)

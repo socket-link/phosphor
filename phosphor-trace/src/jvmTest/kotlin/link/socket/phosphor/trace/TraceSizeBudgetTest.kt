@@ -13,6 +13,7 @@ import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.palette.AtmospherePresets
 
+// On the JVM only: these are deflate's sizes, and the web does not deflate. iOS runs the same zlib.
 class TraceSizeBudgetTest {
     @Test
     fun `five second synthetic clip encodes within the PHO-35 v2 target`() {

@@ -105,8 +105,9 @@ kotlin {
         }
         val jvmTest by getting {
             dependencies {
-                // Test-only, and only on the JVM (phosphor-trace has no wasm target):
-                // the PHO-42 pixel-equivalence test projects real v2 traces.
+                // Test-only: the PHO-42 pixel-equivalence test projects real v2 traces. It stays on
+                // the JVM although phosphor-trace now has web targets: it encodes, which the web
+                // cannot, and phosphor-trace has no Android target for commonTest to resolve.
                 implementation(project(":phosphor-trace"))
                 // Test-only Skia native runtime for the host OS, so jvmTest can paint
                 // LumosCanvas into an ImageBitmap and read pixels back (PHO-70).

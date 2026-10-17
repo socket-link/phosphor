@@ -30,6 +30,7 @@ class TraceV2PlaybackTest {
     }
 
     @Test
+    @NeedsBinary32
     fun `cell index i is the same lattice voxel in every decoded v2 frame`() {
         // A blend pairs cells by index. v3's deltas pair cell i with cell i of the
         // previous frame and decode to absolute positions in lattice order, so
@@ -110,7 +111,7 @@ class TraceV2PlaybackTest {
         }
     }
 
-    private fun roundTrip(trace: VoxelTrace): VoxelTrace = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+    private fun roundTrip(trace: VoxelTrace): VoxelTrace = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
     private fun realCapture(): VoxelTrace =
         Oscilloscope

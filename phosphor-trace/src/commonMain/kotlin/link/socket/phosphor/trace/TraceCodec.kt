@@ -61,6 +61,26 @@ sealed class TraceDecodeError(
  * decoded trace re-encodes to identical bytes.
  *
  * Encoded traces use the `.vxt` file extension ([FILE_EXTENSION]).
+ *
+ * ## Platforms
+ *
+ * The JVM and Apple targets encode and decode, through zlib. The `js` and
+ * `wasmJs` targets decode only: [encode] throws `UnsupportedOperationException`
+ * there, so traces are recorded on the JVM or an Apple device and shipped to
+ * the browser as `.vxt` assets.
+ *
+ * The browser's own gzip (`DecompressionStream`) is promise-based and [decode]
+ * is synchronous, so the web inflates in Kotlin instead, and pays for it in
+ * time: a 20 s, resolution-10 v3 trace (3.8 MB) decodes in roughly
+ * 250–300 ms in Chrome and Safari against about 60 ms on the JVM, and nearly
+ * all of the difference is the inflate. A `suspend` decode over
+ * `DecompressionStream` would bring that down to tens of milliseconds; it is
+ * not offered yet. Playback after decoding is about 0.2 ms a frame in a browser.
+ *
+ * A web consumer should depend on the JS artifact rather than the Wasm one when
+ * it can. A Kotlin/JS `ByteArray` is an `Int8Array`, so fetched bytes reach
+ * [decode] without a copy; Kotlin/Wasm has to copy them in one interop call per
+ * byte, about 40 ms for the same 3.8 MB trace.
  */
 @OptIn(ExperimentalSerializationApi::class)
 object TraceCodec {
@@ -82,20 +102,25 @@ object TraceCodec {
      * @throws IllegalArgumentException when the trace declares a version this
      *  build cannot write, or — for v2 and v3 — a cell channel is not finite or a scale
      *  exceeds the encodable range.
+     * @throws UnsupportedOperationException on the `js` and `wasmJs` targets, which
+     *  decode only. See the platform notes on [TraceCodec].
      */
-    fun encode(trace: VoxelTrace): ByteArray {
-        val payload =
-            when (trace.formatVersion) {
-                FORMAT_V1 -> cbor.encodeToByteArray(VoxelTrace.serializer(), trace)
-                FORMAT_V2, FORMAT_V3 ->
-                    cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), TraceQuantization.toWire(trace))
-                else -> throw IllegalArgumentException(
-                    "Cannot encode formatVersion=${trace.formatVersion}; this build writes " +
-                        "v$FORMAT_V1–v$SUPPORTED_FORMAT_VERSION",
-                )
-            }
-        return gzipCompress(payload)
-    }
+    fun encode(trace: VoxelTrace): ByteArray = gzipCompress(encodePayload(trace))
+
+    /**
+     * The CBOR payload [encode] gzips, on every target. The web tests gzip it themselves
+     * so the decode paths run there over the payloads the JVM and Apple targets write.
+     */
+    internal fun encodePayload(trace: VoxelTrace): ByteArray =
+        when (trace.formatVersion) {
+            FORMAT_V1 -> cbor.encodeToByteArray(VoxelTrace.serializer(), trace)
+            FORMAT_V2, FORMAT_V3 ->
+                cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), TraceQuantization.toWire(trace))
+            else -> throw IllegalArgumentException(
+                "Cannot encode formatVersion=${trace.formatVersion}; this build writes " +
+                    "v$FORMAT_V1–v$SUPPORTED_FORMAT_VERSION",
+            )
+        }
 
     /**
      * Decode a `.vxt` payload produced by [encode], in any supported format.
@@ -141,7 +166,8 @@ object TraceCodec {
  * Compress [data] to a standard gzip (RFC 1952) stream.
  *
  * Platform actuals must emit interchangeable gzip framing so a trace encoded on
- * one platform decodes on another (bundled assets cross JVM and Apple targets).
+ * one platform decodes on another (bundled assets cross JVM, Apple and web
+ * targets). The web actual throws: the web decodes only.
  */
 internal expect fun gzipCompress(data: ByteArray): ByteArray
 

@@ -26,6 +26,7 @@ import link.socket.phosphor.lumos.VoxelGlyphState
  */
 class TraceV1FixtureTest {
     @Test
+    @NeedsBinary32
     fun `a frozen v1 payload still decodes losslessly`() {
         val trace = TraceCodec.decode(fixtureBytes()).getOrThrow()
 
@@ -51,28 +52,30 @@ class TraceV1FixtureTest {
     fun `a decoded v1 trace re-encodes as v1 without loss`() {
         val trace = TraceCodec.decode(fixtureBytes()).getOrThrow()
 
-        val again = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val again = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         assertEquals(trace, again)
     }
 
     @Test
+    @NeedsBinary32
     fun `a decoded v1 trace upgrades to v2 within the v2 tolerance`() {
         val v1 = TraceCodec.decode(fixtureBytes()).getOrThrow()
         val upgraded = TraceTestData.withFormatVersion(v1, formatVersion = 2)
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(upgraded)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(upgraded)).getOrThrow()
 
         TraceTestData.assertV2Equivalent(upgraded, decoded)
     }
 
     @Test
+    @NeedsBinary32
     fun `a decoded v1 trace upgrades to v3 within the v2 tolerance`() {
         // The fixture's cell counts run 2, 2, 1: one delta frame, then an absolute fallback.
         val v1 = TraceCodec.decode(fixtureBytes()).getOrThrow()
         val upgraded = TraceTestData.withFormatVersion(v1, formatVersion = 3)
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(upgraded)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(upgraded)).getOrThrow()
 
         TraceTestData.assertV2Equivalent(upgraded, decoded)
     }

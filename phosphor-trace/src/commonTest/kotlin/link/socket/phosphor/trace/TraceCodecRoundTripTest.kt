@@ -14,12 +14,13 @@ import link.socket.phosphor.lumos.VoxelFrame
 
 class TraceCodecRoundTripTest {
     @Test
+    @NeedsBinary32
     fun `random traces round-trip within the v2 tolerance`() {
         val random = Random(0xC0FFEE)
         repeat(50) {
             val trace = randomTrace(random)
 
-            val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+            val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
             TraceTestData.assertV2Equivalent(trace, decoded)
         }
@@ -30,16 +31,16 @@ class TraceCodecRoundTripTest {
         val random = Random(0xBEEF)
         for (version in 2..3) {
             repeat(20) { iteration ->
-                val encoded = TraceCodec.encode(TraceTestData.withFormatVersion(randomTrace(random), version))
+                val encoded = encodeForTest(TraceTestData.withFormatVersion(randomTrace(random), version))
                 val decoded = TraceCodec.decode(encoded).getOrThrow()
 
                 assertEquals(version, decoded.formatVersion)
                 assertContentEquals(
                     encoded,
-                    TraceCodec.encode(decoded),
+                    encodeForTest(decoded),
                     "v$version re-encode drifted on iteration $iteration",
                 )
-                assertEquals(decoded, TraceCodec.decode(TraceCodec.encode(decoded)).getOrThrow())
+                assertEquals(decoded, TraceCodec.decode(encodeForTest(decoded)).getOrThrow())
             }
         }
     }
@@ -50,7 +51,7 @@ class TraceCodecRoundTripTest {
         repeat(20) { iteration ->
             val v1 = TraceTestData.withFormatVersion(randomTrace(random), formatVersion = 1)
 
-            val decoded = TraceCodec.decode(TraceCodec.encode(v1)).getOrThrow()
+            val decoded = TraceCodec.decode(encodeForTest(v1)).getOrThrow()
 
             assertEquals(v1, decoded, "v1 trace changed on iteration $iteration")
         }
@@ -67,7 +68,7 @@ class TraceCodecRoundTripTest {
                 createdAtEpochMs = 0L,
             )
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         assertEquals(frames, decoded.toFrames())
         assertTrue(decoded.toFrames().all { it.cells.isEmpty() })
@@ -80,7 +81,7 @@ class TraceCodecRoundTripTest {
         val decoded =
             TraceCodec
                 .decode(
-                    TraceCodec.encode(
+                    encodeForTest(
                         VoxelTrace.fromFrames(frames, fps = 24, phosphorVersion = "0.7.0", createdAtEpochMs = 0L),
                     ),
                 ).getOrThrow()
@@ -94,7 +95,7 @@ class TraceCodecRoundTripTest {
     fun `single minimal trace round-trips`() {
         val trace = TraceTestData.sampleTrace(formatVersion = VoxelTrace.CURRENT_FORMAT_VERSION)
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         TraceTestData.assertV2Equivalent(trace, decoded)
         assertNull(decoded.toFrames().single().glyph)
@@ -114,7 +115,7 @@ class TraceCodecRoundTripTest {
             }
         val trace = singleFrameTrace(scales.map { cellWithScale(it) })
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         scales.forEachIndexed { i, scale ->
             assertEquals(
@@ -129,7 +130,7 @@ class TraceCodecRoundTripTest {
     fun `a tiny positive scale stays visible and a non-positive one stays hidden`() {
         val trace = singleFrameTrace(listOf(1e-6f, 0f, -0.25f).map { cellWithScale(it) })
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         assertTrue(decoded.cellScale[0] > 0f)
         assertEquals(0f, decoded.cellScale[1])
@@ -137,10 +138,11 @@ class TraceCodecRoundTripTest {
     }
 
     @Test
+    @NeedsBinary32
     fun `positions beyond the default range widen the step instead of overflowing`() {
         val trace = singleFrameTrace(listOf(cellWithScale(1f).copy(x = 100f, y = -0.3f)))
 
-        val decoded = TraceCodec.decode(TraceCodec.encode(trace)).getOrThrow()
+        val decoded = TraceCodec.decode(encodeForTest(trace)).getOrThrow()
 
         // ±8 lattice units fit the default 2⁻¹² step; 100 needs 2⁻⁸.
         assertEquals(1f / 256f, TraceTestData.positionStepOf(trace))
