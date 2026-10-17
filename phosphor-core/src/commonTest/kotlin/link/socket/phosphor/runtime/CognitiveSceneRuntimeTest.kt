@@ -1,10 +1,13 @@
 package link.socket.phosphor.runtime
 
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import link.socket.phosphor.choreography.AgentLayoutOrientation
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
@@ -14,6 +17,7 @@ import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AgentActivityState
 import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.signal.LumosInput
 
 class CognitiveSceneRuntimeTest {
     @Test
@@ -272,6 +276,53 @@ class CognitiveSceneRuntimeTest {
         assertTrue(snapshot.emitterStates.isEmpty())
         assertNull(snapshot.cameraTransform)
         assertNull(snapshot.atmosphere)
+    }
+
+    @Test
+    fun `input is NONE by default`() {
+        val runtime = CognitiveSceneRuntime(populatedConfiguration(seed = 7L))
+
+        assertEquals(LumosInput.NONE, runtime.snapshot().input)
+        assertEquals(LumosInput.NONE, runtime.update(1f / 60f).input)
+    }
+
+    @Test
+    fun `setInput lands on the next update and not before`() {
+        val runtime = CognitiveSceneRuntime(populatedConfiguration(seed = 7L))
+        runtime.update(1f / 60f)
+        val input = LumosInput(pointer = Vector2(0.3f, 0.6f), pressed = true)
+
+        runtime.setInput(input)
+        assertEquals(LumosInput.NONE, runtime.snapshot().input, "snapshot() is unchanged until the next update")
+
+        val next = runtime.update(1f / 60f)
+        assertSame(input, next.input, "the snapshot carries the reference it was given")
+        assertSame(input, runtime.snapshot().input)
+        assertSame(input, runtime.update(1f / 60f).input, "the input stays until it is replaced")
+
+        runtime.setInput(LumosInput.NONE)
+        assertEquals(LumosInput.NONE, runtime.update(1f / 60f).input)
+    }
+
+    @Test
+    fun `input changes nothing else in the scene`() {
+        val configuration = populatedConfiguration(seed = 4242L).copy(enableAtmosphere = true)
+        val plain = CognitiveSceneRuntime(configuration)
+        val pointed = CognitiveSceneRuntime(configuration)
+        plain.setAtmosphere(AtmospherePresets.THINKING)
+        pointed.setAtmosphere(AtmospherePresets.THINKING)
+
+        repeat(60) { frame ->
+            val angle = frame * 0.1f
+            pointed.setInput(LumosInput(pointer = Vector2(cos(angle), sin(angle)), pressed = frame % 2 == 0))
+            val expected = plain.update(1f / 60f)
+            val actual = pointed.update(1f / 60f)
+
+            assertEquals(expected.atmosphere, actual.atmosphere, "frame $frame atmosphere")
+            assertEquals(expected.atmosphereTransition, actual.atmosphereTransition, "frame $frame transition")
+            assertEquals(expected.substrateState, actual.substrateState, "frame $frame substrate")
+            assertEquals(expected, actual.copy(input = LumosInput.NONE), "frame $frame")
+        }
     }
 
     @Test

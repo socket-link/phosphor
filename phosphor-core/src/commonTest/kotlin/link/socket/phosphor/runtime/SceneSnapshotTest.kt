@@ -6,9 +6,11 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.field.SubstrateState
+import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.signal.LumosInput
 
 class SceneSnapshotTest {
     @Test
@@ -38,6 +40,22 @@ class SceneSnapshotTest {
         assertEquals(first.hashCode(), second.hashCode())
         assertNotEquals(first, third)
         assertNotEquals(first.hashCode(), third.hashCode())
+    }
+
+    @Test
+    fun `input participates in equality and hash code`() {
+        val first = buildSnapshot(floatArrayOf(0.1f, 0.2f, 0.3f, 0.4f))
+        assertEquals(LumosInput.NONE, first.input)
+        val pointed = first.copy(input = LumosInput(pointer = Vector2(0.25f, -0.5f)))
+        val samePoint = first.copy(input = LumosInput(pointer = Vector2(0.25f, -0.5f)))
+        val pressed = first.copy(input = LumosInput(pointer = Vector2(0.25f, -0.5f), pressed = true))
+
+        assertEquals(pointed, samePoint)
+        assertEquals(pointed.hashCode(), samePoint.hashCode())
+        assertNotEquals(first, pointed)
+        assertNotEquals(first.hashCode(), pointed.hashCode())
+        assertNotEquals(pointed, pressed)
+        assertNotEquals(pointed.hashCode(), pressed.hashCode())
     }
 
     @Test

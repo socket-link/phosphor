@@ -1,5 +1,7 @@
 package link.socket.phosphor.field
 
+import kotlin.math.sqrt
+
 /**
  * Something acting on a [FormMorph]'s body besides its spring: added to
  * [FormMorph.forces] and applied, in list order, by every [FormMorph.step]
@@ -83,21 +85,100 @@ sealed interface Force {
     }
 
     /**
-     * A view-space push on each cell's spring target, away from a point the
-     * pointer names: cells within [radius] of it give way.
+     * A push on each cell's spring target, away from the pointer's line of
+     * sight through the body: cells near where the person points give way, and
+     * come home when the force is removed.
      *
-     * Declared here so PHO-64's pointer input lands on this seam instead of
-     * adding a second mechanism. [FormMorph.step] does not apply it yet; it
-     * sits in [FormMorph.forces] untouched until that work does, and that work
-     * defines how the point is aimed and how [strength] scales.
+     * For each cell, `d` is the distance from its form target to the aimed line,
+     * taken before the choreography's arc bends the target. Inside [radius], the
+     * target moves straight away from the line by `(radius − d) × strength`,
+     * with the arc still added on top. A target exactly on the line has no
+     * "away" and is left alone. These are Dots' `DotSwarm` numbers, applied to
+     * the target and not to the position, so the spring carries the cell over
+     * and the parting is as smooth as any trip.
      *
-     * @property radius How far from the point cells give way, in units.
-     * @property strength How hard they give way.
+     * The caller aims in the body's own space along the view direction, so each
+     * `d` equals the 2D view-space distance from the pointer and no cell needs
+     * trig. Until [aim] is called, the force pushes nothing.
+     *
+     * One instance is re-aimed every frame without allocating, which is why it
+     * is a class and not a data class: it carries its aim.
+     *
+     * @property radius How far from the line targets give way, in units: a unit
+     *  is the orb's radius.
+     * @property strength The fraction of `radius − d` a target gives way by.
+     * @throws IllegalArgumentException when [radius] is not positive and finite,
+     *  or [strength] is negative or not finite.
      */
     class Repel(
-        val radius: Float = 0.32f,
-        val strength: Float = 0.7f,
+        val radius: Float = DEFAULT_RADIUS,
+        val strength: Float = DEFAULT_STRENGTH,
     ) : Force {
-        override fun toString(): String = "Repel(radius=$radius, strength=$strength)"
+        init {
+            require(radius > 0f && radius.isFinite()) { "radius must be > 0, was $radius" }
+            require(strength >= 0f && strength.isFinite()) { "strength must be >= 0, was $strength" }
+        }
+
+        /** Whether [aim] has been called: an unaimed repel pushes nothing. */
+        var isAimed: Boolean = false
+            private set
+
+        // A point on the line, and its unit direction.
+        internal var pointX: Float = 0f
+            private set
+        internal var pointY: Float = 0f
+            private set
+        internal var pointZ: Float = 0f
+            private set
+        internal var directionX: Float = 0f
+            private set
+        internal var directionY: Float = 0f
+            private set
+        internal var directionZ: Float = 0f
+            private set
+
+        /**
+         * Aim along the pointer's line of sight through the body, in the body's
+         * own space: ([x], [y], [z]) is a point on it and ([dx], [dy], [dz]) its
+         * direction, of any length. Takes effect on the next [FormMorph.step].
+         *
+         * @throws IllegalArgumentException when any argument is not finite or
+         *  the direction is zero.
+         */
+        fun aim(
+            x: Float,
+            y: Float,
+            z: Float,
+            dx: Float,
+            dy: Float,
+            dz: Float,
+        ) {
+            require(x.isFinite() && y.isFinite() && z.isFinite()) { "point must be finite, was ($x, $y, $z)" }
+            val length = sqrt(dx * dx + dy * dy + dz * dz)
+            require(length > 0f && length.isFinite()) { "direction must be non-zero and finite, was ($dx, $dy, $dz)" }
+            pointX = x
+            pointY = y
+            pointZ = z
+            directionX = dx / length
+            directionY = dy / length
+            directionZ = dz / length
+            isAimed = true
+        }
+
+        override fun toString(): String =
+            if (isAimed) {
+                "Repel(radius=$radius, strength=$strength, point=($pointX, $pointY, $pointZ), " +
+                    "direction=($directionX, $directionY, $directionZ))"
+            } else {
+                "Repel(radius=$radius, strength=$strength, unaimed)"
+            }
+
+        companion object {
+            /** Dots' repel radius, in orb radii. */
+            const val DEFAULT_RADIUS: Float = 0.32f
+
+            /** Dots' repel strength. */
+            const val DEFAULT_STRENGTH: Float = 0.7f
+        }
     }
 }

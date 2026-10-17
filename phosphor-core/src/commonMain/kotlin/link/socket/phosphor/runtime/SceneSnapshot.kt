@@ -14,9 +14,13 @@ import link.socket.phosphor.signal.AgentVisualState
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.AtmosphereTransition
 import link.socket.phosphor.signal.CognitivePhase
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * Immutable scene output after one [CognitiveSceneRuntime.update] tick.
+ *
+ * @property input The [LumosInput] given to [CognitiveSceneRuntime.setInput]
+ *  before this tick; [LumosInput.NONE] when none was.
  */
 data class SceneSnapshot(
     val frameIndex: Long,
@@ -35,6 +39,7 @@ data class SceneSnapshot(
     val choreographyPhase: CognitivePhase,
     val atmosphere: AtmosphereState? = null,
     val atmosphereTransition: AtmosphereTransition? = null,
+    val input: LumosInput = LumosInput.NONE,
 ) {
     init {
         if (waveformHeightField != null) {
@@ -74,6 +79,7 @@ data class SceneSnapshot(
         if (choreographyPhase != other.choreographyPhase) return false
         if (atmosphere != other.atmosphere) return false
         if (atmosphereTransition != other.atmosphereTransition) return false
+        if (input != other.input) return false
 
         return true
     }
@@ -95,6 +101,7 @@ data class SceneSnapshot(
         result = 31 * result + choreographyPhase.hashCode()
         result = 31 * result + (atmosphere?.hashCode() ?: 0)
         result = 31 * result + (atmosphereTransition?.hashCode() ?: 0)
+        result = 31 * result + input.hashCode()
         return result
     }
 }
