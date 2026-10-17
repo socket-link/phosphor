@@ -10,7 +10,7 @@ package link.socket.phosphor.lumos.look
  * onto its colour. This runs after the form's positions and before the
  * atmosphere's pulse, squash and bump, in unit-sphere view space.
  *
- * [t] is the look's shared clock in seconds — `FramePhases.lookSeconds`, which
+ * `t` is the look's shared clock in seconds — `FramePhases.lookSeconds`, which
  * `LookClock` aligns across every orb of one look — so two orbs in one look at
  * one time draw the same modulation. A look with state of its own (the
  * reasoning walk) advances it in [beginFrame] as a function of that clock,

@@ -12,7 +12,7 @@ import link.socket.phosphor.lumos.Look
  * Thinking Orbs' working look: every 1.7 s a ring of light runs down the
  * sphere over 1.2 s.
  *
- * The ring runs along [AXIS], the up axis tipped 30° toward the viewer and
+ * The ring runs along the axis `(AXIS_X, AXIS_Y, AXIS_Z)`, the up axis tipped 30° toward the viewer and
  * rolled 10°, in view space. A cell's place on that run is
  * `q = (1 − view · axis) / 2`, 0 at the top and 1 at the bottom; the ring is at
  * `at = u / 1.2` for `u = t mod 1.7`. Cells at the ring grow 60 % and light
