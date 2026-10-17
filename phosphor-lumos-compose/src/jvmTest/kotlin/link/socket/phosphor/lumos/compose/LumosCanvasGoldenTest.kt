@@ -10,9 +10,11 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import kotlin.math.max
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.compose.projection.ComposeLattice
 import link.socket.phosphor.palette.AtmospherePresets
@@ -23,6 +25,7 @@ import link.socket.phosphor.trace.Oscilloscope
 /**
  * PHO-54: the bucketed draw path paints the same pixels as the old per-voxel `drawRect`
  * painter's loop, kept here as the reference, for the first frame of each canonical preset.
+ * The reference carries PHO-61's radius floor, the one intended difference since.
  * Also prints DRAW timings for both at resolution 10 (not asserted).
  */
 class LumosCanvasGoldenTest {
@@ -31,7 +34,7 @@ class LumosCanvasGoldenTest {
         for ((name, atmosphere) in AtmospherePresets.ALL) {
             val frame = firstFrame(atmosphere)
             val expected = render { drawReference(frame) }
-            val actual = render { drawVoxels(frame, SquareCellStyle()) }
+            val actual = render { drawVoxels(frame, SquaresPainter()) }
             var differing = 0
             var maxDelta = 0
             for (y in 0 until PX) {
@@ -50,7 +53,7 @@ class LumosCanvasGoldenTest {
     @Test
     fun `reports draw time before and after`() {
         val frame = firstFrame(AtmospherePresets.IDLE)
-        val style = SquareCellStyle()
+        val style = SquaresPainter()
         val canvas = bitmapAndCanvas()
 
         fun time(draw: DrawScope.() -> Unit): Pair<Double, Double> {
@@ -71,12 +74,16 @@ class LumosCanvasGoldenTest {
         )
     }
 
+    // The pre-PHO-54 loop, with the one change PHO-61 made to every style since: a cell is drawn
+    // at least SurfaceStyle.MIN_RADIUS_PX across. Without it UNCERTAIN's near-carved cells differ
+    // in 22 of 291,600 pixels at 540 px.
     private fun DrawScope.drawReference(frame: LumosCanvasFrame) {
         for (v in frame.voxels.sortedBy { it.z }) {
+            val radiusPx = max(v.radiusPx, SurfaceStyle.MIN_RADIUS_PX)
             drawRect(
                 color = Color(v.red, v.green, v.blue, v.alpha),
-                topLeft = Offset(v.screenX - v.radiusPx, v.screenY - v.radiusPx),
-                size = Size(v.radiusPx * 2f, v.radiusPx * 2f),
+                topLeft = Offset(v.screenX - radiusPx, v.screenY - radiusPx),
+                size = Size(radiusPx * 2f, radiusPx * 2f),
             )
         }
     }

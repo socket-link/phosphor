@@ -19,6 +19,7 @@ class LumosConfigTest {
         assertFalse(config.paused)
         assertFalse(config.reducedMotion)
         assertNull(config.label)
+        assertEquals(SurfaceStyle.Squares, config.style)
     }
 
     @Test
@@ -59,11 +60,19 @@ class LumosConfigTest {
                 paused = true,
                 reducedMotion = true,
                 label = "Lumos is thinking",
+                style = SurfaceStyle.Dashes,
             )
 
         val json = Json.encodeToString(LumosConfig.serializer(), config)
 
         assertEquals(config, Json.decodeFromString(LumosConfig.serializer(), json))
+    }
+
+    @Test
+    fun `a config recorded before styles existed decodes to squares`() {
+        val config = Json.decodeFromString(LumosConfig.serializer(), """{"speed":2.0}""")
+
+        assertEquals(SurfaceStyle.Squares, config.style)
     }
 
     @Test

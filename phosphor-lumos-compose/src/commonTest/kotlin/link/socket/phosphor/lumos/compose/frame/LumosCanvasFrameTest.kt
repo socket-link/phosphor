@@ -49,4 +49,15 @@ class LumosCanvasFrameTest {
 
         assertEquals(frame, deserialized)
     }
+
+    @Test
+    fun testVoxelRecordedBeforeSpinDirectionDecodesWithNone() {
+        val json =
+            """{"screenX":1.0,"screenY":2.0,"radiusPx":3.0,"red":0.1,"green":0.2,"blue":0.3,"alpha":1.0,"z":0.0}"""
+
+        val voxel = Json.decodeFromString(LumosCanvasFrame.CanvasVoxel.serializer(), json)
+
+        assertEquals(0f, voxel.dx)
+        assertEquals(0f, voxel.dy)
+    }
 }
