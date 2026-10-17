@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumos · React</title>
+<style>
+  body { background: #111; color: #ddd; font: 14px system-ui, sans-serif; margin: 24px; }
+  svg.orb { width: 200px; height: 200px; display: block; }
+  button { background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; margin-right: 4px; }
+</style>
+<!-- React is this page's dependency, not the orb's: the module needs nothing but itself. -->
+<script type="importmap">
+  { "imports": { "react": "https://esm.sh/react@18.3.1", "react-dom/client": "https://esm.sh/react-dom@18.3.1/client" } }
+</script>
+</head>
+<body>
+<h1>Lumos in React</h1>
+<div id="root"></div>
+<script type="module">
+  import { createElement as h, useEffect, useRef, useState } from 'react';
+  import { createRoot } from 'react-dom/client';
+  import { mount } from './phosphor-lumos-dom.mjs';
+
+  // Mount in an effect, unmount in its cleanup; drive the handle from props.
+  function LumosOrb({ atmosphere, label, ...options }) {
+    const svg = useRef(null);
+    const orb = useRef(null);
+    useEffect(() => {
+      orb.current = mount(svg.current, { ...options, atmosphere, label });
+      return () => orb.current.unmount();
+    }, []);
+    useEffect(() => { orb.current?.setAtmosphere(atmosphere); }, [atmosphere]);
+    return h('svg', { ref: svg, className: 'orb' });
+  }
+
+  function App() {
+    const [atmosphere, setAtmosphere] = useState('thinking');
+    return h('div', null,
+      h(LumosOrb, { atmosphere, style: 'dots', label: `Lumos is ${atmosphere}` }),
+      h('p', null, ['idle', 'listening', 'thinking', 'uncertain', 'ready'].map((name) =>
+        h('button', { key: name, onClick: () => setAtmosphere(name) }, name))));
+  }
+
+  createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>

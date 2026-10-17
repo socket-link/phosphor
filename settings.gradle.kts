@@ -4,6 +4,7 @@ include(":phosphor-core")
 include(":phosphor-lumos")
 include(":phosphor-lumos-cli")
 include(":phosphor-lumos-compose")
+include(":phosphor-lumos-dom")
 include(":phosphor-trace")
 
 pluginManagement {
