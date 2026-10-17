@@ -11,6 +11,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.fail
+import link.socket.phosphor.field.VoxelSphere
 import link.socket.phosphor.math.Vector3
 
 /**
@@ -26,7 +27,7 @@ class FormCatalogueTest {
                 val sample = form.sample(count, LumosLook.BASE, 0f)
                 assertEquals(count, sample.count, "$name at count $count")
                 sample.positions.forEachIndexed { index, position ->
-                    // Build the message only on failure: this loop visits ~1.8M cells, and formatting
+                    // Build the message only on failure: this loop visits ~210K cells, and formatting
                     // four floats per cell is what pushed the browser runners past mocha's timeout.
                     val length = position.length()
                     if (length > 1f + BOUNDS_TOLERANCE) {
@@ -179,7 +180,27 @@ class FormCatalogueTest {
     private companion object {
         const val BOUNDS_TOLERANCE = 1e-4f
 
-        /** The inline orb's floor, the 20 px count, the lattice's count, and every 13th count between. */
-        val COUNTS: List<Int> = (listOf(8, 9, 80, 4_801) + (8..4_801 step 13)).distinct().sorted()
+        /**
+         * Every count where a catalogue form changes path, each with its neighbours, the counts the
+         * builder really asks for, and a coarse sweep between — 56 counts, ~210K cells over [Forms.All].
+         *
+         * - 1 and 2: the cube's `max(1, …)` clamp, where `count − 2 ≤ 0` leaves no step count to round up.
+         * - 7, 8, 9: [Forms.MIN_INLINE_ORB_COUNT] ± 1. 8 is also the cube's eight bare corners, `6·1² + 2`.
+         * - `6n² + 1`, `6n² + 2`, `6n² + 3` at n = 2, 3 and 28: one grid point to drop, a grid exactly full
+         *   (thinning's untouched path), and the count that forces `n + 1` steps (the deepest thinning).
+         *   The small steps thin hardest, 28 is the last step under 4,801, and the sweep crosses the rest.
+         * - 80: the 20 px inline orb.
+         * - [VoxelSphere.totalCount] at resolutions 0 to 10, 1 to 4,801: what the builder passes a form
+         *   at each resolution. 4,801 is the presets' and the top of the range.
+         * - Every 150th count from 8. Every 13th kept pushing the wasm runner past mocha's 2 s default,
+         *   which `useMocha { timeout }` does not reach for wasm targets.
+         */
+        val COUNTS: List<Int> =
+            (
+                listOf(1, 2, 7, 8, 9, 80, 4_801) +
+                    listOf(2, 3, 28).flatMap { n -> (1..3).map { 6 * n * n + it } } +
+                    (0..10).map { VoxelSphere.totalCount(it) } +
+                    (8..4_801 step 150)
+            ).distinct().sorted()
     }
 }
