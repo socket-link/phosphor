@@ -45,6 +45,24 @@ class CellModulation {
      */
     var lit: Float = 0f
 
+    /**
+     * Mix toward [from]: every field becomes `from · (1 − weight) + this · weight`,
+     * so at 0 this is [from] exactly and at 1 it is unchanged. The look blend's
+     * per-cell step; [from] is the outgoing look's modulation.
+     */
+    fun mixFrom(
+        from: CellModulation,
+        weight: Float,
+    ) {
+        val keep = 1f - weight
+        radius = from.radius * keep + radius * weight
+        alpha = from.alpha * keep + alpha * weight
+        extent = from.extent * keep + extent * weight
+        ox = from.ox * keep + ox * weight
+        oy = from.oy * keep + oy * weight
+        lit = from.lit * keep + lit * weight
+    }
+
     /** Back to "leave the cell as it is". */
     fun reset() {
         radius = 1f

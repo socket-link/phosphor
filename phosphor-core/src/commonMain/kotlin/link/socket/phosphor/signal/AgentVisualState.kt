@@ -20,6 +20,10 @@ import link.socket.phosphor.math.Vector3
  * @property state Current activity state
  * @property statusText Status message displayed below agent
  * @property pulsePhase Phase for shimmer animation (0.0-1.0)
+ * @property escalated Whether the agent is holding for a human: an escalation
+ *  has been raised and not yet answered. A held state, unlike the transient
+ *  `HumanEscalation` emitter burst, so a renderer that reads the agent alone
+ *  (the Lumos orb's `CognitiveLookSwitch`) can keep showing it.
  */
 data class AgentVisualState(
     val id: String,
@@ -32,6 +36,7 @@ data class AgentVisualState(
     val pulsePhase: Float = 0f,
     val cognitivePhase: CognitivePhase = CognitivePhase.NONE,
     val phaseProgress: Float = 0f,
+    val escalated: Boolean = false,
 ) {
     /**
      * Create a copy with updated 2D position. The 3D position is updated
@@ -75,6 +80,11 @@ data class AgentVisualState(
         phase: CognitivePhase,
         progress: Float = 0f,
     ): AgentVisualState = copy(cognitivePhase = phase, phaseProgress = progress.coerceIn(0f, 1f))
+
+    /**
+     * Create a copy with the escalation flag set or cleared; see [escalated].
+     */
+    fun withEscalated(escalated: Boolean): AgentVisualState = copy(escalated = escalated)
 
     /**
      * Get the primary glyph for this agent's current state.

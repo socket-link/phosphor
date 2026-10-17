@@ -29,6 +29,17 @@ import kotlinx.serialization.Serializable
  *  at the back to full at the front, Thinking Orbs' base look. Off by default,
  *  so every existing preset, trace and golden file is unchanged; the other looks
  *  fade their rim regardless. See [VoxelFrameBuilder.look].
+ * @property agentId Which agent's signal drives the orb when a
+ *  [VoxelFrameBuilder.lookSwitch] is set: that agent's phase, activity and
+ *  escalation. Null, the default, reads the scene's dominant phase
+ *  (`SceneSnapshot.choreographyPhase`) with the first agent's activity and
+ *  escalation. An id the scene has no agent for reads as no phase and no agent.
+ *  Ignored without a switch.
+ * @property unattended Whether this surface is one nobody is watching — an orb
+ *  in a "running now" list rather than the run's own view. A mount-time fact:
+ *  with a switch set, the orb wears [CognitiveLookSwitch.whenUnattended] in
+ *  place of whatever the table picked, keeping the table's glyph. Ignored
+ *  without a switch.
  */
 @Serializable
 data class LumosRenderConfig(
@@ -36,4 +47,6 @@ data class LumosRenderConfig(
     val enableGlyphCarving: Boolean = true,
     val omitBelowScale: Float = 0.0f,
     val rimFade: Boolean = false,
+    val agentId: String? = null,
+    val unattended: Boolean = false,
 )

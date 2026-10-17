@@ -201,6 +201,23 @@ class AgentLayerTest {
     }
 
     @Test
+    fun `updateAgentEscalated raises and clears the flag and ignores unknown ids`() {
+        val layer = AgentLayer(100, 30)
+        layer.addAgent(AgentVisualState("agent-1", "Spark", "reasoning", Vector2.ZERO))
+        assertEquals(false, layer.getAgent("agent-1")?.escalated)
+
+        layer.updateAgentEscalated("agent-1", true)
+        assertEquals(true, layer.getAgent("agent-1")?.escalated)
+        assertEquals(AgentActivityState.IDLE, layer.getAgent("agent-1")?.state, "the flag leaves the state alone")
+
+        layer.updateAgentEscalated("agent-1", false)
+        assertEquals(false, layer.getAgent("agent-1")?.escalated)
+
+        layer.updateAgentEscalated("nobody", true)
+        assertEquals(1, layer.agentCount)
+    }
+
+    @Test
     fun `updateAgentStatus changes agent status text`() {
         val layer = AgentLayer(100, 30)
         val agent = AgentVisualState("agent-1", "Spark", "reasoning", Vector2.ZERO)

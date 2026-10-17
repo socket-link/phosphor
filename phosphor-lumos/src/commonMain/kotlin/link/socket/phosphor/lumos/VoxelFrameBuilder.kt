@@ -19,9 +19,12 @@ import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
 import link.socket.phosphor.math.Vector3
 import link.socket.phosphor.runtime.SceneSnapshot
+import link.socket.phosphor.signal.AgentActivityState
+import link.socket.phosphor.signal.AgentVisualState
 import link.socket.phosphor.signal.AtmospherePattern
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.AtmosphereTransition
+import link.socket.phosphor.signal.CognitivePhase
 import link.socket.phosphor.timeline.Easing
 
 /**
@@ -127,12 +130,24 @@ class VoxelFrameBuilder(
      * [LumosRenderConfig.rimFade] builds none, and the frame is exactly what the
      * builder produced before looks existed. Setting it takes effect on the next
      * [build].
+     *
+     * Setting it is a cut: the next frame wears the new look outright, and any
+     * blend in flight and any look waiting behind it are dropped. [lookTo] is
+     * the way to change look over time. Mid-blend this reads the look the blend
+     * is heading to.
      */
-    var look: Look = Look(LumosLook.BASE)
+    var look: Look
+        get() = worn
         set(value) {
-            if (value != field) modulator = null
-            field = value
+            if (value != worn) {
+                worn = value
+                modulator = null
+            }
+            landBlend()
+            pendingLook = null
         }
+
+    private var worn: Look = Look(LumosLook.BASE)
 
     private var modulator: LookModulator? = null
     private var modulatorSample: FormSample? = null
@@ -141,6 +156,258 @@ class VoxelFrameBuilder(
     private val rotation = ViewRotation()
     private val view = ViewPoint()
     private val modulation = CellModulation()
+    private val outgoingModulation = CellModulation()
+
+    /**
+     * What drives the look from the scene's cognitive signal, or null — the
+     * default — to leave [look] manual, exactly as it was before the switch
+     * existed: no frame reads an agent, and every preset, trace and golden file
+     * is byte-identical.
+     *
+     * With a switch, [build] and [buildStill] read the phase, activity and
+     * escalation of one agent from the snapshot — the one
+     * [LumosRenderConfig.agentId] names, or the scene's dominant phase with the
+     * first agent's activity and escalation — together with
+     * [LumosRenderConfig.unattended], and ask the switch only when one of those
+     * four has changed. The first frame a builder sees is a baseline: it wears
+     * the choice's look outright and fires no glyph, so an orb mounted on a
+     * finished run does not flash a check. From then on a changed choice blends
+     * to its look with [lookTo] if that is not already the look worn, and fires
+     * its glyph if it carries one. A manual [look] set in between sticks until
+     * the signal next changes.
+     *
+     * While the selected agent reads [AgentActivityState.SPAWNING], the orb's
+     * presence fades in from 0 over [SPAWN_SECONDS] of `dt` — `AgentLayer`'s own
+     * spawn ramp, so the two agree — multiplying every cell's alpha and the
+     * ambient glow on top of whichever look is worn. [buildStill] lands it at 1
+     * at once.
+     *
+     * Setting the switch makes the next frame a baseline again.
+     */
+    var lookSwitch: CognitiveLookSwitch? = null
+        set(value) {
+            field = value
+            signalSeen = false
+            lastChoice = null
+        }
+
+    // The look a blend is leaving, with its modulator over outgoingSample and its own clock; null
+    // when no blend is in flight. blendSample is the sample the blend began over: a sample change
+    // mid-blend is a cut, since the outgoing modulator's tables are sized for the old count.
+    private var outgoingLook: Look? = null
+    private var outgoingModulator: LookModulator? = null
+    private var outgoingSample: FormSample? = null
+    private var outgoingSeconds: Double = 0.0
+    private var blendSample: FormSample? = null
+    private var blendElapsed: Float = 0f
+    private var blendDuration: Float = LOOK_BLEND_SECONDS
+
+    // The look asked for mid-blend, taken up when the blend lands.
+    private var pendingLook: Look? = null
+    private var pendingDuration: Float = LOOK_BLEND_SECONDS
+
+    // The signal as last read, so the switch is asked only when it changes; see lookSwitch.
+    private var signalSeen: Boolean = false
+    private var signalPhase: CognitivePhase = CognitivePhase.NONE
+    private var signalActivity: AgentActivityState? = null
+    private var signalEscalated: Boolean = false
+    private var signalUnattended: Boolean = false
+    private var lastChoice: CognitiveLook? = null
+
+    // The spawn fade: seconds of dt since SPAWNING was first read, and the presence it gives.
+    private var spawnElapsed: Float = 0f
+    private var presence: Float = 1f
+
+    /** Whether a [lookTo] is in flight: two looks are being drawn, mixed by the blend's weight. */
+    val isLookBlending: Boolean get() = outgoingLook != null
+
+    /**
+     * How far the blend in flight has come, `0..1`, eased: the weight on the
+     * incoming look. 1 when no blend is in flight. Never decreases over a blend
+     * and lands at exactly 1.
+     */
+    val lookBlendProgress: Float
+        get() = if (outgoingLook == null) 1f else smoothstep(blendElapsed / blendDuration)
+
+    /**
+     * Change [look] over time: blend from the look worn now to [look] over
+     * [durationSeconds] of `dt`.
+     *
+     * Each frame of the blend, both looks' modulators run on the same view, and
+     * every cell's radius, alpha, extent, push and lighting mix by
+     * `w = smoothstep(elapsed / duration)`. [LumosLook.BASE] without
+     * [LumosRenderConfig.rimFade] mixes as the identity. The outgoing look keeps
+     * its own clock, advanced by `dt`; [FramePhases.lookSeconds] is the incoming
+     * look's, so [look] — and `LiveFrameSource.lookKey` — name the target at
+     * once. A look that owns the yaw blends it along the short arc with the
+     * other look's, or the atmosphere's, and the rate the spin carries cells at
+     * blends the same way, so entering or leaving such a look never jumps the
+     * spin.
+     *
+     * Asked for mid-blend: back to the look being left reverses in place —
+     * `elapsed` becomes `duration − elapsed` and the two looks swap, and since
+     * the easing is symmetric nothing jumps; the duration in flight is kept.
+     * Any other look waits, and the blend to the latest one asked for starts
+     * when this one lands. Looks therefore never jump and change at most once
+     * per blend, so a 50 ms signal does not flicker past. A sample change
+     * mid-blend — a resolution change, or a form that lays out differently per
+     * look — drops the outgoing look: a cut, as it was before blends existed.
+     *
+     * Setting [look] is still a cut, and drops any blend and pending look.
+     * [buildStill] lands a blend at once; [buildSteadyState] draws the incoming
+     * look alone.
+     *
+     * @param look Where to head; [look] reads it from now on.
+     * @param durationSeconds How long the blend takes, [LOOK_BLEND_SECONDS] by
+     *  default. `0` cuts, as setting [look] does.
+     * @throws IllegalArgumentException when [durationSeconds] is negative.
+     */
+    fun lookTo(
+        look: Look,
+        durationSeconds: Float = LOOK_BLEND_SECONDS,
+    ) {
+        require(durationSeconds >= 0f && durationSeconds.isFinite()) {
+            "durationSeconds must be >= 0, was $durationSeconds"
+        }
+        if (durationSeconds == 0f) {
+            this.look = look
+            return
+        }
+        val outgoing = outgoingLook
+        if (outgoing == null) {
+            if (look != worn) beginBlend(look, durationSeconds)
+            return
+        }
+        pendingLook = null
+        when (look) {
+            worn -> Unit
+            outgoing -> reverseBlend(outgoing)
+            else -> {
+                pendingLook = look
+                pendingDuration = durationSeconds
+            }
+        }
+    }
+
+    private fun beginBlend(
+        target: Look,
+        durationSeconds: Float,
+    ) {
+        outgoingLook = worn
+        outgoingModulator = modulator
+        outgoingSample = modulatorSample
+        outgoingSeconds = phases.lookSeconds
+        blendSample = null
+        blendElapsed = 0f
+        blendDuration = durationSeconds
+        worn = target
+        modulator = null
+        modulatorSample = null
+    }
+
+    /** Head back to [outgoing]: the two looks swap and the blend runs the other way from here. */
+    private fun reverseBlend(outgoing: Look) {
+        val fromModulator = outgoingModulator
+        val fromSample = outgoingSample
+        val fromSeconds = outgoingSeconds
+        outgoingLook = worn
+        outgoingModulator = modulator
+        outgoingSample = modulatorSample
+        outgoingSeconds = phases.lookSeconds
+        worn = outgoing
+        modulator = fromModulator
+        modulatorSample = fromSample
+        phases = phases.copy(lookSeconds = fromSeconds)
+        blendElapsed = blendDuration - blendElapsed
+    }
+
+    /** Drop the outgoing look: the incoming look is worn alone from the next frame. */
+    private fun landBlend() {
+        outgoingLook = null
+        outgoingModulator = null
+        outgoingSample = null
+        blendSample = null
+        blendElapsed = 0f
+    }
+
+    /**
+     * Advance the blend in flight by [dt]; when it lands, start the blend to the
+     * look waiting behind it, if any.
+     */
+    private fun stepBlend(dt: Float) {
+        if (outgoingLook == null) return
+        blendElapsed += dt
+        outgoingSeconds += dt
+        if (blendElapsed >= blendDuration) {
+            landBlend()
+            val next = pendingLook ?: return
+            pendingLook = null
+            if (next != worn) beginBlend(next, pendingDuration)
+        }
+    }
+
+    /**
+     * Read the signal [lookSwitch] routes from [snapshot] and apply its choice;
+     * nothing when there is no switch. See [lookSwitch].
+     */
+    private fun readSignal(snapshot: SceneSnapshot) {
+        val switch = lookSwitch ?: return
+        val agents = snapshot.agentStates
+        val agentId = config.agentId
+        var agent: AgentVisualState? = null
+        if (agentId == null) {
+            if (agents.isNotEmpty()) agent = agents[0]
+        } else {
+            for (i in agents.indices) {
+                val candidate = agents[i]
+                if (candidate.id == agentId) {
+                    agent = candidate
+                    break
+                }
+            }
+        }
+        val phase = if (agentId == null) snapshot.choreographyPhase else agent?.cognitivePhase ?: CognitivePhase.NONE
+        val activity = agent?.state
+        val escalated = agent?.escalated ?: false
+        val unattended = config.unattended
+        if (signalSeen &&
+            phase == signalPhase &&
+            activity == signalActivity &&
+            escalated == signalEscalated &&
+            unattended == signalUnattended
+        ) {
+            return
+        }
+        signalPhase = phase
+        signalActivity = activity
+        signalEscalated = escalated
+        signalUnattended = unattended
+
+        val choice = switch.lookFor(phase, activity, escalated, unattended)
+        val previous = lastChoice
+        lastChoice = choice
+        if (!signalSeen) {
+            // The baseline: wear the choice, fire nothing.
+            signalSeen = true
+            look = choice.look
+            return
+        }
+        if (choice == previous) return
+        if (choice.look != worn) lookTo(choice.look)
+        val glyph = choice.glyph
+        if (glyph != null) queueGlyph(glyph)
+    }
+
+    /** Advance the spawn fade by [dt]: presence ramps while the selected agent is spawning. */
+    private fun stepSpawn(dt: Float) {
+        if (lookSwitch != null && signalActivity == AgentActivityState.SPAWNING) {
+            spawnElapsed += dt
+            presence = smoothstep(spawnElapsed / SPAWN_SECONDS)
+        } else {
+            spawnElapsed = 0f
+            presence = 1f
+        }
+    }
 
     /**
      * The lattice at the atmosphere's current resolution. Rebuilt when
@@ -174,6 +441,7 @@ class VoxelFrameBuilder(
     private var stillGlyph: LumosGlyph? = null
     private var stillSample: FormSample? = null
     private var stillPermutation: IntArray? = null
+    private var stillLook: Look? = null
 
     /** True if a glyph is currently being rendered. */
     val hasActiveGlyph: Boolean get() = activeGlyph != null
@@ -478,6 +746,10 @@ class VoxelFrameBuilder(
             morphPositions = null,
             framing = framing(sample),
             modulator = modulatorFor(sample),
+            outgoing = null,
+            outgoingTime = 0f,
+            weight = 1f,
+            presence = 1f,
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -515,8 +787,13 @@ class VoxelFrameBuilder(
                 }
 
         followResolution(atmosphere)
-        // Reduced motion snaps: the body is already where the morph was heading.
+        // Reduced motion snaps: the body is already where the morph was heading, the look is the
+        // one the blend was heading to, and a spawning agent is fully present.
         morph = null
+        readSignal(snapshot)
+        landBlend()
+        spawnElapsed = SPAWN_SECONDS
+        presence = 1f
 
         val glyph = advanceGlyph(dt)?.glyph
         lastTimeSeconds = snapshot.elapsedTimeSeconds
@@ -527,6 +804,7 @@ class VoxelFrameBuilder(
                 glyph == stillGlyph &&
                 sample === stillSample &&
                 permutation === stillPermutation &&
+                worn == stillLook &&
                 held.resolution == lattice.resolution
             ) {
                 return held
@@ -548,6 +826,10 @@ class VoxelFrameBuilder(
                     morphPositions = null,
                     framing = framing(sample),
                     modulator = modulatorFor(sample),
+                    outgoing = null,
+                    outgoingTime = 0f,
+                    weight = 1f,
+                    presence = 1f,
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
                 )
@@ -558,6 +840,7 @@ class VoxelFrameBuilder(
         stillGlyph = glyph
         stillSample = sample
         stillPermutation = permutation
+        stillLook = worn
         return frame
     }
 
@@ -571,12 +854,24 @@ class VoxelFrameBuilder(
             }
 
         followResolution(atmosphere)
+        readSignal(snapshot)
 
         val glyphLifecycle = advanceGlyph(dt)
         phases = phases.advanced(atmosphere, dt)
+        stepBlend(dt)
+        stepSpawn(dt)
 
         lastTimeSeconds = snapshot.elapsedTimeSeconds
         val sample = form.sample(lattice.count, look.look, snapshot.elapsedTimeSeconds)
+        if (outgoingLook != null) {
+            val began = blendSample
+            if (began == null) {
+                blendSample = sample
+            } else if (began !== sample) {
+                // The sample moved under the blend: the outgoing tables are the old count's. A cut.
+                landBlend()
+            }
+        }
         val body = stepMorph(sample, dt)
         return frameAt(
             atmosphere = atmosphere,
@@ -588,6 +883,10 @@ class VoxelFrameBuilder(
             morphPositions = body?.positions,
             framing = if (body == null) framing(sample) else effectiveFraming(sample),
             modulator = modulatorFor(sample),
+            outgoing = outgoingModulatorFor(sample),
+            outgoingTime = outgoingSeconds.toFloat(),
+            weight = lookBlendProgress,
+            presence = presence,
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
         )
@@ -657,6 +956,23 @@ class VoxelFrameBuilder(
     }
 
     /**
+     * The outgoing look's modulator over [sample], while a blend is in flight:
+     * the one it left with when the sample is still the one it was built over,
+     * a new one when it was never built. Null when there is no blend, or the
+     * outgoing look is [LumosLook.BASE] with nothing to do: the identity.
+     */
+    private fun outgoingModulatorFor(sample: FormSample): LookModulator? {
+        val outgoing = outgoingLook ?: return null
+        if (outgoing.look == LumosLook.BASE && !config.rimFade) return null
+        val current = outgoingModulator
+        if (current != null && outgoingSample === sample) return current
+        return Looks.forLook(outgoing, sample).also {
+            outgoingModulator = it
+            outgoingSample = sample
+        }
+    }
+
+    /**
      * How fast [modulator]'s own yaw turns at [t], radians per second: a central
      * difference over [YAW_RATE_STEP] either side, taken the short way round.
      */
@@ -692,6 +1008,13 @@ class VoxelFrameBuilder(
      * that yaw to the surfaces. The modulator is keyed by sample index,
      * so a cell keeps its place in the walk's table across a morph. Without
      * one, the loop is exactly what it was before looks existed.
+     *
+     * With [weight] below 1 a blend is in flight ([lookTo]): [outgoing] — null
+     * for the identity — runs on the same view at its own [outgoingTime], and
+     * every cell's modulation is `outgoing · (1 − weight) + incoming · weight`;
+     * the yaw and its rate mix the same way, the yaw along the short arc.
+     * [presence] multiplies every cell's alpha and the ambient glow; at 1 it
+     * leaves both exactly as they were.
      */
     @Suppress("LongParameterList")
     private fun frameAt(
@@ -704,9 +1027,14 @@ class VoxelFrameBuilder(
         morphPositions: FloatArray?,
         framing: Framing,
         modulator: LookModulator?,
+        outgoing: LookModulator?,
+        outgoingTime: Float,
+        weight: Float,
+        presence: Float,
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
+        val blending = weight < 1f
         val formScale = framing.formScale
         val cellScale = framing.cellScale
         val pulse = 1f + sin(phases.pulsePhase) * atmosphere.pulseAmplitude
@@ -725,13 +1053,23 @@ class VoxelFrameBuilder(
         val lookTime = phases.lookSeconds.toFloat()
         // A look that owns the yaw replaces the atmosphere's wherever this frame reads it.
         val lookYaw = modulator?.yaw(lookTime)
-        val yaw = lookYaw ?: phases.orbRotationY
-        val glyphRotation = Vector3(phases.orbRotationX, yaw, 0f)
-        if (modulator != null) {
-            val rateY = if (lookYaw == null) atmosphere.rotationY else yawRate(modulator, lookTime)
+        var yaw = lookYaw ?: phases.orbRotationY
+        if (modulator != null || blending) {
+            var rateY = if (lookYaw != null) yawRate(modulator, lookTime) else atmosphere.rotationY
+            if (blending) {
+                // Mid-blend the frame turns between the two looks' yaws, the short way round, and the
+                // spin carries cells at the rate between theirs; the outgoing look reads its own clock.
+                val outgoingYaw = outgoing?.yaw(outgoingTime)
+                val yawFrom = outgoingYaw ?: phases.orbRotationY
+                val rateFrom = if (outgoingYaw != null) yawRate(outgoing, outgoingTime) else atmosphere.rotationY
+                yaw = wrapTwoPi(yawFrom + shortArc(yaw - yawFrom) * weight)
+                rateY = rateFrom * (1f - weight) + rateY * weight
+            }
             rotation.set(phases.orbRotationX, yaw, atmosphere.rotationX, rateY)
-            modulator.beginFrame(lookTime, rotation)
+            modulator?.beginFrame(lookTime, rotation)
+            if (blending) outgoing?.beginFrame(outgoingTime, rotation)
         }
+        val glyphRotation = Vector3(phases.orbRotationX, yaw, 0f)
 
         val positions = sample.positions
         val directions = sample.unitDirections
@@ -781,10 +1119,15 @@ class VoxelFrameBuilder(
             var lookRadius = 1f
             var lookAlpha = 1f
             var lit = 0f
-            if (modulator != null) {
+            if (modulator != null || blending) {
                 modulation.reset()
                 rotation.place(view, restX, restY, restZ, direction.x, direction.y, direction.z)
-                modulator.modulate(index, view, lookTime, modulation)
+                modulator?.modulate(index, view, lookTime, modulation)
+                if (blending) {
+                    outgoingModulation.reset()
+                    outgoing?.modulate(index, view, outgoingTime, outgoingModulation)
+                    modulation.mixFrom(outgoingModulation, weight)
+                }
                 val extent = modulation.extent
                 restX *= extent
                 restY *= extent
@@ -823,6 +1166,8 @@ class VoxelFrameBuilder(
             val finalZ = (pz + uz * bumpAmount) * pulse * formScale
 
             val litColor = if (lit > 0f) NeutralColor.lerp(color, NeutralColor.WHITE, lit * LIT_MIX) else color
+            // At full presence `x * 1f` is `x`, so a cell with no look alpha still carries none.
+            val cellAlpha = lookAlpha * presence
             cells +=
                 VoxelCell(
                     x = finalX,
@@ -832,11 +1177,11 @@ class VoxelFrameBuilder(
                     red = litColor.red,
                     green = litColor.green,
                     blue = litColor.blue,
-                    alpha = if (lookAlpha != 1f) lookAlpha else null,
+                    alpha = if (cellAlpha != 1f) cellAlpha else null,
                 )
         }
 
-        val ambient = computeAmbient(atmosphere, phases.orbRotationX, yaw)
+        val ambient = computeAmbient(atmosphere, phases.orbRotationX, yaw, presence)
 
         return VoxelFrame(
             tick = tick,
@@ -950,6 +1295,7 @@ class VoxelFrameBuilder(
         atmosphere: AtmosphereState,
         orbRotationX: Float,
         orbRotationY: Float,
+        presence: Float,
     ): VoxelAmbient {
         val primary = NeutralColor.fromHsl(atmosphere.primaryHue, atmosphere.saturation, atmosphere.lightness)
         val secondary = NeutralColor.fromHsl(atmosphere.secondaryHue, atmosphere.saturation, atmosphere.lightness)
@@ -958,7 +1304,7 @@ class VoxelFrameBuilder(
             glowRed = glow.red,
             glowGreen = glow.green,
             glowBlue = glow.blue,
-            glowIntensity = atmosphere.glow,
+            glowIntensity = atmosphere.glow * presence,
             orbRotationX = orbRotationX,
             orbRotationY = orbRotationY,
             orbRotationZ = 0f,
@@ -994,6 +1340,30 @@ class VoxelFrameBuilder(
 
         // The shortest trip a [burst] fired from rest starts, so the spring has something to work with.
         private const val MIN_BURST_TRIP_SECONDS: Float = 0.3f
+
+        /** How long [lookTo] takes by default. */
+        const val LOOK_BLEND_SECONDS: Float = 0.6f
+
+        /**
+         * How long the spawn fade takes: `AgentLayer`'s own ramp at its default
+         * `spawnSpeed` of 1, so the orb lands as the agent turns idle.
+         */
+        const val SPAWN_SECONDS: Float = 1f
+
+        /** [angle] wrapped into `0..2π`, as the atmosphere's yaw is. */
+        private fun wrapTwoPi(angle: Float): Float {
+            var wrapped = angle % FramePhases.TWO_PI
+            if (wrapped < 0f) wrapped += FramePhases.TWO_PI
+            return if (wrapped >= FramePhases.TWO_PI) 0f else wrapped
+        }
+
+        /** [arc] taken the short way round: in `-π..π`. */
+        private fun shortArc(arc: Float): Float {
+            var short = arc % FramePhases.TWO_PI
+            if (short > PI_F) short -= FramePhases.TWO_PI
+            if (short < -PI_F) short += FramePhases.TWO_PI
+            return short
+        }
 
         /** How far a fully lit cell's colour moves toward white; see [CellModulation.lit]. */
         internal const val LIT_MIX: Float = 0.5f
