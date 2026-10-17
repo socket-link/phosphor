@@ -5,6 +5,7 @@ import kotlin.math.max
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
 import link.socket.phosphor.field.Choreography
+import link.socket.phosphor.field.Force
 import link.socket.phosphor.field.FormMatcher
 import link.socket.phosphor.field.FormMorph
 import link.socket.phosphor.field.VoxelSphere
@@ -224,8 +225,9 @@ class VoxelFrameBuilder(
      * which the count changes is a cut for anything that pairs cells by index.
      *
      * Calling this mid-morph starts a new trip from wherever the cells are,
-     * keeping their velocity. A [LumosConfig.reducedMotion] host draws through
-     * [buildStill], which snaps the morph to its destination. A resolution
+     * keeping their velocity and any [burst] still pushing them. A
+     * [LumosConfig.reducedMotion] host draws through [buildStill], which
+     * snaps the morph to its destination. A resolution
      * change during a morph is a cut: the lattice's count changes, so the morph
      * is dropped and identity reset, as a resolution change always has been.
      *
@@ -290,6 +292,8 @@ class VoxelFrameBuilder(
                 body.velocities[3 * i + 2] = fromMorph.velocities[3 * i + 2]
             }
         }
+        // A burst keeps its own clock, so moving it to the new body carries it on where it was.
+        if (fromMorph != null) body.forces.addAll(fromMorph.forces)
         if (toCount > fromCount) spawnLeftovers(nextPermutation, assignment, origins, toSample.positions, body)
 
         // Not through the public setter, which would reset the identity just built.
@@ -308,6 +312,64 @@ class VoxelFrameBuilder(
             arcEasing = easingName?.let(Easing::byName),
         )
         morph = body
+    }
+
+    /**
+     * Push every cell out from the body's centroid for a moment and let the
+     * spring bring it home: a [Force.Burst], which Dots fires before every
+     * scene morph so the body gathers itself before it reshapes.
+     *
+     * With a morph in flight, the burst acts on it. A [morphTo] called after
+     * this one carries the burst into the new trip, so burst-then-morph is
+     * this call followed by that one, in the same frame or a later one.
+     *
+     * With nothing in flight, there is nothing for the cells to spring back
+     * on, so this starts one: a [Choreography.DIRECT] trip from where the
+     * cells rest to the same places, `max(0.3, durationSeconds)` long. [form]
+     * does not change, but [isMorphing] is true until the cells are home, so
+     * [buildSteadyState] refuses until then, as it does mid-morph.
+     *
+     * Either way the trip stays in flight until the spring has brought the
+     * cells home after the burst, so the frame on which it settles is the form
+     * at rest with no jump. A [LumosConfig.reducedMotion] host draws through
+     * [buildStill], which drops the morph and the burst with it; so do a
+     * resolution change and setting [form] directly, which are cuts.
+     *
+     * @param strength Outward speed at the moment of firing, units per second,
+     *  falling linearly to nothing over [durationSeconds]. A unit is the orb's
+     *  radius; see [Force.Burst] for converting from pixels. Dots' burst is
+     *  about 6.
+     * @param durationSeconds How long the push lasts.
+     * @throws IllegalArgumentException when [strength] is not finite or
+     *  [durationSeconds] is not positive and finite.
+     */
+    fun burst(
+        strength: Float,
+        durationSeconds: Float = Force.Burst.DEFAULT_DURATION_SECONDS,
+    ) {
+        val burst = Force.Burst(strength, durationSeconds)
+        val body = morph?.takeIf { it.isSettling } ?: startRestingTrip(max(MIN_BURST_TRIP_SECONDS, durationSeconds))
+        body.forces.add(burst)
+    }
+
+    /**
+     * Start a [Choreography.DIRECT] trip from where every cell rests to the
+     * same place, so a force has a spring to act against.
+     */
+    private fun startRestingTrip(durationSeconds: Float): FormMorph {
+        val sample = currentSample()
+        val order = permutation
+        val body = FormMorph(sample.count)
+        body.snapTo(List(sample.count) { sample.positions[order?.get(it) ?: it] })
+        body.retarget(
+            targets = sample.positions,
+            assignment = order,
+            choreography = Choreography.DIRECT,
+            durationSeconds = durationSeconds,
+        )
+        morphFramingFrom = framing(sample)
+        morph = body
+        return body
     }
 
     /**
@@ -929,6 +991,9 @@ class VoxelFrameBuilder(
 
         /** How long [morphTo] takes by default: Dots' 2.4 s. */
         const val DEFAULT_MORPH_SECONDS: Float = 2.4f
+
+        // The shortest trip a [burst] fired from rest starts, so the spring has something to work with.
+        private const val MIN_BURST_TRIP_SECONDS: Float = 0.3f
 
         /** How far a fully lit cell's colour moves toward white; see [CellModulation.lit]. */
         internal const val LIT_MIX: Float = 0.5f

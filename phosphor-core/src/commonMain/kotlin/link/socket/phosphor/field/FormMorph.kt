@@ -28,6 +28,10 @@ import link.socket.phosphor.math.Vector3
  * is what makes an interrupted morph read as one motion. Only [snapTo] stops
  * the body dead — reduced motion and a zero duration go through it.
  *
+ * [forces] act on the body alongside the spring: a [Force.Burst] carries every
+ * cell out from the centroid for a moment and the spring brings it home. With
+ * the list empty, [step] is exactly the spring and the arc.
+ *
  * Positions and velocities are the same `FloatArray`s for the body's whole life;
  * [step] allocates nothing.
  *
@@ -56,6 +60,20 @@ class FormMorph(val count: Int) {
     private var omega: Float = 0f
     private var arcEasing: ((Float) -> Float)? = null
 
+    // Elapsed time a burst has kept the body settling until: zero when no burst has acted this trip.
+    private var disturbedUntilSeconds: Float = 0f
+
+    /**
+     * Forces acting on the body, applied in order by every [step] before the
+     * spring. Add to it to fire one; a [Force.Burst] removes itself on the step
+     * that spends it.
+     *
+     * A settled body does not step, so a force added to one waits for the next
+     * [retarget]. [snapTo] removes every burst: a body stopped dead is not
+     * being pushed. [Force.Repel] is not applied yet.
+     */
+    val forces: MutableList<Force> = ArrayList()
+
     /** Length of the current trip in seconds; `0` after [snapTo] or before any [retarget]. */
     var durationSeconds: Float = 0f
         private set
@@ -68,8 +86,12 @@ class FormMorph(val count: Int) {
     var choreography: Choreography = Choreography.DIRECT
         private set
 
-    /** Whether the trip is still in flight: `elapsed < duration`. */
-    val isSettling: Boolean get() = elapsedSeconds < durationSeconds
+    /**
+     * Whether the trip is still in flight: `elapsed < duration`, or a
+     * [Force.Burst] has acted and the spring has not yet had a whole trip's
+     * span since it ended to bring the cells home.
+     */
+    val isSettling: Boolean get() = elapsedSeconds < max(durationSeconds, disturbedUntilSeconds)
 
     /**
      * How far along the trip a cell that started at rest would be, `0` to `1`:
@@ -85,8 +107,9 @@ class FormMorph(val count: Int) {
         }
 
     /**
-     * Put every cell at its target and stop it. Ends any trip in flight: the
-     * body is settled and [isSettling] is false.
+     * Put every cell at its target and stop it. Ends any trip in flight and
+     * removes every [Force.Burst] from [forces]: the body is settled and
+     * [isSettling] is false.
      *
      * @param targets `count` destinations; cell `i` goes to `targets[i]`.
      * @throws IllegalArgumentException when [targets] is not `count` long.
@@ -104,13 +127,16 @@ class FormMorph(val count: Int) {
         targetIndexFor = null
         durationSeconds = 0f
         elapsedSeconds = 0f
+        disturbedUntilSeconds = 0f
         choreography = Choreography.DIRECT
         arcEasing = null
+        forces.removeAll { it is Force.Burst }
     }
 
     /**
      * Start a trip toward [targets], keeping every cell's current position and
-     * velocity. A trip already in flight is replaced from here, momentum and all.
+     * velocity. A trip already in flight is replaced from here, momentum and all,
+     * and [forces] stay: a burst still pushing goes on pushing.
      *
      * @param targets Destinations the trip reads through [assignment]; the same
      *  list, or the same form re-sampled, is passed again to every [step].
@@ -144,6 +170,7 @@ class FormMorph(val count: Int) {
         this.choreography = choreography
         this.durationSeconds = durationSeconds
         this.elapsedSeconds = 0f
+        this.disturbedUntilSeconds = 0f
         this.arcEasing = arcEasing
         omega = STIFFNESS / max(MIN_DURATION_SECONDS, durationSeconds)
         for (i in 0 until count) {
@@ -164,8 +191,16 @@ class FormMorph(val count: Int) {
 
     /**
      * Advance the trip by [dt] seconds toward [targets], read through the
-     * assignment given to [retarget]. Does nothing to a settled body. Allocates
-     * nothing.
+     * assignment given to [retarget], with [forces] acting first. Does nothing
+     * to a settled body. Allocates nothing.
+     *
+     * A [Force.Burst] moves each cell along the line from the body's centroid,
+     * taken once before anything moves, by the distance the burst carries it
+     * over this step: half before the spring steps and half after, so the
+     * spring answers the push across the step rather than all at its start.
+     * While a burst acts, the trip is held open until the spring has had a
+     * whole trip's span after the burst ends, so the cells are home before the
+     * body settles.
      *
      * @throws IllegalArgumentException when [dt] is negative, or [targets] is
      *  too short for the assignment.
@@ -184,6 +219,21 @@ class FormMorph(val count: Int) {
         val swirl = elapsedSeconds * ARC_TURN_PER_SECOND
         val decay = exp(-omega * dt)
 
+        val push = if (forces.isEmpty()) 0f else advanceBursts(dt)
+        var cx = 0f
+        var cy = 0f
+        var cz = 0f
+        if (push != 0f) {
+            for (i in 0 until count) {
+                cx += positions[3 * i]
+                cy += positions[3 * i + 1]
+                cz += positions[3 * i + 2]
+            }
+            cx /= count
+            cy /= count
+            cz /= count
+        }
+
         for (i in 0 until count) {
             val target = targets[assignment?.get(i) ?: i]
             var tx = target.x
@@ -198,10 +248,60 @@ class FormMorph(val count: Int) {
                 ty += sin(elevation) * arc
                 tz += sin(azimuth) * flat * arc
             }
+            var px = 0f
+            var py = 0f
+            var pz = 0f
+            if (push != 0f) {
+                val dx = positions[3 * i] - cx
+                val dy = positions[3 * i + 1] - cy
+                val dz = positions[3 * i + 2] - cz
+                val length = sqrt(dx * dx + dy * dy + dz * dz)
+                // A cell at the centroid has no outward; it stays where it is.
+                if (length > CENTROID_EPSILON) {
+                    val half = push * 0.5f / length
+                    px = dx * half
+                    py = dy * half
+                    pz = dz * half
+                    positions[3 * i] += px
+                    positions[3 * i + 1] += py
+                    positions[3 * i + 2] += pz
+                }
+            }
             springStep(3 * i, tx, dt, decay)
             springStep(3 * i + 1, ty, dt, decay)
             springStep(3 * i + 2, tz, dt, decay)
+            if (push != 0f) {
+                positions[3 * i] += px
+                positions[3 * i + 1] += py
+                positions[3 * i + 2] += pz
+            }
         }
+    }
+
+    /**
+     * Move every [Force.Burst]'s clock on by [dt], drop the ones this step
+     * spends, hold the trip open behind them, and return how far they carry a
+     * cell outward this step, summed.
+     */
+    private fun advanceBursts(dt: Float): Float {
+        var push = 0f
+        // The spring's own settling span: the trip length its stiffness was set for.
+        val settleSpan = STIFFNESS / omega
+        var k = 0
+        while (k < forces.size) {
+            val burst = forces[k] as? Force.Burst
+            if (burst == null) {
+                k++
+                continue
+            }
+            val from = burst.elapsedSeconds
+            burst.elapsedSeconds = from + dt
+            push += burst.displacement(from, burst.elapsedSeconds)
+            val remaining = max(0f, burst.durationSeconds - burst.elapsedSeconds)
+            disturbedUntilSeconds = max(disturbedUntilSeconds, elapsedSeconds + remaining + settleSpan)
+            if (burst.isSpent) forces.removeAt(k) else k++
+        }
+        return push
     }
 
     /** `sin²(πu)` over the first `0.7083` of the trip, `u` optionally eased; `0` once that window closes. */
@@ -254,6 +354,7 @@ class FormMorph(val count: Int) {
         private const val ARC_TURN_PER_SECOND: Float = 0.4f
         private const val ARC_AZIMUTH_SALT: Int = 82
         private const val ARC_ELEVATION_SALT: Int = 0x43
+        private const val CENTROID_EPSILON: Float = 1e-6f
         private val TWO_PI: Float = (2.0 * PI).toFloat()
 
         /** The lattice's FNV-seeded hash of a cell index and a salt, folded to `[0, 1)`. */

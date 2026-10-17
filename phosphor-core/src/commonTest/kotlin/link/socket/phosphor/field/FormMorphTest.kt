@@ -1,6 +1,7 @@
 package link.socket.phosphor.field
 
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -13,7 +14,9 @@ import link.socket.phosphor.math.Vector3
 /**
  * PHO-57 Task B: the spring settles within its duration without overshoot,
  * identity is kept by index, an interrupted trip carries its velocity, and
- * DIRECT travels straight.
+ * DIRECT travels straight. PHO-74 Task A: forces leave the spring untouched
+ * when there are none, and a burst pushes out, decays, and lets the spring
+ * bring the body home.
  */
 class FormMorphTest {
     private val from = listOf(Vector3(-1f, 0f, 0f), Vector3(0f, 0.5f, 0f), Vector3(0.2f, -0.3f, 0.9f))
@@ -217,6 +220,208 @@ class FormMorphTest {
         assertFailsWith<IllegalArgumentException> { morph.step(0.1f, to.take(1)) }
         assertFailsWith<IllegalArgumentException> { FormMorph(-1) }
     }
+
+    @Test
+    fun `an empty force list leaves step byte-identical`() {
+        fun stepped(prepare: (FormMorph) -> Unit): Pair<FloatArray, FloatArray> {
+            val morph = FormMorph(3)
+            morph.snapTo(from)
+            prepare(morph)
+            morph.retarget(to, choreography = Choreography.FLOW, durationSeconds = 4f)
+            repeat(200) { morph.step(1f / 60f, to) }
+            return morph.positions.copyOf() to morph.velocities.copyOf()
+        }
+        val (positions, velocities) = stepped {}
+        val emptied =
+            stepped {
+                it.forces.add(Force.Burst(6f))
+                it.forces.clear()
+            }
+        assertContentEquals(positions, emptied.first)
+        assertContentEquals(velocities, emptied.second)
+        // A Repel is declared but not applied yet: it must not touch the body either.
+        val repelled = stepped { it.forces.add(Force.Repel()) }
+        assertContentEquals(positions, repelled.first)
+        assertContentEquals(velocities, repelled.second)
+    }
+
+    @Test
+    fun `a burst moves every cell outward on the first step`() {
+        val morph = restingBody(ring)
+        morph.forces.add(Force.Burst(6f))
+        val before = radii(morph)
+        morph.step(1f / 60f, ring)
+        val after = radii(morph)
+        for (i in ring.indices) {
+            assertTrue(after[i] > before[i] + 1e-3f, "cell $i should move out: ${before[i]} -> ${after[i]}")
+        }
+    }
+
+    @Test
+    fun `a burst's push falls linearly to zero at its duration and the spent burst removes itself`() {
+        val burst = Force.Burst(strength = 6f, durationSeconds = 0.16f)
+        val h = 0.01f
+        val pushes = List(16) { burst.displacement(it * h, (it + 1) * h) }
+        // Equal slices of a linear ramp: each one smaller than the last by the same amount.
+        for (k in 1 until pushes.size) {
+            assertEquals(6f * h * h / 0.16f, pushes[k - 1] - pushes[k], 1e-6f)
+        }
+        assertEquals(6f * h * h / (2f * 0.16f), pushes.last(), 1e-6f)
+        assertEquals(0f, burst.displacement(0.16f, 0.5f))
+
+        val morph = restingBody(ring)
+        val fired = Force.Burst(6f, durationSeconds = 0.16f)
+        morph.forces.add(fired)
+        repeat(9) { morph.step(1f / 60f, ring) }
+        assertTrue(fired in morph.forces, "0.15 s in, the burst is still pushing")
+        morph.step(1f / 60f, ring)
+        assertTrue(fired.isSpent)
+        assertTrue(morph.forces.isEmpty(), "the step that spends the burst removes it")
+    }
+
+    @Test
+    fun `a burst carries a cell strength times duration over two however the time is cut`() {
+        fun carried(dt: Float): Float {
+            val pair = listOf(Vector3(-0.5f, 0f, 0f), Vector3(0.5f, 0f, 0f))
+            // A trip so long its spring barely pulls: what is left is the burst's own reach.
+            val morph = restingBody(pair, durationSeconds = 1_000f)
+            morph.forces.add(Force.Burst(strength = 6f, durationSeconds = 0.16f))
+            var t = 0f
+            while (t < 0.16f - 1e-6f) {
+                morph.step(dt, pair)
+                t += dt
+            }
+            return morph.positions[3] - 0.5f
+        }
+        val expected = 6f * 0.16f / 2f
+        for (dt in floatArrayOf(1f / 240f, 1f / 60f, 0.04f, 0.16f)) {
+            assertEquals(expected, carried(dt), 2e-3f, "dt=$dt")
+        }
+    }
+
+    @Test
+    fun `a dropped frame lands where short frames would under a burst`() {
+        fun at(
+            dt: Float,
+            steps: Int,
+        ): FloatArray {
+            val morph = restingBody(ring)
+            morph.forces.add(Force.Burst(6f))
+            repeat(steps) { morph.step(dt, ring) }
+            return morph.positions
+        }
+        val short = at(1f / 60f, 18)
+        val long = at(1f / 20f, 6)
+        for (i in short.indices) {
+            assertEquals(short[i], long[i], 1e-2f, "component $i after 0.3 s")
+        }
+    }
+
+    @Test
+    fun `a burst fired mid-trip is followed by the spring within its critically damped bound`() {
+        val morph = FormMorph(3)
+        morph.snapTo(from)
+        morph.retarget(to, choreography = Choreography.DIRECT, durationSeconds = 2.4f)
+        repeat(36) { morph.step(1f / 60f, to) }
+        val burst = Force.Burst(6f)
+        morph.forces.add(burst)
+        while (burst in morph.forces) morph.step(1f / 60f, to)
+
+        // From here the spring acts alone: x(τ) = (x₀ + (v₀ + ωx₀)τ)e^(−ωτ), ω = 7.5 for a 2.4 s trip.
+        val omega = 7.5f
+        val x0 = FloatArray(9) { morph.positions[it] - flatten(to)[it] }
+        val v0 = morph.velocities.copyOf()
+        var tau = 0f
+        while (morph.isSettling) {
+            morph.step(1f / 60f, to)
+            tau += 1f / 60f
+            for (c in 0 until 9) {
+                val offset = morph.positions[c] - flatten(to)[c]
+                val bound = (abs(x0[c]) + (abs(v0[c]) + omega * abs(x0[c])) * tau) * exp(-omega * tau)
+                assertTrue(abs(offset) <= bound + 1e-5f, "component $c at τ=$tau: |$offset| > $bound")
+            }
+        }
+        assertPositions(to, morph.positions, 1e-4f)
+    }
+
+    @Test
+    fun `a burst on a trip's last step holds the trip open until the cells are home`() {
+        val morph = restingBody(ring, durationSeconds = 0.3f)
+        repeat(17) { morph.step(1f / 60f, ring) }
+        morph.forces.add(Force.Burst(6f))
+        morph.step(1f / 60f, ring)
+        assertTrue(morph.isSettling, "the burst outlasts the trip, so the trip waits for it")
+        while (morph.isSettling) morph.step(1f / 60f, ring)
+        assertPositions(ring, morph.positions, 1e-4f)
+    }
+
+    @Test
+    fun `a burst keeps pushing through a retarget and a snap removes it`() {
+        val morph = restingBody(ring)
+        val burst = Force.Burst(6f)
+        morph.forces.add(burst)
+        morph.step(1f / 60f, ring)
+        morph.retarget(ring, choreography = Choreography.DIRECT, durationSeconds = 1f)
+        assertTrue(burst in morph.forces)
+        assertEquals(1f / 60f, burst.elapsedSeconds, 1e-6f)
+        val before = radii(morph)
+        morph.step(1f / 60f, ring)
+        val after = radii(morph)
+        assertTrue(after.indices.all { after[it] > before[it] }, "still pushing after the retarget")
+
+        val repel = Force.Repel()
+        morph.forces.add(repel)
+        morph.snapTo(ring)
+        assertEquals(listOf<Force>(repel), morph.forces)
+    }
+
+    @Test
+    fun `a burst on a settled body waits for the next trip`() {
+        val morph = FormMorph(ring.size)
+        morph.snapTo(ring)
+        val burst = Force.Burst(6f)
+        morph.forces.add(burst)
+        morph.step(1f / 60f, ring)
+        assertContentEquals(flatten(ring), morph.positions)
+        assertEquals(0f, burst.elapsedSeconds)
+    }
+
+    @Test
+    fun `a burst rejects a non-finite strength and a non-positive duration`() {
+        assertFailsWith<IllegalArgumentException> { Force.Burst(Float.NaN) }
+        assertFailsWith<IllegalArgumentException> { Force.Burst(6f, durationSeconds = 0f) }
+        assertFailsWith<IllegalArgumentException> { Force.Burst(6f, durationSeconds = Float.POSITIVE_INFINITY) }
+    }
+
+    // Six cells on the axes: a body whose centroid is the origin.
+    private val ring =
+        listOf(
+            Vector3(1f, 0f, 0f),
+            Vector3(-1f, 0f, 0f),
+            Vector3(0f, 1f, 0f),
+            Vector3(0f, -1f, 0f),
+            Vector3(0f, 0f, 1f),
+            Vector3(0f, 0f, -1f),
+        )
+
+    /** A body at rest on [points], on a trip to where it already is, so a force has a trip to act in. */
+    private fun restingBody(
+        points: List<Vector3>,
+        durationSeconds: Float = 2.4f,
+    ): FormMorph {
+        val morph = FormMorph(points.size)
+        morph.snapTo(points)
+        morph.retarget(points, choreography = Choreography.DIRECT, durationSeconds = durationSeconds)
+        return morph
+    }
+
+    private fun radii(morph: FormMorph): FloatArray =
+        FloatArray(morph.count) { i ->
+            val x = morph.positions[3 * i]
+            val y = morph.positions[3 * i + 1]
+            val z = morph.positions[3 * i + 2]
+            sqrt(x * x + y * y + z * z)
+        }
 
     private fun flatten(points: List<Vector3>): FloatArray =
         FloatArray(points.size * 3) { i ->
