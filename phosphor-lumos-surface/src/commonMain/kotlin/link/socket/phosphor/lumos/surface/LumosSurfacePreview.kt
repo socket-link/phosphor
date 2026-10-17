@@ -56,7 +56,10 @@ fun LumosSurfacePreview(
         delay((assembleAfterSeconds * 1000f).toLong().milliseconds)
         state.assembleInto(PREVIEW_TARGET, tint = PREVIEW_ACCENT)
     }
-    LumosSurface(state = state, modifier = Modifier.size(PREVIEW_WIDTH, PREVIEW_HEIGHT).background(PREVIEW_BACKGROUND)) {
+    LumosSurface(
+        state = state,
+        modifier = Modifier.size(PREVIEW_WIDTH, PREVIEW_HEIGHT).background(PREVIEW_BACKGROUND),
+    ) {
         LumosSurfaceOrb(
             state = state,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = PREVIEW_ORB_TOP).size(PREVIEW_ORB_SIZE),
