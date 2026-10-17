@@ -2,7 +2,6 @@ package link.socket.phosphor.field
 
 import kotlin.math.floor
 import kotlin.random.Random
-import kotlinx.datetime.Clock
 
 /**
  * Perlin noise generator for organic animation patterns.
@@ -10,7 +9,7 @@ import kotlinx.datetime.Clock
  * Creates smooth, natural-looking variation for ambient substrate animation.
  * Based on Ken Perlin's improved noise algorithm.
  */
-class PerlinNoise(seed: Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()) {
+class PerlinNoise(seed: Long = Random.nextLong()) {
     private val permutation: IntArray
 
     init {

@@ -2,7 +2,7 @@ package link.socket.phosphor.field
 
 import kotlin.math.exp
 import kotlin.math.sqrt
-import kotlinx.datetime.Clock
+import kotlin.random.Random
 import link.socket.phosphor.math.Point
 import link.socket.phosphor.math.Vector2
 
@@ -22,7 +22,7 @@ class SubstrateAnimator(
     private val noiseScale: Float = 0.1f,
     private val noiseAmplitude: Float = 0.2f,
     private val timeScale: Float = 0.05f,
-    seed: Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds(),
+    seed: Long = Random.nextLong(),
 ) {
     private val noise = PerlinNoise(seed)
 
