@@ -132,6 +132,19 @@ class AgentLayer(
     }
 
     /**
+     * Raise or clear an agent's escalation; see [AgentVisualState.escalated].
+     * Unknown ids are ignored, as every other update here.
+     */
+    fun updateAgentEscalated(
+        agentId: String,
+        escalated: Boolean,
+    ) {
+        agents[agentId]?.let { agent ->
+            agents[agentId] = agent.withEscalated(escalated)
+        }
+    }
+
+    /**
      * Update an agent's status text.
      */
     fun updateAgentStatus(
