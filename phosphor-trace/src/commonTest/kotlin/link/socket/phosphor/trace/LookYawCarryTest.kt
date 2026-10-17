@@ -34,7 +34,7 @@ class LookYawCarryTest {
         )
 
     @Test
-    fun `the recording is the look's yaw, not the atmosphere's spin`() {
+    fun `the recording is the look's yaw and not the atmosphere's spin`() {
         // 1.33 s in, the first retry is springing back: 0.22 rad against the atmosphere's 0.6.
         val atmosphereYaw = FramePhases.at(ATMOSPHERE, 40.0 / FPS).orbRotationY
         val recorded = live[40].ambient.orbRotationY

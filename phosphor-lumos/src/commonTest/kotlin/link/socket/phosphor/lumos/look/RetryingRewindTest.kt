@@ -16,7 +16,7 @@ import link.socket.phosphor.lumos.LumosLook
  */
 class RetryingRewindTest {
     @Test
-    fun `rewind at 2 s is 2 s of turn, the source's 2000 times w`() {
+    fun `rewind at 2 s is 2 s of turn which is the source's 2000 times w`() {
         val w = 0.7
         assertEquals(2.0 * w, RetryingRewind.rewind(2.0, w), EXACT)
         assertEquals(1.0 * w, RetryingRewind.rewind(1.0, w), EXACT, "the turn is the plain spin")
@@ -24,7 +24,7 @@ class RetryingRewindTest {
     }
 
     @Test
-    fun `the spring starts at 0, ends at exactly 1 and overshoots between`() {
+    fun `the spring starts at 0 and ends at exactly 1 and overshoots between`() {
         assertEquals(0.0, RetryingRewind.spring(0.0), EXACT)
         assertEquals(1.0, RetryingRewind.spring(1.0), EXACT)
         val peak = (0..100).maxOf { RetryingRewind.spring(it / 100.0) }
@@ -32,7 +32,7 @@ class RetryingRewindTest {
     }
 
     @Test
-    fun `a cycle brakes, gives back 60 percent of the turn and stacks 0_94 s of turn`() {
+    fun `a cycle brakes then gives back 60 percent of the turn and stacks 0_94 s of turn`() {
         val w = 1.0
         val stopped = RetryingRewind.rewind(2.2, w)
         assertEquals(2.1, stopped, EXACT, "the turn plus half the brake")
@@ -59,7 +59,7 @@ class RetryingRewindTest {
     }
 
     @Test
-    fun `the look runs rewind at double time and half rate, so the turn is the look's 13 s pace`() {
+    fun `the look runs rewind at double time and half rate so the turn is the look's 13 s pace`() {
         val retrying = RetryingRewind()
         val rate = 2.0 * PI / 13.0
 
