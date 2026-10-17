@@ -182,6 +182,43 @@ class PixelFormTest {
     }
 
     @Test
+    fun `spacing on Socket's 128 by 40 button at the hero and inline counts`() {
+        val turnOn = RectPx(left = 0f, top = 0f, width = 128f, height = 40f, cornerRadius = 8f)
+        assertEquals(1.13f, PixelForm.fillSpacingPx(turnOn, 4801), 0.01f)
+        assertEquals(2.33f, PixelForm.fillSpacingPx(turnOn, 1141), 0.01f)
+        assertEquals(8.76f, PixelForm.fillSpacingPx(turnOn, 80), 0.01f)
+        assertEquals(23.0f, PixelForm.outlineSpacingPx(turnOn, 80), 0.1f)
+        // Every cell on the outline: the fill's spacing is the outline's.
+        assertEquals(PixelForm.outlineSpacingPx(turnOn, 40, 1f), PixelForm.fillSpacingPx(turnOn, 40, 1f))
+        assertEquals(Float.POSITIVE_INFINITY, PixelForm.outlineSpacingPx(turnOn, 40, 0f))
+        // The spacing a form lays out is the one its cells are sized by.
+        val viewport = OrbViewport(centerXPx = 64f, centerYPx = 20f, radiusPx = 80f)
+        assertEquals(
+            0.5f * PixelForm.fillSpacingPx(turnOn, 1141) / 80f,
+            PixelForm.roundedRect(turnOn, viewport).cellRadius(1141),
+            1e-6f,
+        )
+    }
+
+    @Test
+    fun `outlineFraction is Dots' share at its counts and more as the count falls`() {
+        val turnOn = RectPx(left = 0f, top = 0f, width = 128f, height = 40f, cornerRadius = 8f)
+        assertEquals(PixelForm.PERIMETER_FRACTION, PixelForm.outlineFraction(turnOn, 4801))
+        // Dots' share at the count it was tuned on, give or take the rounding of its ratio to 1.5.
+        assertEquals(PixelForm.PERIMETER_FRACTION, PixelForm.outlineFraction(turnOn, 1141), 0.005f)
+        val inline = PixelForm.outlineFraction(turnOn, 80)
+        assertEquals(0.52f, inline, 0.01f)
+        // Below Dots' counts the outline's cells sit OUTLINE_DENSITY times as close as the fill's.
+        assertEquals(
+            PixelForm.OUTLINE_DENSITY,
+            PixelForm.fillSpacingPx(turnOn, 80, inline) / PixelForm.outlineSpacingPx(turnOn, 80, inline),
+            0.15f,
+        )
+        assertTrue(PixelForm.outlineFraction(turnOn, 8) > inline)
+        assertTrue(PixelForm.outlineFraction(turnOn, 1) <= 1f)
+    }
+
+    @Test
     fun `counted keeps a view form a rigid view form`() {
         val counted = assertIs<ViewForm>(PixelForm.roundedRect(button, viewport).counted(90))
         assertTrue(counted.rigid)

@@ -223,6 +223,65 @@ class VoxelFrameBuilderMorphTest {
     }
 
     @Test
+    fun `a cell keeps its colour on the first frame of a morph rather than taking the new form's`() {
+        val pattern = AtmospherePresets.THINKING.copy(resolution = resolution, noise = 0f, surfaceBump = 0f)
+        val cut = VoxelFrameBuilder(initialResolution = resolution)
+        val builder = VoxelFrameBuilder(initialResolution = resolution)
+        val before = builder.build(snapshot(pattern, 0f), dt = 0f)
+        cut.build(snapshot(pattern, 0f), dt = 0f)
+
+        builder.morphTo(Forms.Cube, choreography = Choreography.DIRECT, durationSeconds = 1f)
+        val first = builder.build(snapshot(pattern, 0f), dt = 0f)
+        cut.form = Forms.Cube
+        val recoloured = cut.build(snapshot(pattern, 0f), dt = 0f)
+
+        fun shift(
+            a: VoxelCell,
+            b: VoxelCell,
+        ) = abs(a.red - b.red) + abs(a.green - b.green) + abs(a.blue - b.blue)
+        // The premise: the cube's pattern colours the orb differently from the lattice's.
+        val cutShift = before.cells.indices.sumOf { shift(before.cells[it], recoloured.cells[it]).toDouble() }
+        assertTrue(cutShift > 0.5, "the cube recolours too little to test against: $cutShift")
+        for (i in before.cells.indices) {
+            assertTrue(shift(before.cells[i], first.cells[i]) < 1e-3f, "cell $i changed colour on the first frame")
+        }
+    }
+
+    @Test
+    fun `survivors name the cells a smaller count keeps — survivor i becomes cell i`() {
+        val builder = VoxelFrameBuilder(initialResolution = resolution)
+        val before = builder.build(snapshot(still, 0f), dt = 0f)
+        val count = before.cells.size
+        val survivors = IntArray(count / 3) { it * 3 }
+
+        builder.morphTo(Forms.Fibonacci, count = survivors.size, durationSeconds = 1f, survivors = survivors)
+        val after = builder.build(snapshot(still, 0f), dt = 0f)
+
+        assertEquals(survivors.size, after.cells.size)
+        for (k in survivors.indices) {
+            val was = before.cells[survivors[k]]
+            val now = after.cells[k]
+            val moved = abs(was.x - now.x) + abs(was.y - now.y) + abs(was.z - now.z)
+            assertTrue(moved < 1e-3f, "survivor $k is not where cell ${survivors[k]} was: moved $moved")
+        }
+    }
+
+    @Test
+    fun `survivors must be as many ascending indices as the new form has`() {
+        val builder = VoxelFrameBuilder(initialResolution = resolution)
+        val count = builder.build(snapshot(still, 0f), dt = 0f).cells.size
+        assertFailsWith<IllegalArgumentException> {
+            builder.morphTo(Forms.Fibonacci, count = 3, survivors = intArrayOf(0, 1))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            builder.morphTo(Forms.Fibonacci, count = 3, survivors = intArrayOf(0, 2, 1))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            builder.morphTo(Forms.Fibonacci, count = 3, survivors = intArrayOf(0, 1, count))
+        }
+    }
+
+    @Test
     fun `morphing to the current form at the current count is a no-op`() {
         val builder = VoxelFrameBuilder(initialResolution = resolution)
         builder.build(snapshot(still, 0f), dt = 0f)

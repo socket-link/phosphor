@@ -18,13 +18,16 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
+import link.socket.phosphor.lumos.Forms
 import link.socket.phosphor.lumos.LiveFrameSource
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.SurfaceStyle
+import link.socket.phosphor.lumos.counted
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
@@ -43,18 +46,45 @@ fun LumosSurfacePreview() {
 }
 
 /**
+ * The Turn-on moment at Socket's hero size: `LumosTabOrb`'s 160 px orb on the presets'
+ * resolution 10, 4,801 cells, into the same 128 × 40 button. A cell every 1.1 px on the button.
+ */
+@Composable
+fun LumosSurfaceHeroPreview() {
+    val state = remember { heroSurfaceState() }
+    LumosSurfacePreview(state, orbSize = HERO_ORB_SIZE, orbTop = HERO_ORB_TOP)
+}
+
+/**
+ * The Turn-on moment at Socket's inline size: the 20 px orb on `Forms.Fibonacci` at 80 cells,
+ * into the same 128 × 40 button, with half its cells on the outline so the edge still reads.
+ */
+@Composable
+fun LumosSurfaceInlinePreview() {
+    val state = remember { inlineSurfaceState() }
+    LumosSurfacePreview(state, orbSize = INLINE_ORB_SIZE, orbTop = INLINE_ORB_TOP)
+}
+
+/**
  * [LumosSurfacePreview] on [state], assembling [assembleAfterSeconds] in; [onTurnOn] is the
  * button's click.
+ *
+ * @param orbSize The orb's slot, top centre; 128 dp by default.
+ * @param orbTop The slot's distance from the top.
+ * @param surplus What the assembly does with the cells the button does not need.
  */
 @Composable
 fun LumosSurfacePreview(
     state: LumosSurfaceState,
     assembleAfterSeconds: Float = PREVIEW_ASSEMBLE_AT_SECONDS,
     onTurnOn: () -> Unit = {},
+    orbSize: Dp = PREVIEW_ORB_SIZE,
+    orbTop: Dp = PREVIEW_ORB_TOP,
+    surplus: SurfaceSurplus = SurfaceSurplus.Keep,
 ) {
     LaunchedEffect(state) {
         delay((assembleAfterSeconds * 1000f).toLong().milliseconds)
-        state.assembleInto(PREVIEW_TARGET, tint = PREVIEW_ACCENT)
+        state.assembleInto(PREVIEW_TARGET, tint = PREVIEW_ACCENT, surplus = surplus)
     }
     LumosSurface(
         state = state,
@@ -62,7 +92,7 @@ fun LumosSurfacePreview(
     ) {
         LumosSurfaceOrb(
             state = state,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = PREVIEW_ORB_TOP).size(PREVIEW_ORB_SIZE),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = orbTop).size(orbSize),
             showHalo = false,
         )
         Box(
@@ -92,6 +122,23 @@ fun previewSurfaceState(): LumosSurfaceState =
         config = LumosConfig(style = SurfaceStyle.Dots),
     )
 
+/** [LumosSurfaceHeroPreview]'s state: an IDLE orb at the presets' resolution 10, drawn in [style]. */
+fun heroSurfaceState(style: SurfaceStyle = SurfaceStyle.Dots): LumosSurfaceState =
+    LumosSurfaceState(
+        source = LiveFrameSource(AtmospherePresets.IDLE.copy(resolution = HERO_RESOLUTION)),
+        config = LumosConfig(style = style),
+    )
+
+/** [LumosSurfaceInlinePreview]'s state: an IDLE orb on the inline orb's 80-cell Fibonacci sphere, drawn in [style]. */
+fun inlineSurfaceState(style: SurfaceStyle = SurfaceStyle.Dots): LumosSurfaceState =
+    LumosSurfaceState(
+        source =
+            LiveFrameSource(AtmospherePresets.IDLE).also { live ->
+                live.builder.form = Forms.Fibonacci.counted(Forms.inlineOrbCount(INLINE_ORB_PX))
+            },
+        config = LumosConfig(style = style),
+    )
+
 /** The preview's target id. */
 const val PREVIEW_TARGET: String = "turn-on"
 
@@ -105,6 +152,12 @@ internal val PREVIEW_WIDTH = 400.dp
 internal val PREVIEW_HEIGHT = 260.dp
 internal val PREVIEW_ORB_TOP = 36.dp
 internal val PREVIEW_ORB_SIZE = 128.dp
+internal const val HERO_RESOLUTION: Int = 10
+internal val HERO_ORB_TOP = 12.dp
+internal val HERO_ORB_SIZE = 160.dp
+internal const val INLINE_ORB_PX: Int = 20
+internal val INLINE_ORB_TOP = 90.dp
+internal val INLINE_ORB_SIZE = INLINE_ORB_PX.dp
 internal val PREVIEW_PADDING = 24.dp
 internal val PREVIEW_BUTTON_WIDTH = 128.dp
 internal val PREVIEW_BUTTON_HEIGHT = 40.dp

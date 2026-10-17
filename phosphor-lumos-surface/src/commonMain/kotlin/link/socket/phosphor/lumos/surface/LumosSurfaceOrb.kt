@@ -2,6 +2,9 @@ package link.socket.phosphor.lumos.surface
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
@@ -14,9 +17,10 @@ import link.socket.phosphor.lumos.probe.FrameProbe
  *
  * While [LumosSurfaceState.phase] is [SurfacePhase.Orb] this composes a `LumosOrb` on the state's
  * source and config, which steps and draws it as any orb. Its bounds are published as the
- * state's viewport, so the cells leave from where the orb is laid out. The frame an assembly
- * starts flying, the orb leaves the composition — its loop ends, and the surface's overlay takes
- * the source over — and the slot stays, empty and the same size, so nothing around it reflows
+ * state's viewport, so the cells leave from where the orb is laid out. It keeps the orb through
+ * [LumosSurfaceState.assembleInto] until the surface's overlay has the flight's first frame to
+ * draw; then the orb leaves the composition — its loop ends, and the overlay has the source —
+ * and the slot stays, empty and the same size, so nothing around it reflows
  * and the orb has somewhere to come back to on [LumosSurfaceState.release].
  *
  * Give the slot a size, as a `LumosOrb` needs one; the orb fills it. The orb's halo stops with
@@ -38,8 +42,10 @@ fun LumosSurfaceOrb(
     showGlyphOverlay: Boolean = true,
     probe: FrameProbe = FrameProbe.Disabled,
 ) {
+    // Derived, so the overlay's new frame each flight step does not recompose the slot.
+    val orbInSlot by remember(state) { derivedStateOf { state.orbInSlot } }
     Box(modifier = modifier.onGloballyPositioned { state.slotPositioned(it.boundsInRoot()) }) {
-        if (state.phase is SurfacePhase.Orb) {
+        if (orbInSlot) {
             LumosOrb(
                 source = state.source,
                 config = state.config,
