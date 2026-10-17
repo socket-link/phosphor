@@ -13,13 +13,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import kotlin.math.roundToInt
 import link.socket.phosphor.lumos.Forms
 import link.socket.phosphor.lumos.LiveFrameSource
 import link.socket.phosphor.lumos.Look
@@ -51,23 +53,27 @@ class MaterialShaderAndroidTest {
     @Test
     fun metalAndGlassDrawUnderEveryConstructionAndReportTheirStatus() {
         val sdk = Build.VERSION.SDK_INT
-        val frame200 = inlineFrame(LARGE_PX, INLINE_CELLS)
-        val frame20 = inlineFrame(SMALL_PX, INLINE_CELLS)
-        val lattice = inlineFrame(LARGE_PX, LATTICE_CELLS)
+        // The canvas is sized in dp; the frame is projected for the pixels that dp comes to here.
+        val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
+        val largePx = (LARGE_DP * density).roundToInt()
+        val smallPx = (SMALL_DP * density).roundToInt()
+        val frame200 = inlineFrame(largePx, INLINE_CELLS)
+        val frame20 = inlineFrame(smallPx, INLINE_CELLS)
+        val lattice = inlineFrame(largePx, LATTICE_CELLS)
         val statuses = mutableMapOf<String, MaterialStatus>()
         var kind by mutableStateOf(MaterialKind.Metal)
         var construction by mutableStateOf(ShaderConstruction.InRemember)
         var frame by mutableStateOf(frame200)
-        var px by mutableStateOf(LARGE_PX)
+        var dp by mutableStateOf(LARGE_DP)
         val probe = ListProbe()
 
         rule.setContent {
-            key(kind, construction, px) {
+            key(kind, construction, dp) {
                 LumosMaterialCanvas(
                     frame = frame,
                     kind = kind,
                     construction = construction,
-                    modifier = Modifier.size(px.dp),
+                    modifier = Modifier.size(dp.dp).testTag(TAG_ORB),
                     backgroundColor = BACKGROUND,
                     probe = probe,
                     onMaterialStatus = { statuses["$kind/$construction"] = it },
@@ -75,17 +81,17 @@ class MaterialShaderAndroidTest {
             }
         }
 
-        val report = StringBuilder("sdk=$sdk\n")
+        val report = StringBuilder("sdk=$sdk density=$density largePx=$largePx smallPx=$smallPx\n")
         for (k in MaterialKind.entries) {
             for (c in ShaderConstruction.entries) {
                 rule.runOnIdle {
                     kind = k
                     construction = c
-                    px = LARGE_PX
+                    dp = LARGE_DP
                     frame = frame200
                 }
                 rule.waitForIdle()
-                val image = rule.onRoot().captureToImage()
+                val image = rule.onNodeWithTag(TAG_ORB).captureToImage()
                 save(image, "material-android-$k-$c.png")
                 val inked = image.inked()
                 val status = statuses["$k/$c"]
@@ -101,12 +107,18 @@ class MaterialShaderAndroidTest {
         }
 
         // DRAW timings: the canvas is redrawn by handing it a copy of the frame with a new tick.
-        for ((name, base, size) in listOf(Triple("80 cells @ 200 px", frame200, LARGE_PX), Triple("80 cells @ 20 px", frame20, SMALL_PX), Triple("lattice $LATTICE_CELLS cells @ 200 px", lattice, LARGE_PX))) {
+        val scenarios =
+            listOf(
+                Triple("${frame200.voxels.size} cells @ $LARGE_DP dp ($largePx px)", frame200, LARGE_DP),
+                Triple("${frame20.voxels.size} cells @ $SMALL_DP dp ($smallPx px)", frame20, SMALL_DP),
+                Triple("lattice ${lattice.voxels.size} cells @ $LARGE_DP dp ($largePx px)", lattice, LARGE_DP),
+            )
+        for ((name, base, size) in scenarios) {
             for (k in MaterialKind.entries) {
                 rule.runOnIdle {
                     kind = k
                     construction = ShaderConstruction.InRemember
-                    px = size
+                    dp = size
                     frame = base
                 }
                 rule.waitForIdle()
@@ -183,8 +195,9 @@ class MaterialShaderAndroidTest {
 
     private companion object {
         const val TAG = "PHO-63"
-        const val LARGE_PX = 200
-        const val SMALL_PX = 20
+        const val LARGE_DP = 200
+        const val SMALL_DP = 20
+        const val TAG_ORB = "orb"
         const val INLINE_CELLS = 80
         const val LATTICE_CELLS = -1
         const val BENCH_FRAMES = 60
