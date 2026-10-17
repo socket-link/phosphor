@@ -81,7 +81,7 @@ class SignalGeneratorTest {
     }
 
     @Test
-    fun `the setters write to the scene's first agent by id, the one the builder reads`() {
+    fun `the setters write to the scene's first agent by id since that is the one the builder reads`() {
         val scene =
             scene().copy(
                 agents =
@@ -104,7 +104,7 @@ class SignalGeneratorTest {
     }
 
     @Test
-    fun `an agentId the scene lacks is added, and with none named the generator adds its own`() {
+    fun `an agentId the scene lacks is added and with none named the generator adds its own`() {
         val named = SignalGenerator(scene(), LumosRenderConfig(agentId = "run-7"), fps = FPS)
         named.setPhase(CognitivePhase.EXECUTE)
         named.nextFrame()
@@ -119,7 +119,7 @@ class SignalGeneratorTest {
     }
 
     @Test
-    fun `a setter takes effect on the next step, not the frame already built`() {
+    fun `a setter takes effect on the next step and not the frame already built`() {
         val generator = SignalGenerator(scene(), fps = FPS)
         val reference = SignalGenerator(scene(), fps = FPS)
         repeat(3) { assertEquals(reference.nextFrame(), generator.nextFrame()) }
