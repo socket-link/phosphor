@@ -26,6 +26,8 @@ import kotlinx.serialization.Serializable
  *  whole window instead of fading it. [PlatformMotionPreference] turns this on too, and this flag
  *  can only add to it: a config cannot overrule someone who asked their platform for less motion.
  * @property label What the orb means, for screen readers. Null hides the orb from them.
+ * @property style The mark each cell is drawn as; see [SurfaceStyle]. [SurfaceStyle.Squares], the
+ *  default, is what every orb drew before styles existed.
  */
 @Serializable
 data class LumosConfig(
@@ -36,6 +38,7 @@ data class LumosConfig(
     val paused: Boolean = false,
     val reducedMotion: Boolean = false,
     val label: String? = null,
+    val style: SurfaceStyle = SurfaceStyle.Squares,
 ) {
     init {
         require(speed in MIN_SPEED..MAX_SPEED) { "speed must be in $MIN_SPEED..$MAX_SPEED, was $speed" }

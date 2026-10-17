@@ -1,9 +1,14 @@
 package link.socket.phosphor.lumos.compose
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -15,25 +20,34 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 import link.socket.phosphor.lumos.GlyphEnvelope
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.Look
+import link.socket.phosphor.lumos.LumosLook
+import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
+import link.socket.phosphor.lumos.compose.projection.ComposeLattice
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
+import link.socket.phosphor.palette.AtmospherePresets
+import link.socket.phosphor.signal.AtmosphereState
 
 /**
  * Renders a [LumosCanvasFrame] as a Compose Canvas.
  *
  * Each recomposition paints:
  * 1. An optional ambient halo (radial gradient behind the orb).
- * 2. All voxels back-to-front. No per-frame sort: [link.socket.phosphor.lumos.compose.projection.ComposeLattice]
- *    emits voxels z-ascending; only a hand-built, out-of-order frame is sorted here.
+ * 2. All voxels back-to-front, each as the mark [style] asks for. No per-frame sort:
+ *    [link.socket.phosphor.lumos.compose.projection.ComposeLattice] emits voxels z-ascending; only a
+ *    hand-built, out-of-order frame is sorted here.
  * 3. An optional glyph overlay at the canvas center, faded by [GlyphEnvelope.visibility] of
  *    [VoxelGlyphState.progress].
  *
@@ -54,6 +68,8 @@ import link.socket.phosphor.lumos.probe.measure
  * @param showGlyphOverlay Overlay the active glyph when [LumosCanvasFrame.glyph] is non-null. Defaults to true.
  * @param probe Per-phase timing sink. Defaults to [FrameProbe.Disabled], which adds no per-paint
  *  cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe] to capture DRAW timings.
+ * @param style The mark each voxel is drawn as; see [SurfaceStyle]. [SurfaceStyle.Squares], the
+ *  default, draws exactly what the canvas drew before styles existed.
  */
 @Stable
 @Composable
@@ -64,11 +80,12 @@ fun LumosCanvas(
     showHalo: Boolean = true,
     showGlyphOverlay: Boolean = true,
     probe: FrameProbe = FrameProbe.Disabled,
+    style: SurfaceStyle = SurfaceStyle.Squares,
 ) {
-    val style = remember { SquareCellStyle() }
+    val painter = remember(style) { style.painter() }
     Canvas(modifier = modifier) {
         probe.measure(FramePhase.DRAW) {
-            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay, style)
+            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay, painter)
         }
     }
 }
@@ -79,13 +96,13 @@ internal fun DrawScope.drawLumosFrame(
     backgroundColor: Color = Color.Transparent,
     showHalo: Boolean = true,
     showGlyphOverlay: Boolean = true,
-    style: CellStyle = SquareCellStyle(),
+    painter: SurfacePainter = SquaresPainter(),
 ) {
     if (backgroundColor != Color.Transparent) {
         drawRect(backgroundColor)
     }
     if (showHalo) drawHalo(frame.ambient)
-    drawVoxels(frame, style)
+    drawVoxels(frame, painter)
     if (showGlyphOverlay) {
         frame.glyph?.let { drawGlyph(it) }
     }
@@ -93,9 +110,11 @@ internal fun DrawScope.drawLumosFrame(
 
 // Paints in list order, which is painter's order for any frame from ComposeLattice.project.
 // A hand-built frame that is out of order is sorted first (the only allocation on this path).
+// Every style draws a cell at least SurfaceStyle.MIN_RADIUS_PX across: below it a cell rasterises
+// to grey haze, and at 20 px most of the orb would.
 internal fun DrawScope.drawVoxels(
     frame: LumosCanvasFrame,
-    style: CellStyle,
+    painter: SurfacePainter,
 ) {
     var voxels = frame.voxels
     for (i in 1 until voxels.size) {
@@ -104,12 +123,13 @@ internal fun DrawScope.drawVoxels(
             break
         }
     }
-    style.begin(this, frame)
+    painter.begin(this, frame)
     for (i in voxels.indices) {
         val v = voxels[i]
-        style.cell(i, v.screenX, v.screenY, v.radiusPx, Color(v.red, v.green, v.blue, v.alpha), v.z)
+        val radiusPx = if (v.radiusPx < SurfaceStyle.MIN_RADIUS_PX) SurfaceStyle.MIN_RADIUS_PX else v.radiusPx
+        painter.cell(i, v.screenX, v.screenY, radiusPx, Color(v.red, v.green, v.blue, v.alpha), v.z, v.dx, v.dy)
     }
-    style.end()
+    painter.end()
 }
 
 // Draws a radial gradient disk centered on the canvas to simulate the ambient breath ring.
@@ -416,3 +436,85 @@ fun LumosCanvasPreview() {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Surface style preview
+// ---------------------------------------------------------------------------
+
+/**
+ * Preview composable for the surface styles: one row per [SurfaceStyle] in [SURFACE_PREVIEW_STYLES]
+ * order, each showing the columns of [SURFACE_PREVIEW_COLUMNS] — an IDLE orb in the BASE look, then
+ * a THINKING orb in the WORKING look with its ring mid-run — at 200 px and then at 20 px, Thinking
+ * Orbs' size, where a style either reads or does not. Each column is one live scene stepped to
+ * [SURFACE_PREVIEW_WARM_UP_SECONDS] and projected once at each size, so every row draws the same frames.
+ *
+ * Like [LumosCanvasPreview], a preview for a host's preview pane or sample app, not a test. Sized
+ * in dp, so at a density other than 1 the canvases are larger than the frames projected for them.
+ * `LumosSurfaceStylePreviewTest` renders it to `build/lumos-previews/` on the JVM.
+ */
+@Composable
+fun LumosSurfaceStylePreview() {
+    val frames =
+        remember { SURFACE_PREVIEW_COLUMNS.map { (atmosphere, look) -> surfacePreviewFrames(atmosphere, look) } }
+    Column(verticalArrangement = Arrangement.spacedBy(SURFACE_PREVIEW_GAP.dp)) {
+        for (style in SURFACE_PREVIEW_STYLES) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(SURFACE_PREVIEW_GAP.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for ((large, small) in frames) {
+                    LumosCanvas(
+                        frame = large,
+                        modifier = Modifier.size(SURFACE_PREVIEW_LARGE_PX.dp),
+                        backgroundColor = SURFACE_PREVIEW_BACKGROUND,
+                        style = style,
+                    )
+                    LumosCanvas(
+                        frame = small,
+                        modifier = Modifier.size(SURFACE_PREVIEW_SMALL_PX.dp),
+                        backgroundColor = SURFACE_PREVIEW_BACKGROUND,
+                        style = style,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The styles [LumosSurfaceStylePreview] shows, top to bottom. */
+internal val SURFACE_PREVIEW_STYLES: List<SurfaceStyle> =
+    listOf(SurfaceStyle.Squares, SurfaceStyle.Dots, SurfaceStyle.Dashes)
+
+/** The columns [LumosSurfaceStylePreview] shows, left to right: a preset wearing a look. */
+internal val SURFACE_PREVIEW_COLUMNS: List<Pair<AtmosphereState, LumosLook>> =
+    listOf(AtmospherePresets.IDLE to LumosLook.BASE, AtmospherePresets.THINKING to LumosLook.WORKING)
+
+internal const val SURFACE_PREVIEW_LARGE_PX = 200
+internal const val SURFACE_PREVIEW_SMALL_PX = 20
+internal const val SURFACE_PREVIEW_GAP = 16
+internal val SURFACE_PREVIEW_BACKGROUND = Color(0xFF111111)
+
+/**
+ * How far into a live scene the preview frames are taken: past phase zero, and 0.6 s into the
+ * working ring's second 1.7 s period, so the ring is halfway down the sphere.
+ */
+internal const val SURFACE_PREVIEW_WARM_UP_SECONDS = 2.3f
+
+/** A live scene of [atmosphere] wearing [look], stepped to the warm-up, projected at the large and the small size. */
+internal fun surfacePreviewFrames(
+    atmosphere: AtmosphereState,
+    look: LumosLook,
+): Pair<LumosCanvasFrame, LumosCanvasFrame> {
+    val frame =
+        LiveFrameSource(atmosphere)
+            .also { it.builder.look = Look(look) }
+            .next(SURFACE_PREVIEW_WARM_UP_SECONDS)
+    return surfacePreviewLattice(SURFACE_PREVIEW_LARGE_PX, frame.resolution).project(frame) to
+        surfacePreviewLattice(SURFACE_PREVIEW_SMALL_PX, frame.resolution).project(frame)
+}
+
+// Half a lattice cell per voxel, as LumosDriver sizes it.
+internal fun surfacePreviewLattice(
+    px: Int,
+    resolution: Int,
+): ComposeLattice = ComposeLattice(widthPx = px, heightPx = px, voxelRadiusPx = px / (4f * resolution))
