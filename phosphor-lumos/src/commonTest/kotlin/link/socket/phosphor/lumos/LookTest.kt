@@ -6,7 +6,7 @@ import kotlin.test.assertFailsWith
 
 class LookTest {
     @Test
-    fun `key is the look's name, with the variant after a dash when it is not the default`() {
+    fun `key is the look's name with the variant after a dash when it is not the default`() {
         assertEquals("base", Look(LumosLook.BASE).key)
         assertEquals("working", Look(LumosLook.WORKING).key)
         assertEquals("working-gyro", Look(LumosLook.WORKING, "gyro").key)

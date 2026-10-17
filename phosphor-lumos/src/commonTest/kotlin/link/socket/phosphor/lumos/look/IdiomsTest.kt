@@ -20,7 +20,7 @@ class IdiomsTest {
     private val still = ViewRotation().apply { set(0f, 0f, 0f, 0f) }
 
     @Test
-    fun `hash is Thinking Orbs' fract-sin, in the unit interval, and zero at zero`() {
+    fun `hash is Thinking Orbs' fract-sin in the unit interval and zero at zero`() {
         assertEquals(0f, Looks.hash(0f))
         for (n in 1..200) {
             val h = Looks.hash(n.toFloat())
@@ -101,7 +101,7 @@ class IdiomsTest {
     }
 
     @Test
-    fun `the lens sits on the front of the sphere, 15 to 45 degrees off centre`() {
+    fun `the lens sits on the front of the sphere 15 to 45 degrees off centre`() {
         val lens = SearchingLens()
         for (hop in 0 until 40) {
             lens.beginFrame(hop * SearchingLens.HOP + 1.5f, still) // past the glide
