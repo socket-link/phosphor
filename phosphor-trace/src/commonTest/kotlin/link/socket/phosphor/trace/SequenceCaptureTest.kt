@@ -87,6 +87,8 @@ class SequenceCaptureTest {
         assertContentEquals(encodeForTest(first), encodeForTest(second))
     }
 
+    // Live frames hold Floats; the trace holds them in FloatArrays. Equal only where a Float is binary32.
+    @NeedsBinary32
     @Test
     fun `the live generator plays the sequence frame for frame as the capture recorded it`() {
         val trace = Oscilloscope.capture(CaptureConfig.forSequence(sequence(), FPS, params())).getOrThrow()
