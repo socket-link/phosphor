@@ -29,7 +29,7 @@ internal fun Material.canvasStatus(): MaterialStatus =
         is Material.Metal, is Material.Glass -> MaterialStatus.Unavailable
     }
 
-/** How much a material lifts the orb's ambient halo: a [Material.Neon]'s glow, nothing otherwise. */
+/** How much a material widens the orb's ambient halo: a [Material.Neon]'s glow, nothing otherwise. */
 internal fun Material.haloBoost(): Float = if (this is Material.Neon) glow else 0f
 
 /**
@@ -71,7 +71,12 @@ internal class InkPainter(
     override fun end() = inner.end()
 }
 
-/** How a [NeonPainter] draws its halo pass; see each entry. The default is [Stepped]. */
+/**
+ * How a [NeonPainter] draws its halo pass; see each entry. The default is [None]: at 540 px and
+ * resolution 10 the halo pass alone costs more than the whole 50 ms frame at 20 fps (PHO-62
+ * measured stepped at 127 ms p95 against 45 ms for the two passes), so the canvas draws the
+ * envelope and filament and leaves the glow to the orb's widened ambient halo.
+ */
 internal enum class NeonHalo {
     /**
      * Two concentric discs of the tint, each at half the halo alpha, the outer at the full halo
@@ -93,8 +98,9 @@ internal enum class NeonHalo {
 
 /**
  * Neon: an emissive tube just inside the cell. Cells are buffered as they arrive and drawn on
- * [end] in three passes over the frame, as Dots layers them — every halo beneath every envelope,
- * every envelope beneath every filament — so a filament is never buried under a neighbour's halo:
+ * [end] in up to three passes over the frame, as Dots layers them — every halo beneath every
+ * envelope, every envelope beneath every filament — so a filament is never buried under a
+ * neighbour's halo. The halo pass is off by default; see [NeonHalo].
  *
  * 1. A halo of the tint, [Material.NEON_HALO_SPREAD] × glow radii past the cell at
  *    [Material.NEON_HALO_ALPHA] × intensity of the cell's alpha, added with [BlendMode.Plus] so
@@ -105,11 +111,17 @@ internal enum class NeonHalo {
  *
  * The buffers are flat arrays reused across frames and grown only when a frame is larger than any
  * before it; a frame of the same size allocates nothing.
+ *
+ * [filamentAlpha] scales the filament's alpha below the recipe's `intensity`, for the visual
+ * verdict: a lattice at resolution 10 overlaps each point of the orb with some ten cells, and ten
+ * white filaments at full alpha saturate it to white; at a fraction they add up to white only
+ * where the orb is densest and the tint shows through elsewhere.
  */
 internal class NeonPainter(
     private val inner: SurfacePainter,
     private val material: Material.Neon,
-    private val halo: NeonHalo = NeonHalo.Stepped,
+    private val halo: NeonHalo = NeonHalo.None,
+    private val filamentAlpha: Float = 1f,
 ) : SurfacePainter {
     private var scope: DrawScope? = null
     private var count = 0
@@ -176,7 +188,7 @@ internal class NeonPainter(
                 inner.cell(indices[i], xs[i], ys[i], radii[i] * envelopeSpread, envelope, zs[i], dxs[i], dys[i])
             }
             for (i in 0 until count) {
-                val alpha = (Color(colors[i].toULong()).alpha * material.intensity).coerceIn(0f, 1f)
+                val alpha = (Color(colors[i].toULong()).alpha * material.intensity * filamentAlpha).coerceIn(0f, 1f)
                 val filament = Color.White.copy(alpha = alpha)
                 inner.cell(indices[i], xs[i], ys[i], radii[i] * Material.NEON_FILAMENT, filament, zs[i], dxs[i], dys[i])
             }

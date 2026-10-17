@@ -15,9 +15,10 @@ import kotlinx.serialization.Serializable
  * - [Flat], the default, is what every orb drew before materials existed.
  * - [Ink] is paper grain: each cell's alpha and radius are jittered by a hash of its index,
  *   scaled by [Ink.grain], and the cell is drawn twice, a soft edge under an opaque core.
- * - [Neon] is an emissive tube just inside the cell: a halo of the cell's tint, a tinted
- *   envelope, and a white filament, in three passes over the frame so every halo lies beneath
- *   every filament. Overlapping halos add, so a dense patch of cells brightens.
+ * - [Neon] is an emissive tube just inside the cell: a tinted envelope and a white filament,
+ *   in passes over the frame so every envelope lies beneath every filament, and the orb's
+ *   ambient halo widened by the glow. A per-cell halo pass is in the recipe too; the canvas
+ *   measured it over its frame budget and leaves it off (PHO-62).
  * - [Metal] and [Glass] are declared so a consumer can write the type today. No surface draws
  *   them yet: a surface that cannot draws them as [Flat] and reports [MaterialStatus.Unavailable].
  *
@@ -48,7 +49,7 @@ sealed interface Material {
 
     /**
      * An emissive tube. [glow] in 0..1 is the halo's reach past the cell, in [NEON_HALO_SPREAD]
-     * radii at 1, and the envelope's in [NEON_ENVELOPE_SPREAD] radii; it also lifts the orb's
+     * radii at 1, and the envelope's in [NEON_ENVELOPE_SPREAD] radii; it also widens the orb's
      * ambient halo by the same fraction. [intensity] multiplies every alpha the material draws.
      */
     @Serializable

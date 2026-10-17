@@ -147,21 +147,21 @@ internal fun DrawScope.drawVoxels(
 }
 
 // Draws a radial gradient disk centered on the canvas to simulate the ambient breath ring.
-// A material may lift it: a Neon orb's ambient glows (1 + glow) times as strong, held to opaque.
+// A material may widen it: a Neon orb's ambient reaches (1 + glow) times as far, so it falls off
+// more slowly past the orb. Every preset's glow is already 1 at the centre, so alpha cannot lift.
 private fun DrawScope.drawHalo(
     ambient: VoxelAmbient,
     boost: Float = 0f,
 ) {
     if (ambient.glowIntensity <= 0f) return
     val center = Offset(size.width / 2f, size.height / 2f)
-    val radius = min(size.width, size.height) * 0.55f
-    val intensity = (ambient.glowIntensity * (1f + boost)).coerceAtMost(1f)
+    val radius = min(size.width, size.height) * 0.55f * (1f + boost)
     drawCircle(
         brush =
             Brush.radialGradient(
                 colors =
                     listOf(
-                        Color(ambient.glowRed, ambient.glowGreen, ambient.glowBlue, intensity),
+                        Color(ambient.glowRed, ambient.glowGreen, ambient.glowBlue, ambient.glowIntensity),
                         Color.Transparent,
                     ),
                 center = center,

@@ -174,7 +174,7 @@ class MaterialSnapshotTest {
                         null,
                         tick = 0L,
                     ),
-                    Material.Neon(1f).painter(SurfaceStyle.Dots.painter()),
+                    NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(1f), NeonHalo.Stepped),
                 )
             }
         val probeX = SINGLE_PX / 2
@@ -184,14 +184,17 @@ class MaterialSnapshotTest {
     }
 
     @Test
-    fun `neon lifts the orb's ambient halo by its glow`() {
+    fun `neon widens the orb's ambient halo by its glow`() {
         // The ambient alone, so no voxel sits over the probe.
         val frame = idleFrame(LARGE_PX).copy(voxels = emptyList())
         val flat = render(LARGE_PX) { drawAmbient(frame, haloBoost = 0f) }
         val lifted = render(LARGE_PX) { drawAmbient(frame, haloBoost = 1f) }
+        // Past the orb's limb, where the wider fall-off shows; the centre is already at full glow.
         val c = LARGE_PX / 2
-        assertTrue(flat.luminanceAt(c, c) > SHEET_BACKGROUND_LUMINANCE, "the ambient should show over the background")
-        assertTrue(lifted.luminanceAt(c, c) > flat.luminanceAt(c, c), "a boosted ambient should brighten")
+        val x = c + (LARGE_PX * 0.4f).toInt()
+        assertTrue(flat.luminanceAt(x, c) > SHEET_BACKGROUND_LUMINANCE, "the ambient should show over the background")
+        assertTrue(lifted.luminanceAt(x, c) > flat.luminanceAt(x, c), "a widened ambient should brighten past the limb")
+        assertEquals(flat.luminanceAt(c, c), lifted.luminanceAt(c, c), "the centre is already at full glow")
         assertEquals(0f, Material.Flat.haloBoost())
         assertEquals(0.5f, Material.Neon(0.5f).haloBoost())
     }
@@ -220,8 +223,9 @@ class MaterialSnapshotTest {
 
     @Test
     fun `contact sheet of every material over dots and squares on the IDLE and WORKING looks`() {
-        // Rows: Flat, Ink, Neon (stepped halo), Neon (gradient halo). Columns per (style, preset): the
-        // 200 px render, then the 20 px render blown up 4× unfiltered, as the style sheet lays it out.
+        // Rows: Flat, Ink, Neon two-pass (the default), Neon stepped halo, Neon gradient halo. Columns per
+        // (style, preset): the 200 px render, then the 20 px render blown up 4× unfiltered, as the style
+        // sheet lays it out.
         val magnified = SMALL_PX * SMALL_SCALE
         val columnWidth = LARGE_PX + GAP + magnified
         val columns =
@@ -271,13 +275,17 @@ class MaterialSnapshotTest {
 
     @Test
     fun `side by side of neon's halo constructions and glow on dots at 200 px`() {
-        // Columns: Flat, Neon with no halo (two passes), stepped halo, gradient halo; rows: glow 0.25, 0.5, 1.
+        // Columns: Flat; Neon with no halo (two passes), stepped halo, gradient halo, each with the
+        // filament at full alpha; then two-pass and stepped with the filament at a fifth. Rows: glow
+        // 0.25, 0.5, 1.
         val columns =
-            listOf<Pair<String, (Float) -> Pair<Material?, NeonHalo>>>(
-                "flat" to { _ -> Material.Flat to NeonHalo.None },
-                "two-pass" to { g -> Material.Neon(g) to NeonHalo.None },
-                "stepped" to { g -> Material.Neon(g) to NeonHalo.Stepped },
-                "gradient" to { g -> Material.Neon(g) to NeonHalo.Gradient },
+            listOf<(Float) -> SurfacePainter>(
+                { _ -> SurfaceStyle.Dots.painter() },
+                { g -> NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(g), NeonHalo.None) },
+                { g -> NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(g), NeonHalo.Stepped) },
+                { g -> NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(g), NeonHalo.Gradient) },
+                { g -> NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(g), NeonHalo.None, DIM_FILAMENT) },
+                { g -> NeonPainter(SurfaceStyle.Dots.painter(), Material.Neon(g), NeonHalo.Stepped, DIM_FILAMENT) },
             )
         val glows = listOf(0.25f, 0.5f, 1f)
         val (large, _) = surfacePreviewFrames(AtmospherePresets.THINKING, LumosLook.WORKING)
@@ -288,8 +296,7 @@ class MaterialSnapshotTest {
                 drawRect(SHEET_BACKGROUND)
                 glows.forEachIndexed { row, glow ->
                     val top = GAP + row * (LARGE_PX + GAP)
-                    columns.forEachIndexed { column, (_, pick) ->
-                        val (material, halo) = pick(glow)
+                    columns.forEachIndexed { column, painterAt ->
                         val left = GAP + column * (LARGE_PX + GAP)
                         inset(
                             left = left.toFloat(),
@@ -297,7 +304,14 @@ class MaterialSnapshotTest {
                             right = (sheetWidth - left - LARGE_PX).toFloat(),
                             bottom = (sheetHeight - top - LARGE_PX).toFloat(),
                         ) {
-                            drawMaterial(large, SurfaceStyle.Dots, material, halo, showHalo = true)
+                            drawLumosFrame(
+                                large,
+                                SHEET_BACKGROUND,
+                                showHalo = true,
+                                showGlyphOverlay = false,
+                                painterAt(glow),
+                                if (column == 0) 0f else glow,
+                            )
                         }
                     }
                 }
@@ -532,6 +546,7 @@ class MaterialSnapshotTest {
         const val GAP = 16
         const val SINGLE_PX = 96
         const val SINGLE_RADIUS = 10f
+        const val DIM_FILAMENT = 0.2f
         const val BENCH_PX = 540
         const val BENCH_ITERATIONS = 300
         const val BENCH_WARM_UP = 100
@@ -544,6 +559,7 @@ class MaterialSnapshotTest {
             listOf(
                 Material.Flat to NeonHalo.None,
                 Material.Ink() to NeonHalo.None,
+                Material.Neon() to NeonHalo.None,
                 Material.Neon() to NeonHalo.Stepped,
                 Material.Neon() to NeonHalo.Gradient,
             )
