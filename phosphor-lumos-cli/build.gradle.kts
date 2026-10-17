@@ -211,17 +211,20 @@ tasks.withType<Sign>().configureEach {
     enabled = hasSigningCredentials && !isPublishingToMavenLocal
 }
 
-// PHO-58: watch the first four looks live and switch between them from the keyboard.
+// PHO-80: drive a live orb by phase, activity and escalation from the keyboard, and watch the
+// look switch pick its look; the PHO-58 look and atmosphere keys still work alongside.
 // Usage: ./gradlew :phosphor-lumos-cli:runLookDemo                 (60s)
 //        ./gradlew :phosphor-lumos-cli:runLookDemo -Pseconds=120
 tasks.register<JavaExec>("runLookDemo") {
     group = "application"
-    description = "Switch a live orb between looks and atmospheres from the keyboard (PHO-58, Task E)."
+    description =
+        "Drive a live orb by phase, activity and escalation through SignalGenerator, or set its look and " +
+        "atmosphere directly, from the keyboard (PHO-80)."
     val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
     dependsOn(jvmMainCompilation.compileTaskProvider)
     classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
     mainClass.set("link.socket.phosphor.lumos.cli.demo.LookDemoKt")
-    // Keypresses drive the look changes, so the task must own stdin as well as stdout.
+    // Keypresses drive the signal and look changes, so the task must own stdin as well as stdout.
     standardInput = System.`in`
     args((project.findProperty("seconds") as String?) ?: "")
 }
