@@ -13,7 +13,9 @@ import link.socket.phosphor.lumos.probe.FrameProbe
 
 /**
  * [OrbStepper] behind [LumosOrb], with the frame it draws held in Compose state so the canvas
- * follows it. The rules about time are the stepper's; this only hands each new frame to Compose.
+ * follows it. The rules about time are the stepper's — the step, the cap, aligning on a rejoin
+ * ([LumosFrameSource.align]) and on a look change ([LumosFrameSource.alignLook]) — and this only
+ * hands each new frame to Compose.
  *
  * Main-thread only, like the source it steps.
  */

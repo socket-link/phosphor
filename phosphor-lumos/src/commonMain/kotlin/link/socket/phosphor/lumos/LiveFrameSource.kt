@@ -26,6 +26,13 @@ import link.socket.phosphor.signal.AtmosphereTransition
  * - [lookKey] is the name of the preset the scene is in, or heading to, with the builder's [Look]
  *   after a slash when it is not [LumosLook.BASE]; a custom atmosphere has none.
  * - [align] puts the builder's phases where a steady scene at the clock's time would hold them.
+ *   Mid-transition it moves nothing, and during a look blend it sets the incoming look's clock
+ *   alone.
+ * - [alignLook] sets the incoming look's clock alone, in a look blend's first moments, so an orb
+ *   whose look switched takes up its siblings' phase without its spin, its breath or the look it
+ *   is leaving jumping. A switch-driven change ([VoxelFrameBuilder.lookSwitch]) and
+ *   [VoxelFrameBuilder.lookTo] both blend; a manual [VoxelFrameBuilder.look] cut and an
+ *   atmosphere change alone do not, and leave every phase where it is.
  *
  * Stateful and single-threaded, like the pair it wraps.
  *
@@ -129,7 +136,15 @@ class LiveFrameSource(
         }
 
     override fun align(lookTime: Double) {
+        if (builder.isLookBlending) {
+            builder.phases = builder.phases.copy(lookSeconds = lookTime)
+            return
+        }
         if (choreographer.activeTransition != null) return
         builder.phases = FramePhases.at(choreographer.currentState, lookTime)
+    }
+
+    override fun alignLook(lookTime: Double) {
+        builder.alignLook(lookTime)
     }
 }

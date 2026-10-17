@@ -13,7 +13,7 @@ package link.socket.phosphor.lumos
  *
  * The other members have defaults, and a source that can do better overrides them: [still] holds
  * a pose for reduced motion and for a paused orb's redraw, [revision] tells a paused driver that
- * something changed, and [lookKey] and [align] let orbs of one look share a phase.
+ * something changed, and [lookKey], [align] and [alignLook] let orbs of one look share a phase.
  * [LiveFrameSource] overrides all of them for a live scene; `:phosphor-trace` adapts its players
  * with `asFrameSource()`.
  *
@@ -58,6 +58,22 @@ fun interface LumosFrameSource {
      * something is mid-flight. Called when the orb is first drawn, scrolled back into view, back
      * from the background, or unpaused, so it rejoins its peers rather than keeping the phase it
      * left with. Does nothing by default.
+     *
+     * A driver calls this, not [alignLook], when the orb rejoins on a look other than the one it
+     * left with; the source decides how much of a change in flight it may move.
      */
     fun align(lookTime: Double) {}
+
+    /**
+     * The source's look changed, and its new key's clock reads [lookTime]: take that look's phase
+     * and nothing else. Does nothing by default.
+     *
+     * A driver calls this on the step its [lookKey] first reads a different look, while the orb
+     * is stepping rather than rejoining, so an orb whose look switches on screen takes up the
+     * incoming look in phase with the orbs already on that look's clock. Only the look counts: a
+     * change of speed alone moves the orb onto another key but never aligns it. Unlike [align],
+     * nothing else may move: the spin, the breath and any look being left keep their own phases,
+     * so the switch shows no jump.
+     */
+    fun alignLook(lookTime: Double) {}
 }
