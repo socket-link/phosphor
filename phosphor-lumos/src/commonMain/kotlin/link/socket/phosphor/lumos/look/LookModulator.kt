@@ -21,9 +21,9 @@ package link.socket.phosphor.lumos.look
  * [CellModulation], and a modulator's tables are built once by [Looks.forLook].
  *
  * Under rotation carry (`:phosphor-trace`), a look's modulation was computed
- * for the recorded angles and playback adds a small offset to them, so a rim
- * fade sits off the true front by the carried offset, a few hundredths of a
- * radian.
+ * for the recorded angles and playback adds the carried offset to them, so a
+ * rim fade sits off the true front by that offset: the loop's net yaw per pass
+ * it has wrapped, which only a loop of whole turns keeps at zero.
  */
 fun interface LookModulator {
     /**
@@ -36,6 +36,22 @@ fun interface LookModulator {
         rotation: ViewRotation,
     ) {
     }
+
+    /**
+     * The orb's yaw at [t] in radians, when the look owns it, or null to keep the
+     * atmosphere's (`FramePhases.orbRotationY`), which every look but retrying
+     * does.
+     *
+     * A look-owned yaw replaces the atmosphere's for the whole frame: the
+     * [ViewRotation] [beginFrame] and [modulate] see, the glyph's facing test,
+     * and `VoxelAmbient.orbRotationY`, so the surfaces turn the orb by it at
+     * projection and a trace records it where rotation carry reads it. It is a
+     * function of [t] alone, so every orb of the look turns alike, and lies in
+     * `0..2π` as the atmosphere's does. Called once per frame before
+     * [beginFrame], and twice more for the rate the spin carries cells at
+     * ([ViewPoint.dx]).
+     */
+    fun yaw(t: Float): Float? = null
 
     /**
      * Write what the look does to cell [index], seen as [view] at time [t], into

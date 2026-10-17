@@ -40,9 +40,11 @@ class ViewRotation {
      * Take the frame's angles and rates.
      *
      * @param rotationX The orb's X rotation in radians; `FramePhases.orbRotationX`.
-     * @param rotationY The orb's Y rotation in radians; `FramePhases.orbRotationY`.
+     * @param rotationY The orb's Y rotation in radians; `FramePhases.orbRotationY`, or the
+     *  look's own when it owns the yaw ([LookModulator.yaw]).
      * @param rateX The atmosphere's X rotation rate in radians per second.
-     * @param rateY The atmosphere's Y rotation rate in radians per second.
+     * @param rateY The Y rotation rate in radians per second: the atmosphere's, or the
+     *  look's own yaw's.
      */
     fun set(
         rotationX: Float,

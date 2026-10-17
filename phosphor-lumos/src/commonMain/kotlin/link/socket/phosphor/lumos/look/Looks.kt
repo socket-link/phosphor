@@ -10,8 +10,8 @@ import link.socket.phosphor.lumos.LumosLook
  * The catalogue of [LookModulator]s: Thinking Orbs' idioms, ported.
  *
  * Four are ported here (PHO-58): [LumosLook.BASE]'s rim fade, the working ring,
- * the searching lens and the reasoning walk. The other looks, and every variant,
- * draw as the base spin until PHO-59 ports them.
+ * the searching lens and the reasoning walk; PHO-59 adds the retry's rewind. The
+ * other looks, and every variant, draw as the base spin until PHO-59 ports them.
  */
 object Looks {
     /**
@@ -29,8 +29,8 @@ object Looks {
             LumosLook.WORKING -> WorkingRing()
             LumosLook.SEARCHING -> SearchingLens()
             LumosLook.REASONING -> ReasoningWalk(sample, NearestTable(sample.positions, ReasoningWalk.REACH))
+            LumosLook.RETRYING -> RetryingRewind()
             LumosLook.BACKGROUND,
-            LumosLook.RETRYING,
             LumosLook.COMPACTING,
             LumosLook.WAITING,
             -> BaseSpin(radiusRamp = true)
