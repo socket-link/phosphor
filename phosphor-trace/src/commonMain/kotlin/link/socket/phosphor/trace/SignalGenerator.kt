@@ -8,8 +8,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
 import link.socket.phosphor.field.Choreography
+import link.socket.phosphor.lumos.CognitiveLookSwitch
 import link.socket.phosphor.lumos.FramePhases
 import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.Look
 import link.socket.phosphor.lumos.LumosForm
 import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.LumosGlyph
@@ -17,9 +19,13 @@ import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.VoxelFrameBuilder
 import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.math.Vector2
+import link.socket.phosphor.runtime.AgentDescriptor
 import link.socket.phosphor.runtime.CognitiveSceneRuntime
 import link.socket.phosphor.runtime.SceneConfiguration
+import link.socket.phosphor.signal.AgentActivityState
 import link.socket.phosphor.signal.AtmosphereState
+import link.socket.phosphor.signal.CognitivePhase
 
 /**
  * Drives a live simulation and transduces each tick into a `VoxelFrame`.
@@ -42,17 +48,33 @@ import link.socket.phosphor.signal.AtmosphereState
  * Stateful and single-threaded, like the builder it wraps: one generator per
  * stream, driven from one coroutine.
  *
+ * ### The body
+ *
+ * [setPhase], [setActivity] and [setEscalated] drive the orb's look from
+ * cognitive signal. They write to one agent in the scene — the one
+ * [LumosRenderConfig.agentId] names, or else the scene's first agent by id,
+ * the one `VoxelFrameBuilder` reads activity and escalation from — adding it
+ * if the scene has none, and the first of them installs a
+ * [CognitiveLookSwitch] on the frame builder. Until one is called the
+ * generator reads no agent and wears its look by hand, so a generator that
+ * never calls them produces the frames it always has. [setLook] picks a look
+ * directly and needs no switch.
+ *
  * @param configuration Scene to simulate. Atmosphere must be enabled — it is the
  *  only subsystem a `VoxelFrame` reads.
  * @param renderConfig Embedder knobs forwarded to the frame builder.
  * @param fps Steps per simulated second; also the cadence [frames] paces at.
  * @param probe Per-phase timing sink forwarded to the builder.
+ * @param lookSwitch The switch the first of [setPhase], [setActivity] and
+ *  [setEscalated] installs; null installs a [CognitiveLookSwitch] with the
+ *  confirmed table. Nothing is installed before one of them is called.
  */
 class SignalGenerator(
     configuration: SceneConfiguration,
     renderConfig: LumosRenderConfig = LumosRenderConfig(),
     val fps: Int = DEFAULT_FPS,
     probe: FrameProbe = FrameProbe.Disabled,
+    private val lookSwitch: CognitiveLookSwitch? = null,
 ) {
     init {
         require(fps > 0) { "fps must be > 0, was $fps" }
@@ -73,6 +95,11 @@ class SignalGenerator(
     // One stepping path whoever steps: nextFrame() at the fixed 1 / fps, a driver through
     // asFrameSource() at its own pace.
     private val live = LiveFrameSource(runtime, builder)
+
+    private val configuredAgentId: String? = renderConfig.agentId
+
+    // The agent the signal setters write to, chosen and the switch installed by the first of them.
+    private var signalAgentId: String? = null
 
     private val dt: Float = 1f / fps
 
@@ -150,6 +177,57 @@ class SignalGenerator(
         durationSeconds: Float = DEFAULT_GLYPH_SECONDS,
     ) {
         builder.queueGlyph(glyph, durationSeconds)
+    }
+
+    /**
+     * Set the agent's cognitive phase. Takes effect on the next step.
+     *
+     * The first call to this, [setActivity] or [setEscalated] installs the
+     * look switch, and the frame after it is the switch's baseline: the orb
+     * wears that frame's look outright and fires no glyph. From then on a
+     * change blends over `VoxelFrameBuilder.LOOK_BLEND_SECONDS` and fires the
+     * glyph its look carries; see `VoxelFrameBuilder.lookSwitch`. A caller that
+     * wants its first change to blend sets the starting signal before the
+     * first frame.
+     */
+    fun setPhase(phase: CognitivePhase) {
+        runtime.agents.updateAgentCognitivePhase(signalAgent(), phase)
+    }
+
+    /** Set the agent's activity. Takes effect on the next step; see [setPhase]. */
+    fun setActivity(state: AgentActivityState) {
+        runtime.agents.updateAgentState(signalAgent(), state)
+    }
+
+    /**
+     * Raise or clear the agent's escalation, which wins over phase and
+     * activity while it holds. Takes effect on the next step; see [setPhase].
+     */
+    fun setEscalated(escalated: Boolean) {
+        runtime.agents.updateAgentEscalated(signalAgent(), escalated)
+    }
+
+    /**
+     * Blend to [look] (`VoxelFrameBuilder.lookTo`). With a switch installed,
+     * the next signal change takes over.
+     */
+    fun setLook(look: Look) {
+        builder.lookTo(look)
+    }
+
+    // The agent the setters write to, chosen on first use: the configured one, else the scene's first
+    // by id — the one the builder reads — else a new AGENT_ID. Adds it if the scene lacks it, and
+    // installs the switch.
+    private fun signalAgent(): String {
+        signalAgentId?.let { return it }
+        val agents = runtime.agents
+        val id = configuredAgentId ?: agents.allAgents.minOfOrNull { it.id } ?: AGENT_ID
+        if (agents.getAgent(id) == null) {
+            agents.addAgent(AgentDescriptor(id = id, position = Vector2.ZERO).toVisualState())
+        }
+        builder.lookSwitch = lookSwitch ?: CognitiveLookSwitch()
+        signalAgentId = id
+        return id
     }
 
     /** Step the simulation once and transduce the snapshot into a frame. */
@@ -246,5 +324,11 @@ class SignalGenerator(
 
         /** Glyph display window when the caller does not say, in seconds. */
         const val DEFAULT_GLYPH_SECONDS: Float = 1.5f
+
+        /**
+         * Id of the agent the signal setters add when the scene has none and
+         * [LumosRenderConfig.agentId] names none.
+         */
+        const val AGENT_ID: String = "lumos"
     }
 }

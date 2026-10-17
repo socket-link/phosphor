@@ -134,6 +134,13 @@ object Oscilloscope {
                 )
             }
         }
+        config.phaseCues.forEachIndexed { index, cue ->
+            if (cue.atFrame < 0 || cue.atFrame >= frameCount) {
+                return CaptureError.InvalidConfig(
+                    "Phase cue $index atFrame ${cue.atFrame} is outside the $frameCount-frame clip",
+                )
+            }
+        }
         return validateSeamBlend(config)
     }
 
@@ -186,6 +193,7 @@ object Oscilloscope {
         // same frame apply in declaration order.
         val cuesByFrame = config.cues.groupBy(AtmosphereCue::atFrame)
         val formCuesByFrame = config.formCues.groupBy(FormCue::atFrame)
+        val phaseCuesByFrame = config.phaseCues.groupBy(PhaseCue::atFrame)
         val blendFrames = config.seamBlendFrames
         val loopStarts =
             if (blendFrames == 0) {
@@ -201,6 +209,7 @@ object Oscilloscope {
             formCuesByFrame[frameIndex]?.forEach { cue ->
                 generator.morphTo(cue.form, cue.count, cue.choreography, cue.durationSeconds, cue.easingName)
             }
+            phaseCuesByFrame[frameIndex]?.forEach { cue -> generator.setPhase(cue.phase) }
             frames += generator.nextFrame()
             // A loop's lead-in is read the moment the loop starts: the generator
             // is in the loop's atmosphere and its phases are the first frame's.
@@ -292,6 +301,11 @@ object Oscilloscope {
             snapshot["formCue.$index.durationSeconds"] = cue.durationSeconds.toString()
             snapshot["formCue.$index.easing"] = cue.easingName ?: "linear"
         }
+        // Only when present, so a capture without phase cues keeps its bytes.
+        config.phaseCues.forEachIndexed { index, cue ->
+            snapshot["phaseCue.$index.atFrame"] = cue.atFrame.toString()
+            snapshot["phaseCue.$index.phase"] = cue.phase.name
+        }
         return snapshot
     }
 
@@ -327,6 +341,11 @@ object Oscilloscope {
         into["$prefix.globalYSquashOverride"] = renderConfig.globalYSquashOverride?.toString() ?: "null"
         into["$prefix.enableGlyphCarving"] = renderConfig.enableGlyphCarving.toString()
         into["$prefix.omitBelowScale"] = renderConfig.omitBelowScale.toString()
+        // Only when not the defaults, so a capture that never names an agent keeps its bytes.
+        renderConfig.agentId?.let { into["$prefix.agentId"] = it }
+        if (renderConfig.unattended) {
+            into["$prefix.unattended"] = "true"
+        }
     }
 
     /**

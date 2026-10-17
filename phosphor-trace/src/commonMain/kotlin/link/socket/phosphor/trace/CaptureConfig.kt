@@ -6,6 +6,7 @@ import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrameBuilder
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
+import link.socket.phosphor.signal.CognitivePhase
 
 /**
  * Tuning parameters that shape every frame of a capture.
@@ -65,6 +66,31 @@ data class FormCue(
 )
 
 /**
+ * A scripted phase change applied during capture: `SignalGenerator.setPhase`
+ * fired immediately before the step that produces frame [atFrame], after that
+ * frame's [AtmosphereCue]s and [FormCue]s. Phase cues at the same frame apply
+ * in list order; the last one wins.
+ *
+ * The first phase cue installs the generator's look switch, so the orb's look
+ * follows the phase from then on: [atFrame] of the first cue is the switch's
+ * baseline and wears its look outright, and every later change blends over
+ * 0.6 s and fires its glyph, if it carries one. The look bakes into the
+ * recorded cells; the trace format does not change.
+ *
+ * Use phase cues for one-shots and tests, not for `loop` segments. A look
+ * baked into a loop and replayed through [TraceStateMachine] drifts off the
+ * front under rotation carry, by the loop's net yaw on every pass, until look
+ * traces bake their yaw (PHO-59).
+ *
+ * @property atFrame Zero-based frame index at which the cue fires. Must be in `0 until frameCount`.
+ * @property phase The phase the scene's agent moves to.
+ */
+data class PhaseCue(
+    val atFrame: Int,
+    val phase: CognitivePhase,
+)
+
+/**
  * Everything [Oscilloscope.capture] needs to produce a [VoxelTrace], and nothing
  * it may read from the environment.
  *
@@ -79,6 +105,7 @@ data class FormCue(
  * @property segments Named slices of the captured stream; each must fit inside `0 until frameCount`.
  * @property cues Scripted atmosphere changes; each must fire inside `0 until frameCount`.
  * @property formCues Scripted form changes; each must fire inside `0 until frameCount`.
+ * @property phaseCues Scripted phase changes; each must fire inside `0 until frameCount`.
  * @property phosphorVersion Library version stamped into the trace header.
  * @property createdAtEpochMs Creation timestamp stamped into the trace header. Defaults to `0`
  *  so captures are reproducible; callers that want a real timestamp supply one explicitly.
@@ -98,6 +125,7 @@ data class CaptureConfig(
     val createdAtEpochMs: Long = 0L,
     val seamBlendFrames: Int = 0,
     val formCues: List<FormCue> = emptyList(),
+    val phaseCues: List<PhaseCue> = emptyList(),
 ) {
     /**
      * Number of frames the capture produces: `durationMs * fps / 1000`, truncated.
