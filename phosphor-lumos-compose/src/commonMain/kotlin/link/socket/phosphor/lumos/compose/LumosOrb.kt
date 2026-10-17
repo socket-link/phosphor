@@ -31,8 +31,8 @@ import kotlinx.coroutines.delay
 import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.LumosFrameSource
-import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.Material
+import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.probe.FrameProbe
 
