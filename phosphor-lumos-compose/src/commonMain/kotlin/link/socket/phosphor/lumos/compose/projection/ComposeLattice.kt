@@ -3,6 +3,7 @@ package link.socket.phosphor.lumos.compose.projection
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import link.socket.phosphor.lumos.OrbViewport
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
@@ -45,6 +46,10 @@ import link.socket.phosphor.lumos.probe.measure
  *  (`y = +1`) toward the viewer. 0, the default, projects exactly as before tilt existed. The glyph
  *  is carved on the face an untilted viewer sees, so a tilted view shows the carve that far below
  *  the centre, where `LumosCanvas` draws its overlay. Must be finite.
+ * @param viewport Where the orb sits on the canvas, for a canvas larger than the orb — a root-sized
+ *  overlay whose cells fly from the orb to a layout element. `[-1, 1]` maps to
+ *  `centre ± radiusPx` instead of to the whole canvas; voxels are still dropped only when their
+ *  centre leaves the canvas. `null`, the default, fits the orb to the canvas exactly as before.
  */
 class ComposeLattice(
     val widthPx: Int,
@@ -53,6 +58,7 @@ class ComposeLattice(
     val aspectRatio: Float = 1.0f,
     private val probe: FrameProbe = FrameProbe.Disabled,
     val tiltDegrees: Float = 0f,
+    val viewport: OrbViewport? = null,
 ) {
     init {
         require(widthPx > 0) { "widthPx must be > 0, got $widthPx" }
@@ -75,6 +81,9 @@ class ComposeLattice(
      * 2. Project the rotated position orthographically:
      *    `screenX = (rx + 1) * 0.5 * widthPx`
      *    `screenY = (1 - (ry + 1) * 0.5) * heightPx * (1 / aspectRatio)`
+     *    or, with a [viewport], `[-1, 1]` about its centre:
+     *    `screenX = centerXPx + rx * radiusPx`
+     *    `screenY = centerYPx - ry * radiusPx * (1 / aspectRatio)`
      * 3. Skip voxels whose projected center falls outside `[0, widthPx) × [0, heightPx)`.
      * 4. Emit one [CanvasVoxel] per surviving voxel with `radiusPx = voxelRadiusPx * scale`,
      *    sRGB color forwarded directly, rotated `z` preserved for depth compositing, and the
@@ -134,8 +143,15 @@ class ComposeLattice(
                 ry = ty
             }
 
-            val screenX = (rx + 1f) * 0.5f * widthPx
-            val screenY = (1f - (ry + 1f) * 0.5f) * heightPx * invAspect
+            val screenX: Float
+            val screenY: Float
+            if (viewport == null) {
+                screenX = (rx + 1f) * 0.5f * widthPx
+                screenY = (1f - (ry + 1f) * 0.5f) * heightPx * invAspect
+            } else {
+                screenX = viewport.centerXPx + rx * viewport.radiusPx
+                screenY = viewport.centerYPx - ry * viewport.radiusPx * invAspect
+            }
 
             if (screenX < 0f || screenX >= widthPx || screenY < 0f || screenY >= heightPx) continue
 
