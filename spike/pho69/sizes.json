@@ -1,0 +1,22 @@
+{
+  "compose-wasm": {
+    "rawBytes": 9992489,
+    "gzipBytes": 3689663
+  },
+  "dom-js": {
+    "rawBytes": 401673,
+    "gzipBytes": 105400
+  },
+  "dom-wasm": {
+    "rawBytes": 481457,
+    "gzipBytes": 140522
+  },
+  "trace-js": {
+    "rawBytes": 143394,
+    "gzipBytes": 43318
+  },
+  "trace-wasm": {
+    "rawBytes": 432214,
+    "gzipBytes": 117765
+  }
+}

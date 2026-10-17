@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PHO-69 · Lumos Compose for Web (wasm)</title>
+<style>
+  body { background: #111; color: #ddd; font: 14px system-ui, sans-serif; margin: 16px; }
+  #orb { display: block; }
+  pre { color: #9a9; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Lumos Compose for Web prototype</h1>
+<p id="info">loading…</p>
+<div id="orb"></div>
+<pre id="result"></pre>
+<script>
+  const q = new URLSearchParams(location.search);
+  const size = +(q.get('size') || 200);
+  const orb = document.getElementById('orb');
+  orb.style.width = size + 'px';
+  orb.style.height = size + 'px';
+  document.getElementById('info').textContent = `compose-wasm · ${size}px · res ${q.get('res') || 10}`;
+</script>
+<script src="phosphor-lumos-compose.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PHO-69 · Lumos DOM/SVG prototype</title>
+<style>
+  body { background: #111; color: #ddd; font: 14px system-ui, sans-serif; margin: 16px; }
+  .orb { color: #7aa2ff; display: block; }
+  pre { color: #9a9; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Lumos DOM/SVG prototype</h1>
+<p id="info">loading…</p>
+<svg id="orb" class="orb"></svg>
+<pre id="result"></pre>
+<script>
+  // Plain JS host: the kind of page socket.link's React build would also be. No framework here.
+  const q = new URLSearchParams(location.search);
+  const size = +(q.get('size') || 200);
+  const frames = +(q.get('frames') || 300);
+  const svg = document.getElementById('orb');
+  svg.style.width = size + 'px';
+  svg.style.height = size + 'px';
+  const options = {
+    style: q.get('style') || 'dots',
+    tint: q.get('tint') || 'cell',
+    atmosphere: q.get('atmosphere') || 'idle',
+    resolution: q.get('res') || 10,
+    speed: q.get('speed') || 1,
+    label: q.get('label') || '',
+  };
+  window.addEventListener('lumos-ready', () => {
+    const api = window.PhosphorLumos;
+    const handle = api.mount(svg, options);
+    const timer = setInterval(() => {
+      const s = JSON.parse(api.stats(handle));
+      document.getElementById('info').textContent =
+        `${api.target} · ${s.cells} cells · ${s.frames} frames · render p95 ${s.renderP95} ms`;
+      if (s.frames >= frames) {
+        clearInterval(timer);
+        Object.assign(s, {
+          page: 'dom-' + api.target, run: q.get('run'), size, ua: navigator.userAgent,
+          loadToReadyMs: readyAt, atmosphere: options.atmosphere, resolution: +options.resolution,
+        });
+        document.getElementById('result').textContent = JSON.stringify(s, null, 1);
+        fetch('/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+        if (q.get('stop')) api.unmount(handle);
+      }
+    }, 100);
+  });
+  let readyAt = null;
+  window.addEventListener('lumos-ready', () => { readyAt = performance.now(); }, { once: true, capture: true });
+</script>
+<script src="phosphor-lumos-dom.js"></script>
+</body>
+</html>

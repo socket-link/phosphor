@@ -3,6 +3,7 @@ import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.SonatypeHost
 import org.gradle.plugins.signing.Sign
 import org.gradle.plugins.signing.SigningExtension
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
@@ -46,6 +47,19 @@ kotlin {
         }
     }
 
+    // PHO-69 spike: web targets for the trace codec. gzip comes from the pure-Kotlin inflate in
+    // commonMain (the browser's DecompressionStream is async; the codec's seam is synchronous).
+    js(IR) {
+        browser()
+        binaries.executable()
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+        binaries.executable()
+    }
+
     val xcf = XCFramework()
     val iosTargets = listOf(iosX64(), iosArm64(), iosSimulatorArm64())
 
@@ -70,6 +84,12 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+            }
+        }
+        val wasmJsMain by getting {
+            dependencies {
+                // PHO-69 spike demo page only: Kotlin/Wasm's DOM bindings live in this library.
+                implementation("org.jetbrains.kotlinx:kotlinx-browser:0.3.1")
             }
         }
     }

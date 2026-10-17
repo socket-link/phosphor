@@ -1,0 +1,782 @@
+Mocha test framework for Wasm target is not supported. For KotlinWasmNode used
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+> Task :phosphor-trace:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-trace:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-trace:jvmProcessResources NO-SOURCE
+> Task :phosphor-trace:processJvmMainResources SKIPPED
+> Task :phosphor-trace:jvmTestProcessResources NO-SOURCE
+> Task :phosphor-trace:processJvmTestResources SKIPPED
+> Task :kotlinKotlinNpmCachesSetup
+> Task :phosphor-core:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos:jvmProcessResources NO-SOURCE
+> Task :phosphor-lumos:processJvmMainResources SKIPPED
+> Task :phosphor-lumos-dom:jsProcessResources
+> Task :phosphor-lumos-compose:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos-compose:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForCommonMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForCommonMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForCommonMain SKIPPED
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForJsMain SKIPPED
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForWebMain SKIPPED
+> Task :phosphor-lumos-compose:generateActualResourceCollectorsForJsMain SKIPPED
+> Task :phosphor-lumos-compose:generateComposeResClass SKIPPED
+> Task :phosphor-lumos-compose:generateExpectResourceCollectorsForCommonMain SKIPPED
+> Task :phosphor-lumos-dom:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos-dom:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-dom:wasmJsProcessResources
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForWasmJsMain SKIPPED
+> Task :phosphor-lumos-compose:generateActualResourceCollectorsForWasmJsMain SKIPPED
+> Task :phosphor-core:compileKotlinJvm FROM-CACHE
+> Task :phosphor-core:compileJvmMainJava NO-SOURCE
+> Task :phosphor-core:jvmProcessResources NO-SOURCE
+> Task :phosphor-core:processJvmMainResources SKIPPED
+> Task :phosphor-core:jvmMainClasses UP-TO-DATE
+> Task :phosphor-core:jvmJar
+> Task :phosphor-lumos-dom:kotlinWasmBinaryenSetup
+> Task :phosphor-core:jsPackageJson
+> Task :phosphor-core:jsTestPackageJson
+> Task :phosphor-core:jsPublicPackageJson
+> Task :phosphor-core:jsTestPublicPackageJson
+> Task :phosphor-lumos:compileKotlinJvm FROM-CACHE
+> Task :phosphor-lumos:compileJvmMainJava NO-SOURCE
+> Task :phosphor-lumos:jvmMainClasses UP-TO-DATE
+> Task :phosphor-lumos:jvmJar
+> Task :kotlinNodeJsSetup
+> Task :kotlinRestoreYarnLock
+> Task :kotlinYarnSetup
+> Task :phosphor-lumos:jsPackageJson
+> Task :phosphor-lumos:jsTestPackageJson
+> Task :phosphor-lumos-compose:jsPackageJson
+> Task :phosphor-lumos-compose:jsTestPackageJson
+> Task :phosphor-lumos-dom:jsPackageJson
+> Task :phosphor-lumos-dom:jsTestPackageJson
+> Task :phosphor-trace:jsPackageJson
+> Task :phosphor-trace:jsTestPackageJson
+> Task :phosphor-lumos:jsPublicPackageJson
+> Task :phosphor-lumos:jsTestPublicPackageJson
+> Task :phosphor-lumos-compose:jsPublicPackageJson
+> Task :phosphor-lumos-compose:jsTestPublicPackageJson
+> Task :phosphor-lumos-dom:jsPublicPackageJson
+> Task :phosphor-lumos-dom:jsTestPublicPackageJson
+> Task :phosphor-trace:jsPublicPackageJson
+> Task :phosphor-trace:jsTestPublicPackageJson
+> Task :kotlinPackageJsonUmbrella
+> Task :rootPackageJson
+
+> Task :kotlinNpmInstall
+(node:2349) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning "workspace-aggregator-d4ff88c8-1223-4a7e-ab2b-b68fef1d93bf > Phosphor-phosphor-core > webpack-dev-server > webpack-dev-middleware > memfs@4.56.10" has unmet peer dependency "tslib@2".
+
+> Task :phosphor-trace:compileKotlinJvm
+> Task :phosphor-trace:compileJvmMainJava NO-SOURCE
+> Task :phosphor-trace:jvmMainClasses
+> Task :phosphor-trace:jvmJar
+
+> Task :kotlinNpmInstall
+warning Ignored scripts due to flag.
+
+> Task :kotlinStoreYarnLock
+> Task :kotlinWasmKotlinNpmCachesSetup
+> Task :phosphor-core:compileKotlinJs
+> Task :phosphor-lumos:compileKotlinJs
+> Task :phosphor-trace:compileTestKotlinJvm
+> Task :phosphor-trace:compileJvmTestJava NO-SOURCE
+> Task :phosphor-trace:jvmTestClasses
+> Task :phosphor-lumos-compose:compileKotlinJs
+
+> Task :phosphor-lumos-dom:compileKotlinJs FAILED
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/SvgOrbSurface.kt:66:51 Cannot access 'SerializerFactory' which is a supertype of 'SurfaceStyle.Companion'. Check your module classpath for missing or conflicting dependencies.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/SvgOrbSurface.kt:66:79 Cannot access 'SerializerFactory' which is a supertype of 'SurfaceStyle.Companion'. Check your module classpath for missing or conflicting dependencies.
+
+> Task :phosphor-core:wasmJsPackageJson
+> Task :phosphor-core:wasmJsTestPackageJson
+> Task :phosphor-lumos:wasmJsPackageJson
+> Task :phosphor-lumos:wasmJsTestPackageJson
+> Task :phosphor-lumos-compose:wasmJsPackageJson
+> Task :phosphor-lumos-compose:wasmJsTestPackageJson
+> Task :phosphor-lumos-dom:wasmJsPackageJson
+> Task :phosphor-lumos-dom:wasmJsTestPackageJson
+> Task :phosphor-core:wasmJsPublicPackageJson
+> Task :phosphor-core:wasmJsTestPublicPackageJson
+> Task :phosphor-lumos:wasmJsPublicPackageJson
+> Task :phosphor-lumos:wasmJsTestPublicPackageJson
+> Task :phosphor-lumos-compose:wasmJsPublicPackageJson
+> Task :phosphor-lumos-compose:wasmJsTestPublicPackageJson
+> Task :phosphor-lumos-dom:wasmJsPublicPackageJson
+> Task :phosphor-lumos-dom:wasmJsTestPublicPackageJson
+> Task :phosphor-trace:jvmTest
+> Task :phosphor-trace:wasmJsPackageJson
+> Task :phosphor-trace:wasmJsTestPackageJson
+> Task :phosphor-trace:wasmJsPublicPackageJson
+> Task :phosphor-trace:wasmJsTestPublicPackageJson
+> Task :phosphor-trace:jsProcessResources
+> Task :kotlinWasmNodeJsSetup
+> Task :kotlinWasmRestoreYarnLock
+> Task :kotlinWasmYarnSetup
+> Task :kotlinWasmPackageJsonUmbrella
+> Task :wasmRootPackageJson
+> Task :phosphor-trace:compileKotlinJs
+> Task :phosphor-trace:jsMainClasses
+
+> Task :kotlinWasmNpmInstall
+(node:2779) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning Ignored scripts due to flag.
+
+> Task :kotlinWasmStoreYarnLock
+> Task :phosphor-core:compileKotlinWasmJs
+> Task :phosphor-lumos:compileKotlinWasmJs
+> Task :phosphor-lumos-compose:compileKotlinWasmJs
+
+> Task :phosphor-lumos-dom:compileKotlinWasmJs FAILED
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:5:8 Unresolved reference 'kotlinx'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:6:8 Unresolved reference 'org'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:9:18 Unresolved reference 'Element'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:11:16 The 'expect' and the 'actual' declarations are incompatible.
+  expect: public final expect fun setAttribute(name: String, value: String): Unit
+  actual: public final actual fun setAttribute(name: String, value: String): <ERROR TYPE REF: Unresolved name: setAttribute>
+  reason: the return types are different
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:14:17 Unresolved reference 'setAttribute'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:17:17 Unresolved reference 'appendChild'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:21:24 Unresolved reference 'firstChild'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:21:52 Unresolved reference 'removeChild'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:21:72 Unresolved reference 'firstChild'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:25:28 Unresolved reference 'getBoundingClientRect'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:26:27 Cannot infer type for type parameter 'A'. Specify it explicitly.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:26:27 Cannot infer type for type parameter 'B'. Specify it explicitly.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:30:67 Unresolved reference 'document'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:57:14 Unresolved reference 'Element'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:57:14 Type 'ERROR CLASS: Symbol not found for Element' cannot be used as value parameter type of JS interop function. Only external, primitive, string, and function types are supported in Kotlin/Wasm JS interop.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:81:13 Unresolved reference 'Element'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:81:13 Type 'ERROR CLASS: Symbol not found for Element' cannot be used as parameter type of JS interop function type. Only external, primitive, string, and function types are supported in Kotlin/Wasm JS interop.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:104:11 Unresolved reference 'Element'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/SvgOrbSurface.kt:66:51 Cannot access 'SerializerFactory' which is a supertype of 'SurfaceStyle.Companion'. Check your module classpath for missing or conflicting dependencies.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/SvgOrbSurface.kt:66:79 Cannot access 'SerializerFactory' which is a supertype of 'SurfaceStyle.Companion'. Check your module classpath for missing or conflicting dependencies.
+
+> Task :phosphor-trace:wasmJsProcessResources
+> Task :kotlinWasmToolingSetup
+> Task :phosphor-trace:kotlinWasmBinaryenSetup
+> Task :phosphor-lumos-compose:wasmJsResolveResourcesFromDependencies
+> Task :phosphor-lumos-compose:assembleWasmJsMainResources
+> Task :phosphor-lumos-compose:wasmJsResolveSelfResourcesCopyHierarchicalMultiplatformResources
+> Task :phosphor-lumos-compose:wasmJsAggregateResources
+> Task :phosphor-lumos-compose:wasmJsProcessResources
+> Task :phosphor-lumos-compose:wasmJsMainClasses
+
+> Task :phosphor-trace:compileKotlinWasmJs FAILED
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-trace/src/wasmJsMain/kotlin/link/socket/phosphor/trace/TraceWebDemo.wasmJs.kt:5:16 Unresolved reference 'browser'.
+e: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-trace/src/wasmJsMain/kotlin/link/socket/phosphor/trace/TraceWebDemo.wasmJs.kt:53:5 Unresolved reference 'document'.
+
+> Task :phosphor-lumos-compose:kotlinWasmBinaryenSetup
+> Task :phosphor-lumos-compose:unpackSkikoWasmRuntime
+> Task :phosphor-lumos-compose:processSkikoRuntimeForKWasm
+> Task :phosphor-trace:compileProductionExecutableKotlinJs
+> Task :phosphor-trace:jsProductionExecutableCompileSync
+
+> Task :phosphor-trace:jsBrowserProductionWebpack
+asset phosphor-trace.js 140 KiB [emitted] [minimized] (name: main) 1 related asset
+./kotlin/Phosphor-phosphor-trace.js 109 KiB [built] [code generated] [13 warnings]
+./kotlin/kotlin-kotlin-stdlib.js 221 KiB [built] [code generated] [114 warnings]
+./kotlin/Phosphor-phosphor-lumos.js 23.7 KiB [built] [code generated]
+./kotlin/kotlinx-serialization-kotlinx-serialization-core.js 68.5 KiB [built] [code generated] [32 warnings]
+./kotlin/kotlinx-serialization-kotlinx-serialization-cbor.js 40.5 KiB [built] [code generated] [17 warnings]
+webpack 5.101.3 compiled successfully in 2093 ms
+
+> Task :phosphor-trace:jsBrowserDistribution
+> Task :phosphor-lumos-compose:compileProductionExecutableKotlinWasmJs
+> Task :phosphor-lumos-compose:compileProductionExecutableKotlinWasmJsOptimize
+> Task :phosphor-lumos-compose:wasmJsProductionExecutableCompileSync
+
+> Task :phosphor-lumos-compose:wasmJsBrowserProductionWebpack
+asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets: 
+  5734f18db53627a82f20.wasm (1.1 MiB)
+  90.js (319 KiB)
+  2eaba8643e2ccdf352b4.wasm (7.91 MiB)
+assets by status 9.32 MiB [big]
+  asset 2eaba8643e2ccdf352b4.wasm 7.91 MiB [emitted] [immutable] [from: kotlin/skiko.wasm] [big]
+  asset 5734f18db53627a82f20.wasm 1.1 MiB [emitted] [immutable] [from: kotlin/Phosphor-phosphor-lumos-compose.wasm] [big] (auxiliary name: main)
+  asset 90.js 319 KiB [emitted] [minimized] [big] 1 related asset
+asset 840.js 190 KiB [emitted] [minimized] (id hint: vendors) 2 related assets
+asset phosphor-lumos-compose.js 19 KiB [emitted] [minimized] (name: main) 1 related asset
+runtime modules 9 KiB 10 modules
+cacheable modules 862 KiB (javascript) 9.01 MiB (asset)
+  javascript modules 862 KiB
+    ./kotlin/Phosphor-phosphor-lumos-compose.mjs 187 bytes [built] [code generated]
+    ./kotlin/Phosphor-phosphor-lumos-compose.uninstantiated.mjs 22.9 KiB [built] [code generated] [3 warnings]
+    ./kotlin/skiko.mjs 446 KiB [built] [code generated]
+    ../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+  asset modules 9.01 MiB (asset) 84 bytes (javascript)
+    ./kotlin/Phosphor-phosphor-lumos-compose.wasm 1.1 MiB (asset) 42 bytes (javascript) [built] [code generated]
+    ./kotlin/skiko.wasm 7.91 MiB (asset) 42 bytes (javascript) [built] [code generated]
+webpack 5.101.3 compiled with 1 warning in 1382 ms
+
+> Task :phosphor-lumos-compose:wasmJsBrowserDistribution
+
+[Incubating] Problems report is available at: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/build/reports/problems/problems-report.html
+
+FAILURE: Build completed with 3 failures.
+
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':phosphor-lumos-dom:compileKotlinJs'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+2: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':phosphor-lumos-dom:compileKotlinWasmJs'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+3: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':phosphor-trace:compileKotlinWasmJs'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1m 14s
+101 actionable tasks: 99 executed, 2 from cache
+exit=1
+===== second pass =====
+Starting a Gradle Daemon, 1 busy and 2 stopped Daemons could not be reused, use --status for details
+Mocha test framework for Wasm target is not supported. For KotlinWasmNode used
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+> Task :kotlinKotlinNpmCachesSetup
+> Task :phosphor-lumos-dom:jsProcessResources UP-TO-DATE
+> Task :phosphor-core:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-core:jsPackageJson UP-TO-DATE
+> Task :phosphor-core:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-core:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-core:compileKotlinJs UP-TO-DATE
+> Task :phosphor-lumos:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos:jsPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos:compileKotlinJs UP-TO-DATE
+> Task :phosphor-lumos-dom:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos-dom:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-dom:wasmJsProcessResources UP-TO-DATE
+> Task :phosphor-core:compileKotlinWasmJs UP-TO-DATE
+> Task :phosphor-lumos:compileKotlinWasmJs UP-TO-DATE
+> Task :phosphor-lumos-dom:kotlinWasmBinaryenSetup UP-TO-DATE
+> Task :phosphor-trace:wasmJsProcessResources UP-TO-DATE
+> Task :phosphor-trace:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-trace:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-compose:kmpPartiallyResolvedDependenciesChecker
+> Task :kotlinNodeJsSetup UP-TO-DATE
+> Task :phosphor-lumos-compose:jsPackageJson UP-TO-DATE
+> Task :kotlinRestoreYarnLock UP-TO-DATE
+> Task :phosphor-lumos-compose:jsTestPackageJson UP-TO-DATE
+> Task :kotlinYarnSetup UP-TO-DATE
+> Task :phosphor-lumos-compose:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:jsPackageJson
+> Task :phosphor-lumos-compose:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-dom:jsTestPackageJson
+> Task :phosphor-lumos-dom:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:jsTestPublicPackageJson UP-TO-DATE
+> Task :kotlinPackageJsonUmbrella
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :rootPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForCommonMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForCommonMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForCommonMain SKIPPED
+> Task :kotlinNpmInstall UP-TO-DATE
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForJsMain NO-SOURCE
+> Task :kotlinStoreYarnLock UP-TO-DATE
+> Task :kotlinWasmKotlinNpmCachesSetup
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForJsMain SKIPPED
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForWebMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForWebMain SKIPPED
+> Task :phosphor-lumos-compose:generateActualResourceCollectorsForJsMain SKIPPED
+> Task :phosphor-lumos-compose:generateComposeResClass SKIPPED
+> Task :phosphor-lumos-compose:generateExpectResourceCollectorsForCommonMain SKIPPED
+> Task :phosphor-lumos-compose:compileKotlinJs UP-TO-DATE
+> Task :kotlinWasmNodeJsSetup UP-TO-DATE
+> Task :kotlinWasmRestoreYarnLock UP-TO-DATE
+> Task :kotlinWasmYarnSetup UP-TO-DATE
+> Task :phosphor-core:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsPackageJson
+> Task :phosphor-lumos-dom:wasmJsTestPackageJson
+> Task :phosphor-trace:wasmJsPackageJson
+> Task :phosphor-trace:wasmJsTestPackageJson
+> Task :phosphor-core:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :kotlinWasmPackageJsonUmbrella
+> Task :wasmRootPackageJson UP-TO-DATE
+> Task :kotlinWasmNpmInstall UP-TO-DATE
+> Task :kotlinWasmStoreYarnLock UP-TO-DATE
+
+> Task :phosphor-lumos-dom:compileKotlinJs
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/jsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.js.kt:7:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+
+> Task :phosphor-lumos-dom:jsMainClasses
+> Task :phosphor-trace:compileKotlinWasmJs
+> Task :phosphor-lumos-compose:convertXmlValueResourcesForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:copyNonXmlValueResourcesForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:prepareComposeResourcesTaskForWasmJsMain NO-SOURCE
+> Task :phosphor-lumos-compose:generateResourceAccessorsForWasmJsMain SKIPPED
+> Task :phosphor-lumos-compose:generateActualResourceCollectorsForWasmJsMain SKIPPED
+> Task :phosphor-lumos-compose:compileKotlinWasmJs UP-TO-DATE
+> Task :kotlinWasmToolingSetup UP-TO-DATE
+> Task :phosphor-trace:wasmJsMainClasses
+
+> Task :phosphor-lumos-dom:compileKotlinWasmJs
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+
+> Task :phosphor-lumos-dom:wasmJsMainClasses
+> Task :phosphor-trace:compileProductionExecutableKotlinWasmJs
+> Task :phosphor-trace:kotlinWasmBinaryenSetup UP-TO-DATE
+> Task :phosphor-trace:compileProductionExecutableKotlinWasmJsOptimize
+> Task :phosphor-trace:wasmJsProductionExecutableCompileSync
+
+> Task :phosphor-trace:wasmJsBrowserProductionWebpack
+asset 8daf986596bb324c9c07.wasm 221 KiB [emitted] [immutable] [from: kotlin/Phosphor-phosphor-trace.wasm] (auxiliary name: main)
+asset 840.js 190 KiB [emitted] [minimized] (id hint: vendors) 2 related assets
+asset phosphor-trace.js 9.43 KiB [emitted] [minimized] (name: main) 1 related asset
+runtime modules 8.98 KiB 10 modules
+cacheable modules 402 KiB (javascript) 221 KiB (asset)
+  modules by path ./kotlin/*.mjs 10 KiB
+    ./kotlin/Phosphor-phosphor-trace.mjs 179 bytes [built] [code generated]
+    ./kotlin/Phosphor-phosphor-trace.uninstantiated.mjs 9.83 KiB [built] [code generated] [3 warnings]
+  ./kotlin/Phosphor-phosphor-trace.wasm 221 KiB (asset) 42 bytes (javascript) [built] [code generated]
+  ../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+webpack 5.101.3 compiled successfully in 1085 ms
+
+> Task :phosphor-trace:wasmJsBrowserDistribution
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinJs
+> Task :phosphor-lumos-dom:jsProductionExecutableCompileSync
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinWasmJs
+
+> Task :phosphor-lumos-dom:jsBrowserProductionWebpack
+asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets: 
+  phosphor-lumos-dom.js (392 KiB)
+entrypoint size limit: The following entrypoint(s) combined asset size exceeds the recommended limit (244 KiB). This can impact web performance.
+Entrypoints:
+  main (392 KiB)
+      phosphor-lumos-dom.js
+webpack performance recommendations: 
+You can limit the size of your bundles by using import() or require.ensure to lazy load some parts of your application.
+For more info visit https://webpack.js.org/guides/code-splitting/
+asset phosphor-lumos-dom.js 392 KiB [emitted] [minimized] [big] (name: main) 2 related assets
+runtime modules 670 bytes 3 modules
+modules with warnings 648 KiB [true warnings]
+  ./kotlin/Phosphor-phosphor-lumos-dom.js 27.1 KiB [built] [code generated] [13 warnings]
+  ./kotlin/kotlin-kotlin-stdlib.js 252 KiB [built] [code generated] [114 warnings]
+  ./kotlin/Phosphor-phosphor-lumos.js 87.6 KiB [built] [code generated] [9 warnings]
+  ./kotlin/Phosphor-phosphor-core.js 220 KiB [built] [code generated] [16 warnings]
+  ./kotlin/Phosphor-phosphor-lumos-compose.js 17.8 KiB [built] [code generated] [4 warnings]
+  ./kotlin/Kotlin-DateTime-library-kotlinx-datetime.js 4.58 KiB [built] [code generated] [4 warnings]
+  ./kotlin/kotlinx-serialization-kotlinx-serialization-core.js 38.6 KiB [built] [code generated] [27 warnings]
+../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+webpack 5.101.3 compiled with 3 warnings in 3097 ms
+
+> Task :phosphor-lumos-dom:jsBrowserDistribution
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinWasmJsOptimize
+> Task :phosphor-lumos-dom:wasmJsProductionExecutableCompileSync
+
+> Task :phosphor-lumos-dom:wasmJsBrowserProductionWebpack FAILED
+Module not found: Error: Can't resolve './skiko.mjs' in '/Users/miley/conductor/workspaces/phosphor/semarang-v3/build/wasm/packages/Phosphor-phosphor-lumos-dom/kotlin'
+assets by status 595 KiB [cached] 3 assets
+runtime modules 8.99 KiB 10 modules
+cacheable modules 407 KiB (javascript) 391 KiB (asset)
+  modules by path ./kotlin/*.mjs 15.2 KiB
+    ./kotlin/Phosphor-phosphor-lumos-dom.mjs 183 bytes [built] [code generated]
+    ./kotlin/Phosphor-phosphor-lumos-dom.uninstantiated.mjs 15 KiB [built] [code generated] [3 warnings]
+  ./kotlin/Phosphor-phosphor-lumos-dom.wasm 391 KiB (asset) 42 bytes (javascript) [built] [code generated]
+  ../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+webpack 5.101.3 compiled with 1 error in 1093 ms
+
+[Incubating] Problems report is available at: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':phosphor-lumos-dom:wasmJsBrowserProductionWebpack'.
+> assets by status 595 KiB [cached] 3 assets
+  runtime modules 8.99 KiB 10 modules
+  cacheable modules 407 KiB (javascript) 391 KiB (asset)
+    modules by path ./kotlin/*.mjs 15.2 KiB
+      ./kotlin/Phosphor-phosphor-lumos-dom.mjs 183 bytes [built] [code generated]
+      ./kotlin/Phosphor-phosphor-lumos-dom.uninstantiated.mjs 15 KiB [built] [code generated] [3 warnings]
+    ./kotlin/Phosphor-phosphor-lumos-dom.wasm 391 KiB (asset) 42 bytes (javascript) [built] [code generated]
+    ../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+  webpack 5.101.3 compiled with 1 error in 1093 ms
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 39s
+87 actionable tasks: 29 executed, 58 up-to-date
+exit=1
+===== third pass =====
+Mocha test framework for Wasm target is not supported. For KotlinWasmNode used
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'jsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'wasmJsTestNpmAggregated' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+> Task :kotlinKotlinNpmCachesSetup
+> Task :phosphor-lumos-dom:jsProcessResources UP-TO-DATE
+> Task :phosphor-core:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-core:jsPackageJson UP-TO-DATE
+> Task :phosphor-core:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-core:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-core:compileKotlinJs UP-TO-DATE
+> Task :phosphor-lumos-dom:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos-dom:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos-dom:wasmJsProcessResources UP-TO-DATE
+> Task :phosphor-core:compileKotlinWasmJs UP-TO-DATE
+> Task :phosphor-lumos-dom:kotlinWasmBinaryenSetup UP-TO-DATE
+> Task :phosphor-lumos:kmpPartiallyResolvedDependenciesChecker
+> Task :phosphor-lumos:jsPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:jsPackageJson
+> Task :phosphor-lumos-dom:jsTestPackageJson
+> Task :phosphor-trace:jsPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :phosphor-lumos:compileKotlinJs UP-TO-DATE
+> Task :phosphor-lumos-compose:jsPackageJson UP-TO-DATE
+> Task :kotlinNodeJsSetup UP-TO-DATE
+> Task :kotlinRestoreYarnLock UP-TO-DATE
+> Task :phosphor-lumos-compose:jsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:jsPublicPackageJson UP-TO-DATE
+> Task :kotlinYarnSetup UP-TO-DATE
+> Task :kotlinWasmKotlinNpmCachesSetup
+> Task :phosphor-lumos-compose:jsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsPackageJson
+> Task :phosphor-lumos-dom:wasmJsTestPackageJson
+> Task :phosphor-trace:wasmJsPackageJson UP-TO-DATE
+> Task :phosphor-trace:wasmJsTestPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-core:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-compose:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos-dom:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:wasmJsPublicPackageJson UP-TO-DATE
+> Task :phosphor-trace:wasmJsTestPublicPackageJson UP-TO-DATE
+> Task :phosphor-lumos:compileKotlinWasmJs UP-TO-DATE
+> Task :kotlinWasmNodeJsSetup UP-TO-DATE
+> Task :kotlinPackageJsonUmbrella
+> Task :rootPackageJson UP-TO-DATE
+> Task :kotlinNpmInstall UP-TO-DATE
+> Task :kotlinStoreYarnLock UP-TO-DATE
+> Task :kotlinWasmRestoreYarnLock UP-TO-DATE
+> Task :kotlinWasmYarnSetup UP-TO-DATE
+> Task :kotlinWasmPackageJsonUmbrella
+> Task :wasmRootPackageJson UP-TO-DATE
+> Task :kotlinWasmNpmInstall UP-TO-DATE
+> Task :kotlinWasmStoreYarnLock UP-TO-DATE
+> Task :kotlinWasmToolingSetup UP-TO-DATE
+
+> Task :phosphor-lumos-dom:compileKotlinJs
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/jsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.js.kt:7:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+
+> Task :phosphor-lumos-dom:compileKotlinWasmJs
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/wasmJsMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.wasmJs.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/phosphor-lumos-dom/src/webMain/kotlin/link/socket/phosphor/lumos/dom/WebFacade.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+
+> Task :phosphor-lumos-dom:wasmJsMainClasses
+> Task :phosphor-lumos-dom:jsMainClasses
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinJs
+> Task :phosphor-lumos-dom:jsProductionExecutableCompileSync
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinWasmJs
+
+> Task :phosphor-lumos-dom:jsBrowserProductionWebpack
+asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets: 
+  phosphor-lumos-dom.js (391 KiB)
+entrypoint size limit: The following entrypoint(s) combined asset size exceeds the recommended limit (244 KiB). This can impact web performance.
+Entrypoints:
+  main (391 KiB)
+      phosphor-lumos-dom.js
+webpack performance recommendations: 
+You can limit the size of your bundles by using import() or require.ensure to lazy load some parts of your application.
+For more info visit https://webpack.js.org/guides/code-splitting/
+asset phosphor-lumos-dom.js 391 KiB [emitted] [minimized] [big] (name: main) 2 related assets
+runtime modules 670 bytes 3 modules
+modules with warnings 640 KiB [true warnings]
+  ./kotlin/Phosphor-phosphor-lumos-dom.js 37.2 KiB [built] [code generated] [13 warnings]
+  ./kotlin/kotlin-kotlin-stdlib.js 252 KiB [built] [code generated] [114 warnings]
+  ./kotlin/Phosphor-phosphor-lumos.js 87.6 KiB [built] [code generated] [9 warnings]
+  ./kotlin/Phosphor-phosphor-core.js 220 KiB [built] [code generated] [16 warnings]
+  ./kotlin/Kotlin-DateTime-library-kotlinx-datetime.js 4.58 KiB [built] [code generated] [4 warnings]
+  ./kotlin/kotlinx-serialization-kotlinx-serialization-core.js 38.6 KiB [built] [code generated] [27 warnings]
+../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+webpack 5.101.3 compiled with 3 warnings in 3280 ms
+
+> Task :phosphor-lumos-dom:jsBrowserDistribution
+> Task :phosphor-lumos-dom:compileProductionExecutableKotlinWasmJsOptimize
+> Task :phosphor-lumos-dom:wasmJsProductionExecutableCompileSync
+
+> Task :phosphor-lumos-dom:wasmJsBrowserProductionWebpack
+asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+This can impact web performance.
+Assets: 
+  d7959c4dafe03409eb8e.wasm (266 KiB)
+asset d7959c4dafe03409eb8e.wasm 266 KiB [emitted] [immutable] [from: kotlin/Phosphor-phosphor-lumos-dom.wasm] [big] (auxiliary name: main)
+asset 840.js 190 KiB [emitted] [minimized] (id hint: vendors) 2 related assets
+asset phosphor-lumos-dom.js 12.5 KiB [emitted] [minimized] (name: main) 1 related asset
+runtime modules 8.99 KiB 10 modules
+cacheable modules 407 KiB (javascript) 266 KiB (asset)
+  modules by path ./kotlin/*.mjs 14.6 KiB
+    ./kotlin/Phosphor-phosphor-lumos-dom.mjs 183 bytes [built] [code generated]
+    ./kotlin/Phosphor-phosphor-lumos-dom.uninstantiated.mjs 14.4 KiB [built] [code generated] [3 warnings]
+  ./kotlin/Phosphor-phosphor-lumos-dom.wasm 266 KiB (asset) 42 bytes (javascript) [built] [code generated]
+  ../../node_modules/@js-joda/core/dist/js-joda.esm.js 392 KiB [built] [code generated]
+webpack 5.101.3 compiled with 1 warning in 1098 ms
+
+> Task :phosphor-lumos-dom:wasmJsBrowserDistribution
+
+[Incubating] Problems report is available at: file:///Users/miley/conductor/workspaces/phosphor/semarang-v3/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 15s
+76 actionable tasks: 20 executed, 56 up-to-date
+exit=0
