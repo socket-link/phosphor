@@ -10,10 +10,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import link.socket.phosphor.choreography.AtmosphereTransitionSpec
+import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.runtime.CognitiveSceneRuntime
 import link.socket.phosphor.runtime.SceneConfiguration
 import link.socket.phosphor.signal.AtmosphereState
+import link.socket.phosphor.signal.LumosInput
 
 class LiveFrameSourceTest {
     @Test
@@ -283,6 +285,29 @@ class LiveFrameSourceTest {
         source.align(42.0)
 
         assertEquals(before.copy(lookSeconds = 42.0), source.builder.phases)
+    }
+
+    @Test
+    fun `setInput reaches the next frame from next`() {
+        val source = LiveFrameSource(scene())
+        val input = LumosInput(pointer = Vector2(0.25f, -0.5f), pressed = true)
+
+        source.setInput(input)
+
+        assertEquals(input, source.next(0.05f).input)
+        assertEquals(input, source.next(0.05f).input, "the last input given holds")
+        source.setInput(LumosInput.NONE)
+        assertNull(source.next(0.05f).input)
+    }
+
+    @Test
+    fun `setInput parts an interactive orb's cells and a still ignores it`() {
+        val pointed = LiveFrameSource(THINKING, renderConfig = LumosRenderConfig(interactive = true))
+        val plain = LiveFrameSource(THINKING, renderConfig = LumosRenderConfig(interactive = true))
+        pointed.setInput(LumosInput(pointer = Vector2(0.1f, 0.2f)))
+
+        repeat(10) { assertNotEquals(plain.next(0.05f).cells, pointed.next(0.05f).cells) }
+        assertEquals(plain.still(0.05f), pointed.still(0.05f))
     }
 
     private fun assertPhasesClose(

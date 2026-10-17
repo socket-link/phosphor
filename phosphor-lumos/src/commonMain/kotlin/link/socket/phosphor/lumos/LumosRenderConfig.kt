@@ -40,6 +40,15 @@ import kotlinx.serialization.Serializable
  *  with a switch set, the orb wears [CognitiveLookSwitch.whenUnattended] in
  *  place of whatever the table picked, keeping the table's glyph. Ignored
  *  without a switch.
+ * @property interactive Whether the cells part around the pointer, as Dots'
+ *  `interactive` turns on its repel: in a live frame whose snapshot carries a
+ *  [link.socket.phosphor.signal.LumosInput.pointer], the cells near the
+ *  pointer's line of sight give way, and spring back when it leaves. Off by
+ *  default, so an orb nobody can touch renders as it always has. It gates the
+ *  push alone: the pointer still reaches [VoxelFrame.input], for the surface's
+ *  light, and a [GazingForm]'s gaze either way. Reduced motion never pushes,
+ *  and a capture cannot: `Oscilloscope`'s scene has no pointer. See
+ *  [VoxelFrameBuilder.build].
  */
 @Serializable
 data class LumosRenderConfig(
@@ -49,4 +58,5 @@ data class LumosRenderConfig(
     val rimFade: Boolean = false,
     val agentId: String? = null,
     val unattended: Boolean = false,
+    val interactive: Boolean = false,
 )

@@ -3,6 +3,7 @@ package link.socket.phosphor.trace
 import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
@@ -18,31 +19,48 @@ import link.socket.phosphor.palette.AtmospherePresets
  * The payload is digested after gzip is undone: the compressed framing belongs
  * to the platform's zlib, not to the capture, and `TraceCodec.encode` is
  * otherwise a pure function of the frames.
+ *
+ * PHO-82: an interactive orb is captured to the same bytes. The Oscilloscope's
+ * scene has no pointer, so nothing parts, and the render config's `interactive`
+ * is not recorded.
  */
 class FormSeamByteIdentityTest {
     @Test
     fun `a 20-frame capture encodes to the bytes it did before the form seam`() {
-        val resolution = AtmospherePresets.IDLE.resolution
-        val config =
-            CaptureConfig(
-                params = CaptureParams(atmosphere = AtmospherePresets.IDLE.copy(resolution = resolution)),
-                durationMs = 1_000L,
-                fps = 20,
-                segments = listOf(TraceSegment("idle", 0, 9, loop = true), TraceSegment("idle→thinking", 10, 19)),
-                cues =
-                    listOf(
-                        AtmosphereCue(
-                            atFrame = 10,
-                            atmosphere = AtmospherePresets.THINKING.copy(resolution = resolution),
-                        ),
-                    ),
-            )
-
-        val trace = Oscilloscope.capture(config).getOrThrow()
+        val trace = Oscilloscope.capture(config()).getOrThrow()
         val payload = gzipDecompress(TraceCodec.encode(trace))
 
         assertEquals(20, trace.frameCount)
         assertEquals(EXPECTED_PAYLOAD_SHA256, sha256Hex(payload), "encoded payload changed; the form seam moved a cell")
+    }
+
+    @Test
+    fun `with interactive on the capture still encodes to those bytes`() {
+        val trace = Oscilloscope.capture(config(LumosRenderConfig(interactive = true))).getOrThrow()
+        val payload = gzipDecompress(TraceCodec.encode(trace))
+
+        assertEquals(EXPECTED_PAYLOAD_SHA256, sha256Hex(payload), "an interactive orb's capture moved a cell")
+    }
+
+    private fun config(renderConfig: LumosRenderConfig = LumosRenderConfig()): CaptureConfig {
+        val resolution = AtmospherePresets.IDLE.resolution
+        return CaptureConfig(
+            params =
+                CaptureParams(
+                    atmosphere = AtmospherePresets.IDLE.copy(resolution = resolution),
+                    renderConfig = renderConfig,
+                ),
+            durationMs = 1_000L,
+            fps = 20,
+            segments = listOf(TraceSegment("idle", 0, 9, loop = true), TraceSegment("idle→thinking", 10, 19)),
+            cues =
+                listOf(
+                    AtmosphereCue(
+                        atFrame = 10,
+                        atmosphere = AtmospherePresets.THINKING.copy(resolution = resolution),
+                    ),
+                ),
+        )
     }
 
     private fun sha256Hex(bytes: ByteArray): String =

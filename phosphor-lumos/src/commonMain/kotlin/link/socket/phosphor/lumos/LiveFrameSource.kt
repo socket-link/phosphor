@@ -8,6 +8,7 @@ import link.socket.phosphor.runtime.CognitiveSceneRuntime
 import link.socket.phosphor.runtime.SceneConfiguration
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.AtmosphereTransition
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * A live scene as a [LumosFrameSource]: a [CognitiveSceneRuntime] and the [VoxelFrameBuilder] that
@@ -33,6 +34,7 @@ import link.socket.phosphor.signal.AtmosphereTransition
  *   is leaving jumping. A switch-driven change ([VoxelFrameBuilder.lookSwitch]) and
  *   [VoxelFrameBuilder.lookTo] both blend; a manual [VoxelFrameBuilder.look] cut and an
  *   atmosphere change alone do not, and leave every phase where it is.
+ * - [setInput] hands the pointer to [runtime], whose next snapshot carries it to [builder].
  *
  * Stateful and single-threaded, like the pair it wraps.
  *
@@ -147,4 +149,6 @@ class LiveFrameSource(
     override fun alignLook(lookTime: Double) {
         builder.alignLook(lookTime)
     }
+
+    override fun setInput(input: LumosInput) = runtime.setInput(input)
 }

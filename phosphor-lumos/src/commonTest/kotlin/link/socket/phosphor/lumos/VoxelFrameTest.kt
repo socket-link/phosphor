@@ -5,6 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlinx.serialization.json.Json
+import link.socket.phosphor.math.Vector2
+import link.socket.phosphor.signal.LumosInput
 
 class VoxelFrameTest {
     @Test
@@ -182,6 +184,35 @@ class VoxelFrameTest {
         assertNotEquals(base, base.copy(ambient = baseAmbient.copy(glowIntensity = 0.1f)))
         assertNotEquals(base, base.copy(glyph = null))
         assertNotEquals(base, base.copy(glyph = baseGlyph.copy(progress = 0.99f)))
+        assertNotEquals(base, base.copy(input = LumosInput(pressed = true)))
+    }
+
+    @Test
+    fun `input is never serialized — the JSON is the frame's without it and decodes with none`() {
+        val plain =
+            VoxelFrame(
+                tick = 3L,
+                timestampEpochMillis = 50L,
+                resolution = 2,
+                cells = listOf(VoxelCell(x = 0.5f, y = 0f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f)),
+                ambient =
+                    VoxelAmbient(
+                        glowRed = 0f,
+                        glowGreen = 0f,
+                        glowBlue = 0f,
+                        glowIntensity = 0f,
+                        orbRotationX = 0f,
+                        orbRotationY = 0f,
+                        orbRotationZ = 0f,
+                    ),
+            )
+        val pointed = plain.copy(input = LumosInput(pointer = Vector2(0.3f, -0.2f), pressed = true))
+        val json = Json { encodeDefaults = true }
+
+        val encoded = json.encodeToString(VoxelFrame.serializer(), pointed)
+
+        assertEquals(json.encodeToString(VoxelFrame.serializer(), plain), encoded)
+        assertEquals(plain, json.decodeFromString(VoxelFrame.serializer(), encoded))
     }
 
     @Test

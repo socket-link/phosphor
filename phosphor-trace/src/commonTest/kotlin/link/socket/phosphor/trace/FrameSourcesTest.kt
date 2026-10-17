@@ -13,8 +13,10 @@ import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
+import link.socket.phosphor.math.Vector2
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.runtime.SceneConfiguration
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * PHO-53: every source `:phosphor-trace` declares opens as a `LumosFrameSource`, stepped by a
@@ -147,6 +149,38 @@ class FrameSourcesTest {
         assertEquals("thinking", source.lookKey)
     }
 
+    @Test
+    fun `a trace source's setInput does nothing`() {
+        val pointed = TracePlayer(trace(), SPIN).asFrameSource()
+        val plain = TracePlayer(trace(), SPIN).asFrameSource()
+        pointed.setInput(POINTING)
+
+        repeat(2 * LOOP_FRAMES) {
+            val frame = pointed.next(FRAME_SECONDS)
+            assertEquals(plain.next(FRAME_SECONDS), frame)
+            assertNull(frame.input)
+        }
+        assertEquals(plain.still(0f), pointed.still(0f))
+    }
+
+    @Test
+    fun `a machine's setInput does nothing`() {
+        val pointed = TraceStateMachine(StateMachineTraces.threeState(), initialState = "idle").asFrameSource()
+        val plain = TraceStateMachine(StateMachineTraces.threeState(), initialState = "idle").asFrameSource()
+        pointed.setInput(POINTING)
+
+        repeat(10) { assertEquals(plain.next(FRAME_SECONDS), pointed.next(FRAME_SECONDS)) }
+    }
+
+    @Test
+    fun `a live source opened through its generator takes the pointer`() {
+        val source = LumosSource.Live(scene(), fps = 20).asFrameSource()
+
+        source.setInput(POINTING)
+
+        assertEquals(POINTING, source.next(1f / 20f).input)
+    }
+
     private fun rotationSteps(
         source: LumosFrameSource,
         steps: Int,
@@ -251,5 +285,7 @@ class FrameSourcesTest {
 
         const val TWO_PI = (2.0 * PI).toFloat()
         const val TOLERANCE = 1e-3f
+
+        val POINTING = LumosInput(pointer = Vector2(0.2f, 0.1f), pressed = true)
     }
 }
