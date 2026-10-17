@@ -45,7 +45,7 @@ class CognitiveLookSwitchTest {
     }
 
     @Test
-    fun `a phase-only row holds across IDLE, ACTIVE and PROCESSING`() {
+    fun `a phase-only row holds across IDLE and ACTIVE and PROCESSING`() {
         val twins = CognitiveLook(Look(LumosLook.REASONING, "twins"))
         assertEquals(twins, switch.lookFor(PLAN, IDLE))
         assertEquals(twins, switch.lookFor(PLAN, ACTIVE))
