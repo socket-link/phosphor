@@ -1,5 +1,7 @@
 package link.socket.phosphor.lumos
 
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -7,6 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import link.socket.phosphor.coordinate.CoordinateSpace
 import link.socket.phosphor.field.SubstrateState
+import link.socket.phosphor.lumos.look.BaseSpin
+import link.socket.phosphor.lumos.look.RetryingRewind
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmosphereState
@@ -168,6 +172,43 @@ class VoxelFrameBuilderLookTest {
 
         assertTrue(first.cells.any { it.alpha != null })
         assertEquals(first, second, "nothing moved, so the still is the same frame")
+    }
+
+    @Test
+    fun `a look that owns the yaw turns the frame by it and the ambient carries it`() {
+        val builder = VoxelFrameBuilder(initialResolution = RESOLUTION)
+        builder.look = Look(LumosLook.RETRYING)
+        val phases = FramePhases.ZERO.copy(orbRotationY = 2.0f, lookSeconds = 0.5)
+        val lookYaw = RetryingRewind().yaw(0.5f)
+
+        val frame = builder.buildSteadyState(THINKING, phases, tick = 0L, timestampEpochMillis = 0L)
+
+        assertEquals(lookYaw, frame.ambient.orbRotationY, "the ambient carries the look's yaw")
+        assertEquals(0f, frame.ambient.orbRotationX)
+        // The rim fade faces the viewer under the look's yaw, not the atmosphere's 2 rad.
+        val sample = Forms.Lattice(RESOLUTION).sample(0, LumosLook.BASE, 0f)
+        for (i in 0 until sample.count) {
+            val position = sample.positions[i]
+            val viewZ = -position.x * sin(lookYaw) + position.z * cos(lookYaw)
+            val expected = BaseSpin.rimAlpha((viewZ + 1f) * 0.5f).coerceIn(0f, 1f)
+            assertEquals(expected, frame.cells[i].alpha ?: 1f, 1e-5f, "alpha of $i")
+        }
+    }
+
+    @Test
+    fun `a look-owned yaw leaves the atmosphere's accumulator running`() {
+        val builder = VoxelFrameBuilder(initialResolution = RESOLUTION)
+        val reference = VoxelFrameBuilder(initialResolution = RESOLUTION)
+        builder.look = Look(LumosLook.RETRYING)
+
+        repeat(4) {
+            builder.build(snapshot(THINKING), dt = 0.25f)
+            reference.build(snapshot(THINKING), dt = 0.25f)
+        }
+        builder.look = Look(LumosLook.BASE)
+
+        assertEquals(reference.phases, builder.phases)
+        assertEquals(reference.build(snapshot(THINKING), dt = 0.25f), builder.build(snapshot(THINKING), dt = 0.25f))
     }
 
     private fun snapshot(atmosphere: AtmosphereState?): SceneSnapshot =

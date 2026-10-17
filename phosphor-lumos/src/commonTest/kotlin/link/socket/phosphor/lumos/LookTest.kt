@@ -33,6 +33,7 @@ class LookTest {
         assertEquals(1.7f, Look(LumosLook.WORKING).periodSeconds)
         assertEquals(1.8f, Look(LumosLook.SEARCHING).periodSeconds)
         assertEquals(0.22f, Look(LumosLook.REASONING).periodSeconds)
+        assertEquals(1.6f, Look(LumosLook.RETRYING).periodSeconds)
         assertEquals(0f, Look(LumosLook.WAITING).periodSeconds, "not yet ported, so nothing is clock-driven")
     }
 }

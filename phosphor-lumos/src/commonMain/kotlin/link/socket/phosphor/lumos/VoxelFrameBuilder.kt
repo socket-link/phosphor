@@ -73,7 +73,11 @@ class VoxelFrameBuilder(
     /** Integrated X-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationX]. */
     val orbRotationX: Float get() = phases.orbRotationX
 
-    /** Integrated Y-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationY]. */
+    /**
+     * Integrated Y-axis rotation in radians. Exposed via [VoxelAmbient.orbRotationY], unless
+     * the [look] owns the yaw ([link.socket.phosphor.lumos.look.LookModulator.yaw]), which the
+     * frame carries instead.
+     */
     val orbRotationY: Float get() = phases.orbRotationY
 
     private var lattice: Forms.Lattice = Forms.Lattice(initialResolution)
@@ -591,6 +595,22 @@ class VoxelFrameBuilder(
     }
 
     /**
+     * How fast [modulator]'s own yaw turns at [t], radians per second: a central
+     * difference over [YAW_RATE_STEP] either side, taken the short way round.
+     */
+    private fun yawRate(
+        modulator: LookModulator,
+        t: Float,
+    ): Float {
+        val ahead = modulator.yaw(t + YAW_RATE_STEP) ?: return 0f
+        val behind = modulator.yaw(t - YAW_RATE_STEP) ?: return 0f
+        var arc = ahead - behind
+        if (arc > PI_F) arc -= FramePhases.TWO_PI
+        if (arc < -PI_F) arc += FramePhases.TWO_PI
+        return arc / (2f * YAW_RATE_STEP)
+    }
+
+    /**
      * The pure core of a build: every input named, nothing read from the
      * builder but its lattice resolution, [config] and the three scratch
      * objects the look pass reuses. [build] advances state and calls this;
@@ -605,7 +625,9 @@ class VoxelFrameBuilder(
      * own angles — the rotation the surfaces apply again at projection — from
      * where it rests this frame, mid-morph or not, and modulated in the form's
      * own unit space, before the atmosphere's jitter, bump, pulse and squash
-     * and before the framing scales it. The modulator is keyed by sample index,
+     * and before the framing scales it. A modulator that owns the yaw turns the
+     * frame by its own in place of the atmosphere's, and the ambient carries
+     * that yaw to the surfaces. The modulator is keyed by sample index,
      * so a cell keeps its place in the walk's table across a morph. Without
      * one, the loop is exactly what it was before looks existed.
      */
@@ -638,10 +660,14 @@ class VoxelFrameBuilder(
                 ?.let { NeutralColor.fromHsl(it.glyph.hue, it.glyph.saturation, it.glyph.lightness) }
         val glyphShape = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.let { GlyphShape.forGlyph(it.glyph) }
         val glyphVisibility = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.visibility ?: 0f
-        val glyphRotation = Vector3(phases.orbRotationX, phases.orbRotationY, 0f)
         val lookTime = phases.lookSeconds.toFloat()
+        // A look that owns the yaw replaces the atmosphere's wherever this frame reads it.
+        val lookYaw = modulator?.yaw(lookTime)
+        val yaw = lookYaw ?: phases.orbRotationY
+        val glyphRotation = Vector3(phases.orbRotationX, yaw, 0f)
         if (modulator != null) {
-            rotation.set(phases.orbRotationX, phases.orbRotationY, atmosphere.rotationX, atmosphere.rotationY)
+            val rateY = if (lookYaw == null) atmosphere.rotationY else yawRate(modulator, lookTime)
+            rotation.set(phases.orbRotationX, yaw, atmosphere.rotationX, rateY)
             modulator.beginFrame(lookTime, rotation)
         }
 
@@ -748,7 +774,7 @@ class VoxelFrameBuilder(
                 )
         }
 
-        val ambient = computeAmbient(atmosphere, phases)
+        val ambient = computeAmbient(atmosphere, phases.orbRotationX, yaw)
 
         return VoxelFrame(
             tick = tick,
@@ -860,7 +886,8 @@ class VoxelFrameBuilder(
 
     private fun computeAmbient(
         atmosphere: AtmosphereState,
-        phases: FramePhases,
+        orbRotationX: Float,
+        orbRotationY: Float,
     ): VoxelAmbient {
         val primary = NeutralColor.fromHsl(atmosphere.primaryHue, atmosphere.saturation, atmosphere.lightness)
         val secondary = NeutralColor.fromHsl(atmosphere.secondaryHue, atmosphere.saturation, atmosphere.lightness)
@@ -870,8 +897,8 @@ class VoxelFrameBuilder(
             glowGreen = glow.green,
             glowBlue = glow.blue,
             glowIntensity = atmosphere.glow,
-            orbRotationX = phases.orbRotationX,
-            orbRotationY = phases.orbRotationY,
+            orbRotationX = orbRotationX,
+            orbRotationY = orbRotationY,
             orbRotationZ = 0f,
         )
     }
@@ -895,6 +922,10 @@ class VoxelFrameBuilder(
         private const val BAND_GAIN: Float = 0.4f
         private const val GLYPH_FACING_THRESHOLD: Float = 0.15f
         private const val GLYPH_BACKGROUND_SHRINK: Float = 0.30f
+
+        // Half the span the look-owned yaw's rate is measured over: a frame at 30 fps.
+        private const val YAW_RATE_STEP: Float = 1f / 60f
+        private const val PI_F: Float = FramePhases.TWO_PI / 2f
 
         /** How long [morphTo] takes by default: Dots' 2.4 s. */
         const val DEFAULT_MORPH_SECONDS: Float = 2.4f

@@ -8,8 +8,9 @@ package link.socket.phosphor.lumos
  * modulation of radius, opacity and position computed in view space from a
  * clock every orb of that look shares; see [link.socket.phosphor.lumos.look.LookModulator].
  * [LumosForm.sample] takes a look so a form can lay itself out differently per
- * idiom. The first four idioms are ported (PHO-58); the rest wear [BASE]'s spin
- * until PHO-59 ports them, and every variant draws as `"default"` until then.
+ * idiom. The first four idioms are ported (PHO-58), and retrying (PHO-59); the
+ * rest wear [BASE]'s spin until PHO-59 ports them, and every variant draws as
+ * `"default"` until then.
  *
  * @property variants The names a [Look] may carry for this look, `"default"` first.
  */
@@ -29,7 +30,11 @@ enum class LumosLook(val variants: List<String>) {
     /** Not yet ported; draws as [BASE]. */
     BACKGROUND(listOf("default", "spiral")),
 
-    /** Not yet ported; draws as [BASE]. */
+    /**
+     * The orb turns, brakes, springs back 60 % of the turn and tries again, a
+     * cycle every 1.6 s. The one look that owns the yaw: the atmosphere's
+     * rotation is not read while it is worn.
+     */
     RETRYING(listOf("default", "surge")),
 
     /** Not yet ported; draws as [BASE]. */
@@ -65,11 +70,12 @@ data class Look(
 
     /**
      * The shortest time after which the look's clock-driven timing repeats, in
-     * seconds: the ring's 1.7 s, the lens's 1.8 s hop, the walk's 220 ms hop. 0
-     * for a look with nothing clock-driven, which [LumosLook.BASE] is: its spin is
-     * the atmosphere's. A loop capture of a look wants a duration that is a
-     * multiple of this. The lens's spot sequence and the walk's path do not
-     * repeat on it; only their timing does.
+     * seconds: the ring's 1.7 s, the lens's 1.8 s hop, the walk's 220 ms hop,
+     * the retry's 1.6 s cycle. 0 for a look with nothing clock-driven, which
+     * [LumosLook.BASE] is: its spin is the atmosphere's. A loop capture of a look
+     * wants a duration that is a multiple of this. The lens's spot sequence and
+     * the walk's path do not repeat on it; only their timing does. Nor does the
+     * retry's yaw, which gains the same angle every cycle.
      */
     val periodSeconds: Float
         get() =
@@ -77,6 +83,7 @@ data class Look(
                 LumosLook.WORKING -> WORKING_PERIOD_SECONDS
                 LumosLook.SEARCHING -> SEARCHING_PERIOD_SECONDS
                 LumosLook.REASONING -> REASONING_PERIOD_SECONDS
+                LumosLook.RETRYING -> RETRYING_PERIOD_SECONDS
                 else -> 0f
             }
 
@@ -92,5 +99,8 @@ data class Look(
 
         /** The reasoning walk's hop: a new cell every 220 ms. */
         const val REASONING_PERIOD_SECONDS: Float = 0.22f
+
+        /** The retry's cycle: Thinking Orbs' 3.2 s `rewind` at double time. */
+        const val RETRYING_PERIOD_SECONDS: Float = 1.6f
     }
 }
