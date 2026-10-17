@@ -115,8 +115,11 @@ kotlin {
         val androidInstrumentedTest by getting {
             dependencies {
                 implementation("androidx.compose.ui:ui-test-junit4:1.7.1")
-                implementation("androidx.test:runner:1.6.2")
-                implementation("androidx.test.ext:junit:1.2.1")
+                // ui-test-junit4 1.7.1 pulls an Espresso that reflects on InputManager.getInstance,
+                // gone on API 35+; a current Espresso has the fix.
+                implementation("androidx.test.espresso:espresso-core:3.7.0")
+                implementation("androidx.test:runner:1.7.0")
+                implementation("androidx.test.ext:junit:1.3.0")
             }
         }
         val jvmTest by getting {
@@ -146,6 +149,12 @@ android {
         minSdk = providers.gradleProperty("android.minSdk").get().toInt()
         // PHO-63 spike only.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // PHO-63 spike only: a test APK targeting 24 gets Android 13+'s system notification-permission
+    // prompt thrown over its Activity on launch, which stops the Activity under the Compose rule.
+    testOptions {
+        targetSdk = providers.gradleProperty("android.compileSdk").get().toInt()
     }
 
     compileOptions {
