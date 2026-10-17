@@ -43,11 +43,12 @@ are generated at release time from commit/PR history instead.
 
 ## Dependencies and the Yarn Lockfiles
 
-`phosphor-core`, `phosphor-lumos` and `phosphor-lumos-compose` have JS and Wasm
-targets, so the npm packages that Kotlin dependencies bring in (kotlinx-datetime's
-`@js-joda/core`, Compose's webpack and Skiko tooling) are pinned in two committed lockfiles: `kotlin-js-store/yarn.lock` (JS) and
-`kotlin-js-store/wasm/yarn.lock` (Wasm). CI's Web job fails before any test runs
-when either one is out of date:
+`phosphor-core`, `phosphor-lumos`, `phosphor-lumos-compose` and `phosphor-trace`
+have JS and Wasm targets, so the npm packages that Kotlin dependencies bring in
+(kotlinx-datetime's `@js-joda/core`, Compose's webpack and Skiko tooling) are
+pinned in committed lockfiles under `kotlin-js-store/`: `yarn.lock` for JS and
+`wasm/yarn.lock` for Wasm. CI's Web job fails before any test runs when either
+one is out of date:
 
 ```
 Execution failed for task ':kotlinStoreYarnLock'.
@@ -59,20 +60,25 @@ kotlinx-datetime without regenerating the lockfiles, got merged on a red Web job
 and every PR after it inherited the failure.
 
 - If you add, remove, or bump a dependency (any `build.gradle.kts` dependency
-  block, a plugin version, or the Kotlin or Compose version), regenerate
-  both lockfiles in the same PR and commit what changes under `kotlin-js-store/`:
+  block, a plugin version, or the Kotlin or Compose version), regenerate both
+  lockfiles in the same PR and commit whatever changes under `kotlin-js-store/`:
   ```bash
   ./gradlew kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock
+  ./gradlew kotlinStoreYarnLock kotlinWasmStoreYarnLock   # what CI checks
   ```
-  These tasks resolve dependencies and run yarn. They don't compile Kotlin, so
-  running them costs much less than `jvmTest`.
+  These tasks resolve dependencies and run yarn without compiling Kotlin, so
+  they finish in seconds.
+- If a target ends up with no npm dependencies, the upgrade task **deletes** its
+  lockfile. Commit the deletion. A lockfile left with stale entries still fails CI.
 - If you didn't touch dependencies, the lockfiles shouldn't change. If they do,
   find out why before committing them.
 - A Web job that fails on `kotlinStoreYarnLock` or `kotlinWasmStoreYarnLock` is
   never a flake. Don't merge on it. If main already fails this way, fix it on main
   in its own PR. Don't regenerate the lockfiles on an unrelated branch.
-- Don't edit the lockfiles by hand. Removing one dependency's stanza is the only
-  exception, and only when nothing else in the file lists it under `dependencies:`.
+- Don't edit the lockfiles by hand, not even to delete a single entry. Removing
+  `@js-joda/core` by hand looked complete, but with it gone Wasm had no npm
+  dependencies left. The task deletes the whole file in that case, and the
+  remaining `format-util` entry still failed CI.
 
 ## Architecture at a Glance
 
