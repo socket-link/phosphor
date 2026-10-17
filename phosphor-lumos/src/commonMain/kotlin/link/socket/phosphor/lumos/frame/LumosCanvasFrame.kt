@@ -2,8 +2,10 @@ package link.socket.phosphor.lumos.frame
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
+import link.socket.phosphor.math.Vector2
 
 /**
  * Serializable 2D projection of a VoxelFrame shaped for pixel-canvas rendering.
@@ -23,6 +25,11 @@ import link.socket.phosphor.lumos.VoxelGlyphState
  *  for halo and glow rendering.
  * @property glyph Active glyph state, if any. Passed through for glyph-aware overlay rendering.
  * @property tick Monotonic frame counter passed through from source frame.
+ * @property pointer Where the person points, in canvas pixels with Y down, for a material's light:
+ *  [link.socket.phosphor.lumos.VoxelFrame.input]'s pointer carried through the projection — the
+ *  front of the orb at that view-space point, tilted as the voxels are — or the pointer the
+ *  driver laid over the frame, so a recorded orb is lit like a live one. Null when nothing
+ *  points. Never serialized, like the input it comes from.
  */
 @Serializable
 @SerialName("link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame")
@@ -33,6 +40,7 @@ data class LumosCanvasFrame(
     val ambient: VoxelAmbient,
     val glyph: VoxelGlyphState? = null,
     val tick: Long,
+    @Transient val pointer: Vector2? = null,
 ) {
     /**
      * Projected 2D voxel with rendering parameters suitable for Compose Canvas.

@@ -2,7 +2,9 @@ package link.socket.phosphor.lumos.projection
 
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.sin
+import kotlin.math.sqrt
 import link.socket.phosphor.lumos.OrbViewport
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelFrame
@@ -11,6 +13,7 @@ import link.socket.phosphor.lumos.frame.LumosCanvasFrame.CanvasVoxel
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
+import link.socket.phosphor.math.Vector2
 
 /**
  * Orthographic projection of a [VoxelFrame] to a [LumosCanvasFrame] for pixel-canvas rendering.
@@ -96,15 +99,50 @@ class PixelLattice(
      *    trace carries it as a live frame does; an atmosphere that also rotates about X tips the
      *    true direction off this one.
      *
-     * Ambient and glyph state pass through unchanged.
+     * Ambient and glyph state pass through unchanged. [pointer] — by default the frame's own
+     * [VoxelFrame.input] pointer — is carried onto [LumosCanvasFrame.pointer] in canvas pixels:
+     * the point on the front of the unit sphere under it, tilted and placed as the voxels are,
+     * so a material's light lands where the person points. A driver passes the pointer it holds
+     * itself to light a still or a recorded frame, which carry none.
+     *
+     * @param frame The frame to project.
+     * @param pointer Where the person points, in the orb's view space before the tilt; see
+     *  [link.socket.phosphor.signal.LumosInput.pointer]. Defaults to the frame's own.
      */
-    fun project(frame: VoxelFrame): LumosCanvasFrame = probe.measure(FramePhase.PROJECT) { projectFrame(frame) }
+    fun project(
+        frame: VoxelFrame,
+        pointer: Vector2? = frame.input?.pointer,
+    ): LumosCanvasFrame = probe.measure(FramePhase.PROJECT) { projectFrame(frame, pointer) }
+
+    /**
+     * Where a view-space [pointer] lands on this canvas, in pixels with Y down: the forward
+     * mapping [project] applies to a voxel on the front of the unit sphere at that point, so the
+     * light sits on the surface the person points at. A pointer past the rim maps as if on the
+     * orb's equatorial plane.
+     */
+    fun canvasPointer(pointer: Vector2): Vector2 {
+        val x = pointer.x
+        var y = pointer.y
+        if (tilted) {
+            val z = sqrt(max(0f, 1f - x * x - y * y))
+            y = y * cosTilt - z * sinTilt
+        }
+        val invAspect = 1f / aspectRatio
+        return if (viewport == null) {
+            Vector2((x + 1f) * 0.5f * widthPx, (1f - (y + 1f) * 0.5f) * heightPx * invAspect)
+        } else {
+            Vector2(viewport.centerXPx + x * viewport.radiusPx, viewport.centerYPx - y * viewport.radiusPx * invAspect)
+        }
+    }
 
     // Reusable sort keys: (order-preserving z bits << 32) | index into `scratch`. Grown, never shrunk.
     private var keys = LongArray(0)
     private var scratch = arrayOfNulls<CanvasVoxel>(0)
 
-    private fun projectFrame(frame: VoxelFrame): LumosCanvasFrame {
+    private fun projectFrame(
+        frame: VoxelFrame,
+        pointer: Vector2?,
+    ): LumosCanvasFrame {
         val cells = frame.cells
         val ambient = frame.ambient
 
@@ -193,6 +231,7 @@ class PixelLattice(
             ambient = ambient,
             glyph = frame.glyph,
             tick = frame.tick,
+            pointer = pointer?.let(::canvasPointer),
         )
     }
 

@@ -181,6 +181,50 @@ fun ThinkingOrb() {
 
 The orb stops while it is scrolled off screen or its window is in the background, holds still when the platform asks for reduced motion, and is one labelled image to a screen reader — or hidden from one, without a label. Orbs in the same state share a clock, so a column of them breathes together. To drive a runtime and frame builder you already own, wrap them in `LiveFrameSource(runtime, builder)`; to play a recording from `:phosphor-trace`, open it with `asFrameSource()`. The snippet is compiled by `ReadmeLumosQuickStartTest`.
 
+The orb answers the pointer on every target — hover where the platform has it, touch everywhere — and takes no gesture from its parents, so an orb in a scrolling column still scrolls it. Make the scene `interactive` and its cells part around the pointer; the projected frame carries the pointer in pixels for a material's light. A consumer drawing `LumosCanvas` directly gets the same plumbing from one modifier, `Modifier.lumosPointer`, which reports the pointer in the orb's view space and never consumes it:
+
+```kotlin
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import link.socket.phosphor.lumos.LiveFrameSource
+import link.socket.phosphor.lumos.LumosRenderConfig
+import link.socket.phosphor.lumos.compose.LumosCanvas
+import link.socket.phosphor.lumos.compose.lumosPointer
+import link.socket.phosphor.lumos.projection.PixelLattice
+import link.socket.phosphor.palette.AtmospherePresets
+
+@Composable
+fun PointedCanvas() {
+    // 1. An interactive scene: its cells part around the pointer
+    val source = remember { LiveFrameSource(AtmospherePresets.THINKING, LumosRenderConfig(interactive = true)) }
+    val lattice = remember { PixelLattice(widthPx = 160, heightPx = 160, voxelRadiusPx = 4f) }
+
+    // 2. Your own clock: project each frame as it is stepped
+    var frame by remember { mutableStateOf(lattice.project(source.next(0f))) }
+    LaunchedEffect(source) {
+        var last = withFrameNanos { it }
+        while (true) {
+            withFrameNanos { now ->
+                frame = lattice.project(source.next((now - last) / 1_000_000_000f))
+                last = now
+            }
+        }
+    }
+
+    // 3. The pointer, in the orb's view space, from one modifier that never consumes it;
+    //    the projected frame then carries it in pixels for a material's light
+    LumosCanvas(frame, Modifier.size(160.dp).lumosPointer { source.setInput(it) })
+}
+```
+
 ### The orb becomes a control
 
 `:phosphor-lumos-surface` lets the orb's cells leave their slot, fly to a real layout element and become it, with the element keeping focus, click and semantics throughout and nothing ticking once it is solid:

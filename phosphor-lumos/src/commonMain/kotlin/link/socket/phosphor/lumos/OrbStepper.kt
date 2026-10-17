@@ -5,6 +5,7 @@ import kotlin.math.min
 import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.projection.PixelLattice
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * The clock and the held frame behind a pixel-surface orb, with no framework in them, so every
@@ -30,6 +31,13 @@ import link.socket.phosphor.lumos.projection.PixelLattice
  * Every call that can draw returns the frame it projected, or null when what is drawn did not
  * change, so a surface hands only new frames on: Compose's `LumosOrb` puts them in its state.
  * [frame] is always the one drawn last.
+ *
+ * [setInput] hands the pointer to the source and keeps it: from then on every frame projected
+ * here carries this pointer ([LumosCanvasFrame.pointer]) in place of whatever the source's frame
+ * carries, so a still, which carries none, and a recording, which cannot answer, are lit where the
+ * person points as a live frame is — and a pointer that has left lights nothing, even on a live
+ * frame built before it left. A surface that never calls it leaves the frame's own pointer alone.
+ * A pointer alone projects nothing: the next frame carries it.
  *
  * Main-thread only, like the source it steps.
  *
@@ -73,6 +81,8 @@ class OrbStepper(
     private var platformReduced: Boolean = platformReducesMotion()
     private var platformCheckedNanos: Long = NEVER
 
+    private var input: LumosInput? = null
+
     /** Whether the orb holds still: its config asks, or the platform does. */
     val reducedMotion: Boolean get() = config.reducedMotion || platformReduced
 
@@ -112,6 +122,15 @@ class OrbStepper(
     fun place(viewport: OrbViewport?): LumosCanvasFrame? {
         this.viewport = viewport
         return reproject()
+    }
+
+    /**
+     * What the person is doing to the surface: hand it to the source ([LumosFrameSource.setInput])
+     * and light every frame from here on with its pointer. Projects nothing by itself.
+     */
+    fun setInput(input: LumosInput) {
+        this.input = input
+        source.setInput(input)
     }
 
     /** The orb starts or resumes stepping: the next step aligns its source to its look's clock. */
@@ -199,7 +218,7 @@ class OrbStepper(
         target: PixelLattice,
         voxels: VoxelFrame,
     ): LumosCanvasFrame {
-        val projected = target.project(voxels)
+        val projected = target.project(voxels, (input ?: voxels.input)?.pointer)
         frame = projected
         projectedWith = target
         return projected
