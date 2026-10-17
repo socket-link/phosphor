@@ -102,6 +102,7 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core`; also the `LumosCanvasFrame` DTO, `PixelLattice` projection and `OrbStepper` clock every pixel surface shares |
 | `phosphor-lumos-cli/` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
 | `phosphor-lumos-compose/` | Compose Multiplatform Canvas rendering surface (`LumosCanvas`, `LumosOrb`) for projected Lumos voxel frames |
+| `phosphor-lumos-surface/` | Compose Multiplatform surface (`LumosSurface`, `LumosSurfaceOrb`, `Modifier.lumosTarget`, `LumosSurfaceState`) on which the orb's cells assemble into a layout element and hand off to it; depends on `phosphor-lumos-compose` |
 | `phosphor-lumos-dom/` | Kotlin/JS-only DOM/SVG surface (`SvgOrbSurface`, `DomLumosDriver`) shipped as an ES module with a plain-JS `mount(svg, options)`; not published to Maven |
 | `phosphor-trace/` | Recorded `VoxelTrace` format, capture, codec, and playback — versioned segments and a CBOR + gzip codec |
 
@@ -126,6 +127,9 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-lumos-cli/src/commonTest/` | CLI DTO serialization and shape-contract tests |
 | `phosphor-lumos-compose/src/commonMain/` | Compose Multiplatform Canvas surface for Lumos frames |
 | `phosphor-lumos-compose/src/commonTest/` | Compose surface and Compose-state tests |
+| `phosphor-lumos-surface/src/commonMain/` | The surface root, the orb's slot, the target modifier, the state that owns the assembly and the hand-off painter |
+| `phosphor-lumos-surface/src/commonTest/` | State tests: phases, measured arrival, follow, cancel, release, reduced motion |
+| `phosphor-lumos-surface/src/jvmTest/` | Semantics tests under the overlay and the recorded Turn-on moment (`build/lumos-surface/`) |
 | `phosphor-lumos-dom/src/jsMain/` | SVG surface, rAF driver, browser facade and the `@JsExport` `mount` API |
 | `phosphor-lumos-dom/src/jsTest/` | Golden attribute sets per style and driver gates, against a fake DOM and a fake page (`:phosphor-lumos-dom:jsTest`) |
 

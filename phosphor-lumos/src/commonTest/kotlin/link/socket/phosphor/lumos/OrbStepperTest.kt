@@ -274,6 +274,27 @@ class OrbStepperTest {
     }
 
     @Test
+    fun `a viewport projects the orb at its centre and sizes voxels by its radius`() {
+        val source = RecordingSource(frame = frame(cellY = 0.5f))
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.resize(400, 300)
+        stepper.step(secondsToNanos(1.0))
+
+        val placed = assertNotNull(stepper.place(OrbViewport(centerXPx = 300f, centerYPx = 100f, radiusPx = 50f)))
+
+        val voxel = placed.voxels.single()
+        assertEquals(300f, voxel.screenX, 1e-3f)
+        assertEquals(75f, voxel.screenY, 1e-3f)
+        // radiusPx / (2 · resolution 10): the same rule as a 100 px canvas of its own.
+        assertEquals(2.5f, voxel.radiusPx, 1e-4f)
+        assertNull(stepper.place(OrbViewport(300f, 100f, 50f)), "the same viewport reuses the projection")
+
+        val home = assertNotNull(stepper.place(null))
+        assertEquals(200f, home.voxels.single().screenX, 1e-3f)
+        assertEquals(7.5f, home.voxels.single().radiusPx, 1e-4f)
+    }
+
+    @Test
     fun `the tilt reaches the projection`() {
         val source = RecordingSource(frame = frame(cellY = 0.5f))
         val stepper = OrbStepper(source, LookClock()) { false }

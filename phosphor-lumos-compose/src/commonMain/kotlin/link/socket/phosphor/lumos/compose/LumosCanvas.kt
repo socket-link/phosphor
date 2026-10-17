@@ -122,11 +122,17 @@ internal fun DrawScope.drawLumosFrame(
     }
 }
 
-// Paints in list order, which is painter's order for any frame from PixelLattice.project.
-// A hand-built frame that is out of order is sorted first (the only allocation on this path).
-// Every style draws a cell at least SurfaceStyle.MIN_RADIUS_PX across: below it a cell rasterises
-// to grey haze, and at 20 px most of the orb would.
-internal fun DrawScope.drawVoxels(
+/**
+ * Paint [frame]'s voxels with [painter], and nothing else: no background, halo or glyph.
+ *
+ * Paints in list order, which is painter's order for any frame from
+ * [link.socket.phosphor.lumos.projection.PixelLattice.project]. A hand-built frame that is out of
+ * order is sorted first, the only allocation on this path. Every style draws a cell at least
+ * [SurfaceStyle.MIN_RADIUS_PX] across: below it a cell rasterises to grey haze, and at 20 px most
+ * of the orb would. [LumosCanvas] draws through this; a surface that draws the orb's cells
+ * somewhere other than the orb's own canvas can too, with a [SurfacePainter] of its own.
+ */
+fun DrawScope.drawVoxels(
     frame: LumosCanvasFrame,
     painter: SurfacePainter,
 ) {

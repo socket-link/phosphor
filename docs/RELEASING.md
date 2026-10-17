@@ -185,7 +185,7 @@ exists to prevent, and it only covers the drift it can read off the workflow.
 
 ## What gets published
 
-Five modules, all at `phosphorVersion`, under the `link.socket` group:
+Six modules, all at `phosphorVersion`, under the `link.socket` group:
 
 | Module | Coordinate |
 |--------|------------|
@@ -193,12 +193,14 @@ Five modules, all at `phosphorVersion`, under the `link.socket` group:
 | `phosphor-lumos` | `link.socket:phosphor-lumos` |
 | `phosphor-lumos-cli` | `link.socket:phosphor-lumos-cli` |
 | `phosphor-lumos-compose` | `link.socket:phosphor-lumos-compose` |
+| `phosphor-lumos-surface` | `link.socket:phosphor-lumos-surface` |
 | `phosphor-trace` | `link.socket:phosphor-trace` |
 
 The list lives in `publish.yml`'s run commands — the publish step and the
 dry-run step, both of which `verifyPublishWorkflowCoverage` reads. The modules
 depend on each other (`:phosphor-lumos-cli` → `:phosphor-trace` →
-`:phosphor-lumos` → `:phosphor-core`), so an omission is not one missing
+`:phosphor-lumos` → `:phosphor-core`, and `:phosphor-lumos-surface` →
+`:phosphor-lumos-compose` → `:phosphor-lumos`), so an omission is not one missing
 artifact but an unresolvable POM in whatever depended on it.
 
 ## Rules
@@ -295,7 +297,7 @@ resolves and the artifacts build. It does not sign (signing is disabled for
 `publishToMavenLocal`) and Central never sees it, so it is a complement to
 `release-preflight.sh` rather than a substitute.
 
-**Local integration testing.** `./gradlew publishToMavenLocal` puts all five
+**Local integration testing.** `./gradlew publishToMavenLocal` puts all six
 modules in `~/.m2` at the current `phosphorVersion` — the path for trying a
 change against a consumer before it is released.
 
@@ -308,6 +310,7 @@ already pushed. Publish every module, or the release is partial:
   :phosphor-lumos:publishAllPublicationsToMavenCentralRepository \
   :phosphor-lumos-cli:publishAllPublicationsToMavenCentralRepository \
   :phosphor-lumos-compose:publishAllPublicationsToMavenCentralRepository \
+  :phosphor-lumos-surface:publishAllPublicationsToMavenCentralRepository \
   :phosphor-trace:publishAllPublicationsToMavenCentralRepository \
   -PmavenCentralUsername=YOUR_TOKEN_USERNAME \
   -PmavenCentralPassword=YOUR_TOKEN_PASSWORD \

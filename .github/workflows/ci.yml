@@ -68,6 +68,7 @@ jobs:
           :phosphor-core:compileReleaseKotlinAndroid
           :phosphor-lumos:compileReleaseKotlinAndroid
           :phosphor-lumos-compose:compileReleaseKotlinAndroid
+          :phosphor-lumos-surface:compileReleaseKotlinAndroid
 
   web:
     name: Web (JS, Wasm)
@@ -181,5 +182,6 @@ jobs:
           :phosphor-core:compileKotlinIosArm64
           :phosphor-lumos:compileKotlinIosArm64
           :phosphor-lumos-compose:compileKotlinIosArm64
+          :phosphor-lumos-surface:compileKotlinIosArm64
           :phosphor-trace:compileKotlinIosArm64
           iosSimulatorArm64Test
