@@ -272,12 +272,13 @@ class MaterialSnapshotTest {
     @Test
     fun `side by side of neon's halo constructions and glow on dots at 200 px`() {
         // Columns: Flat, Neon with no halo (two passes), stepped halo, gradient halo; rows: glow 0.25, 0.5, 1.
-        val columns = listOf<Pair<String, (Float) -> Pair<Material?, NeonHalo>>>(
-            "flat" to { _ -> Material.Flat to NeonHalo.None },
-            "two-pass" to { g -> Material.Neon(g) to NeonHalo.None },
-            "stepped" to { g -> Material.Neon(g) to NeonHalo.Stepped },
-            "gradient" to { g -> Material.Neon(g) to NeonHalo.Gradient },
-        )
+        val columns =
+            listOf<Pair<String, (Float) -> Pair<Material?, NeonHalo>>>(
+                "flat" to { _ -> Material.Flat to NeonHalo.None },
+                "two-pass" to { g -> Material.Neon(g) to NeonHalo.None },
+                "stepped" to { g -> Material.Neon(g) to NeonHalo.Stepped },
+                "gradient" to { g -> Material.Neon(g) to NeonHalo.Gradient },
+            )
         val glows = listOf(0.25f, 0.5f, 1f)
         val (large, _) = surfacePreviewFrames(AtmospherePresets.THINKING, LumosLook.WORKING)
         val sheetWidth = GAP + columns.size * (LARGE_PX + GAP)

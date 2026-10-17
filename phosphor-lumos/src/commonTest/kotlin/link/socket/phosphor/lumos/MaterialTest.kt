@@ -45,7 +45,7 @@ class MaterialTest {
     }
 
     @Test
-    fun `grain is deterministic, in range, and differs between neighbouring cells`() {
+    fun `grain is deterministic and in range and differs between neighbouring cells`() {
         val bits = (0 until 256).map { Material.grainBits(it) }
         assertEquals(bits, (0 until 256).map { Material.grainBits(it) })
         for (b in bits) {
