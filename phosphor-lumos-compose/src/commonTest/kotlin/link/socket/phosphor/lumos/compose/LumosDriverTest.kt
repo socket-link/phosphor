@@ -58,7 +58,7 @@ class LumosDriverTest {
         Snapshot.sendApplyNotifications()
 
         val changed = mutableListOf<Any>()
-        val observer = Snapshot.registerApplyObserver { states, _ -> changed += states }
+        val observer = Snapshot.registerApplyObserver { states, _ -> changed.addAll(states) }
         try {
             driver.step(secondsToNanos(1.016))
             driver.pollHeld()
