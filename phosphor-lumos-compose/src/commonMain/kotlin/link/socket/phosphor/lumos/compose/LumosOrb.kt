@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.LumosFrameSource
+import link.socket.phosphor.lumos.LumosSequencePlayer
 import link.socket.phosphor.lumos.Material
 import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.SurfaceStyle
@@ -104,8 +105,49 @@ fun LumosOrb(
     showGlyphOverlay: Boolean = true,
     probe: FrameProbe = FrameProbe.Disabled,
 ) {
+    DrivenOrb(source, null, config, modifier, backgroundColor, showHalo, showGlyphOverlay, probe)
+}
+
+/**
+ * A [LumosOrb] whose clock also drives a [LumosSequencePlayer]: the orb connects to [player]
+ * while it is running — on screen, started, not paused — and advances it by every step it hands
+ * [source], so a source following the player ([link.socket.phosphor.lumos.LiveFrameSource.follow],
+ * `SignalGenerator.play(player)`) changes step in time with the frames. Off screen or paused, the
+ * orb releases its connection and the sequence holds, as the orb does.
+ *
+ * The player is a shared clock: several orbs may connect to one, and an external driver may take
+ * it over with [LumosSequencePlayer.control] while the orb keeps drawing.
+ *
+ * @param source Where frames come from; should follow [player], or the sequence shows nothing.
+ * @param player The sequence clock this orb advances. Remember it across recompositions.
+ */
+@Composable
+fun LumosOrb(
+    source: LumosFrameSource,
+    player: LumosSequencePlayer,
+    config: LumosConfig = LumosConfig(),
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = Color.Transparent,
+    showHalo: Boolean = true,
+    showGlyphOverlay: Boolean = true,
+    probe: FrameProbe = FrameProbe.Disabled,
+) {
+    DrivenOrb(source, player, config, modifier, backgroundColor, showHalo, showGlyphOverlay, probe)
+}
+
+@Composable
+private fun DrivenOrb(
+    source: LumosFrameSource,
+    player: LumosSequencePlayer?,
+    config: LumosConfig,
+    modifier: Modifier,
+    backgroundColor: Color,
+    showHalo: Boolean,
+    showGlyphOverlay: Boolean,
+    probe: FrameProbe,
+) {
     val clock = LocalLookClock.current
-    val driver = remember(source, clock) { LumosDriver(source, clock) }
+    val driver = remember(source, clock, player) { LumosDriver(source, clock, player) }
     SideEffect { driver.update(config, probe) }
 
     var onScreen by remember { mutableStateOf(false) }
@@ -115,12 +157,18 @@ fun LumosOrb(
 
     LaunchedEffect(driver, running) {
         if (!running) return@LaunchedEffect
-        driver.rejoin()
-        while (true) {
-            withFrameNanos(driver.onFrame)
-            // A held pose only changes at a state or glyph boundary; a slower beat spares a
-            // device whose owner asked it for less motion.
-            if (driver.reducedMotion) delay(REDUCED_MOTION_INTERVAL)
+        // Connected only while running, so the sequence clock stops with the orb's.
+        val release = player?.connect()
+        try {
+            driver.rejoin()
+            while (true) {
+                withFrameNanos(driver.onFrame)
+                // A held pose only changes at a state or glyph boundary; a slower beat spares a
+                // device whose owner asked it for less motion.
+                if (driver.reducedMotion) delay(REDUCED_MOTION_INTERVAL)
+            }
+        } finally {
+            release?.invoke()
         }
     }
 

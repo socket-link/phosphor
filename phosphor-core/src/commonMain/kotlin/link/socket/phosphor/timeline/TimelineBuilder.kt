@@ -166,6 +166,13 @@ class TimelineBuilder {
 /**
  * Create a timeline using the DSL.
  *
+ * This is code: phases carry lambdas, so a timeline cannot be written as data or
+ * shipped in a file. The Lumos orb's choreography — steps of look, form,
+ * atmosphere and glyph with durations — is `LumosSequence` in `:phosphor-lumos`,
+ * which is `@Serializable`, captured by `Oscilloscope` and played live by
+ * `SignalGenerator` from one definition. Reach for that when the "then this" is
+ * an orb's; reach for this when it is arbitrary code.
+ *
  * Example:
  * ```kotlin
  * val timeline = timeline {

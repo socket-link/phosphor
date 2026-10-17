@@ -19,6 +19,14 @@ import link.socket.phosphor.signal.AtmosphereState
  * runtime; particles, flow, waveform, emitters, and camera do not contribute to
  * a `VoxelFrame` and are switched off so capture stays cheap.
  *
+ * ### Sequences
+ *
+ * [CaptureConfig.sequence] is the preferred script: the generator plays the
+ * `LumosSequence` (`SignalGenerator.play`) exactly as a live orb would, frame
+ * `k` being the sequence at `k / fps`, and each step becomes the `TraceSegment`
+ * named after it. A clip captured this way replays through [TraceStateMachine]
+ * by step name. Cues and hand-written segments remain for frame-indexed scripts.
+ *
  * ### Loop seams
  *
  * By default capture does not make a `loop` segment wrap. It records whatever
@@ -80,7 +88,7 @@ object Oscilloscope {
                     createdAtEpochMs = config.createdAtEpochMs,
                     seed = config.seed,
                     paramSnapshot = snapshotParams(config),
-                    segments = config.segments,
+                    segments = segmentsOf(config),
                 ),
             )
         } catch (error: Throwable) {
@@ -104,6 +112,7 @@ object Oscilloscope {
                 "durationMs=${config.durationMs} at fps=${config.fps} yields no frames",
             )
         }
+        validateSequence(config)?.let { return it }
         config.segments.forEach { segment ->
             if (segment.endFrame >= frameCount) {
                 return CaptureError.InvalidConfig(
@@ -144,6 +153,41 @@ object Oscilloscope {
         return validateSeamBlend(config)
     }
 
+    private fun validateSequence(config: CaptureConfig): CaptureError? {
+        val sequence = config.sequence ?: return null
+        if (config.segments.isNotEmpty() || config.cues.isNotEmpty() ||
+            config.formCues.isNotEmpty() || config.phaseCues.isNotEmpty()
+        ) {
+            return CaptureError.InvalidConfig(
+                "A sequence names its own segments and changes; segments, cues, formCues and phaseCues must be empty",
+            )
+        }
+        if (config.fps < CaptureConfig.MIN_SEQUENCE_FPS) {
+            return CaptureError.InvalidConfig(
+                "A sequence captures at fps >= ${CaptureConfig.MIN_SEQUENCE_FPS}, was ${config.fps}",
+            )
+        }
+        val layout = sequence.frameLayout(config.fps)
+        layout.segments.forEachIndexed { index, segment ->
+            if (segment == null) {
+                return CaptureError.InvalidConfig(
+                    "Sequence step $index '${sequence.steps[index].name}' is shorter than a frame at ${config.fps} fps",
+                )
+            }
+        }
+        if (layout.frameCount > config.frameCount) {
+            return CaptureError.InvalidConfig(
+                "The sequence needs ${layout.frameCount} frames at ${config.fps} fps; " +
+                    "the clip has ${config.frameCount}. CaptureConfig.forSequence sizes a clip to its sequence",
+            )
+        }
+        return null
+    }
+
+    // The segments the trace is written with: the sequence's, else the config's.
+    private fun segmentsOf(config: CaptureConfig): List<TraceSegment> =
+        config.sequence?.frameLayout(config.fps)?.segments?.map { requireNotNull(it) } ?: config.segments
+
     private fun validateSeamBlend(config: CaptureConfig): CaptureError? {
         val blendFrames = config.seamBlendFrames
         if (blendFrames == 0) return null
@@ -155,7 +199,7 @@ object Oscilloscope {
                     "${config.params.renderConfig.omitBelowScale}",
             )
         }
-        config.segments.filter(TraceSegment::loop).forEach { segment ->
+        segmentsOf(config).filter(TraceSegment::loop).forEach { segment ->
             if (blendFrames >= segment.frameCount) {
                 return CaptureError.InvalidConfig(
                     "seamBlendFrames $blendFrames must be shorter than loop segment '${segment.name}', " +
@@ -199,8 +243,11 @@ object Oscilloscope {
             if (blendFrames == 0) {
                 emptySet()
             } else {
-                config.segments.filter(TraceSegment::loop).map(TraceSegment::startFrame).toSet()
+                segmentsOf(config).filter(TraceSegment::loop).map(TraceSegment::startFrame).toSet()
             }
+        // The sequence plays through the same path a live orb uses: frame k is the sequence at
+        // k / fps, applied before the step that produces it, as a cue at frame k would be.
+        config.sequence?.let { sequence -> generator.play(sequence) }
 
         val frames = ArrayList<VoxelFrame>(config.frameCount)
         val leadIns = HashMap<Int, List<VoxelFrame>>()
@@ -234,7 +281,7 @@ object Oscilloscope {
     ): List<VoxelFrame> {
         val blendFrames = config.seamBlendFrames
         val baked = ArrayList(captured)
-        config.segments.filter(TraceSegment::loop).forEach { segment ->
+        segmentsOf(config).filter(TraceSegment::loop).forEach { segment ->
             val leadIn = leadIns.getValue(segment.startFrame)
             for (step in 0 until blendFrames) {
                 // The window's last frame takes weight 1 and so becomes the frame
@@ -306,6 +353,9 @@ object Oscilloscope {
             snapshot["phaseCue.$index.atFrame"] = cue.atFrame.toString()
             snapshot["phaseCue.$index.phase"] = cue.phase.name
         }
+        // Only when present, so a capture without a sequence keeps its bytes. The sequence's
+        // own JSON, so the trace carries the script it was captured from.
+        config.sequence?.let { sequence -> snapshot["sequence"] = sequence.toJson() }
         return snapshot
     }
 

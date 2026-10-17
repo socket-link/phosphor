@@ -54,6 +54,28 @@ class OrbStepperTest {
     }
 
     @Test
+    fun `a sequence player is advanced by the step the source takes`() {
+        val source = RecordingSource()
+        val player =
+            LumosSequencePlayer(
+                LumosSequence(steps = listOf(LumosStep("idle", 1f, atmospherePreset = "idle"))),
+            )
+        val stepper = OrbStepper(source, LookClock(), player) { false }
+        stepper.update(LumosConfig(speed = 2f), FrameProbe.Disabled)
+
+        // Not connected: the stepper steps the source but the sequence clock holds.
+        stepper.step(secondsToNanos(1.0))
+        stepper.step(secondsToNanos(1.016))
+        assertEquals(0f, player.timeSeconds)
+
+        player.connect()
+        stepper.step(secondsToNanos(1.032))
+
+        assertEquals(0.032f, player.timeSeconds, 1e-6f)
+        assertEquals(0.032f, source.steps.last(), 1e-6f)
+    }
+
+    @Test
     fun `an orb aligns to its look's clock on its first step and on each return`() {
         val source = RecordingSource()
         val stepper = OrbStepper(source, LookClock()) { false }

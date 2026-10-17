@@ -38,7 +38,7 @@ internal class DomLumosDriver(
     private val maxFps: Double,
     clock: LookClock = PageLookClock,
 ) {
-    private val stepper = OrbStepper(source, clock, host::reducesMotion)
+    private val stepper = OrbStepper(source, clock, platformReducesMotion = host::reducesMotion)
     private val minFrameMs = if (maxFps > 0.0) 1000.0 / maxFps else 0.0
 
     private var started = false

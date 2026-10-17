@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.LumosFrameSource
+import link.socket.phosphor.lumos.LumosSequencePlayer
 import link.socket.phosphor.lumos.OrbStepper
 import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.frame.LumosCanvasFrame
@@ -24,9 +25,10 @@ import link.socket.phosphor.signal.LumosInput
 internal class LumosDriver(
     source: LumosFrameSource,
     clock: LookClock,
+    player: LumosSequencePlayer? = null,
     platformReducesMotion: () -> Boolean = { PlatformMotionPreference.reduceMotion },
 ) {
-    private val stepper = OrbStepper(source, clock, platformReducesMotion)
+    private val stepper = OrbStepper(source, clock, player, platformReducesMotion)
 
     /** What the canvas draws; null until a frame has been projected. Compose state, so the canvas follows it. */
     var canvasFrame: LumosCanvasFrame? by mutableStateOf(null)

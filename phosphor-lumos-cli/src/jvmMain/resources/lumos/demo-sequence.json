@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "loop": true,
+  "steps": [
+    { "name": "idle",            "durationSeconds": 2.0,     "atmospherePreset": "idle",      "loop": true },
+    { "name": "idle→thinking",   "durationSeconds": 0.83333, "atmospherePreset": "thinking" },
+    { "name": "thinking",        "durationSeconds": 2.0,     "atmospherePreset": "thinking",  "loop": true },
+    { "name": "thinking→idle",   "durationSeconds": 1.0,     "atmospherePreset": "idle" },
+    { "name": "idle→uncertain",  "durationSeconds": 1.41667, "atmospherePreset": "uncertain" },
+    { "name": "uncertain",       "durationSeconds": 2.0,     "atmospherePreset": "uncertain", "loop": true },
+    { "name": "uncertain→idle",  "durationSeconds": 1.16667, "atmospherePreset": "idle" },
+    { "name": "idle→fibonacci",  "durationSeconds": 2.41667, "form": "fibonacci" },
+    { "name": "fibonacci",       "durationSeconds": 2.0,     "form": "fibonacci",             "loop": true },
+    { "name": "fibonacci→idle",  "durationSeconds": 2.41667, "form": "sphere" },
+    { "name": "idle→cube",       "durationSeconds": 2.41667, "form": "cube" },
+    { "name": "cube",            "durationSeconds": 2.0,     "form": "cube",                  "loop": true },
+    { "name": "cube→idle",       "durationSeconds": 2.41667, "form": "sphere" }
+  ]
+}

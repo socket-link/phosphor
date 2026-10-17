@@ -310,7 +310,7 @@ class LumosSurfaceState(
                     homeForm = builder.form
                     // New each flight, so its first step is dt = 0: the slot's orb has stepped this frame.
                     stepper =
-                        OrbStepper(fadingSource, clock, platformReducesMotion).also {
+                        OrbStepper(fadingSource, clock, platformReducesMotion = platformReducesMotion).also {
                             it.update(config, FrameProbe.Disabled)
                             it.resize(widthPx, heightPx)
                             it.place(viewport)
