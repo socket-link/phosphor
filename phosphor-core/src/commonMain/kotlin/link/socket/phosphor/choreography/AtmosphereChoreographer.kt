@@ -349,12 +349,25 @@ class AtmosphereChoreographer(
     private fun resolveSpec(
         fromName: String?,
         toName: String?,
-    ): AtmosphereTransitionSpec {
-        if (fromName == null || toName == null) return DefaultSpec
-        return DefaultTransitionTable[fromName to toName] ?: DefaultSpec
-    }
+    ): AtmosphereTransitionSpec = transitionSpec(fromName, toName)
 
     companion object {
+        /**
+         * The duration and easing the table gives a transition from the preset
+         * named [fromName] to the one named [toName], or [DefaultSpec] when
+         * either is null or the pair is not tabled, matched exactly against the
+         * lower-case names in `AtmospherePresets.ALL`. What [setAtmosphere] uses
+         * when no spec is passed, exposed so a `LumosSequence` can say how long
+         * a step's arrival lasts without replaying it.
+         */
+        fun transitionSpec(
+            fromName: String?,
+            toName: String?,
+        ): AtmosphereTransitionSpec {
+            if (fromName == null || toName == null) return DefaultSpec
+            return DefaultTransitionTable[fromName to toName] ?: DefaultSpec
+        }
+
         /**
          * Fallback transition spec used when the lookup against
          * [DefaultTransitionTable] does not match. 1.1 seconds, easeInOut.

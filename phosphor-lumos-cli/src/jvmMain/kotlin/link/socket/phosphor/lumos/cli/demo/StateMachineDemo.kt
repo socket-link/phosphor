@@ -6,17 +6,13 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import link.socket.phosphor.lumos.Forms
-import link.socket.phosphor.lumos.LumosForm
+import link.socket.phosphor.lumos.LumosSequence
 import link.socket.phosphor.lumos.cli.projection.CliLattice
 import link.socket.phosphor.lumos.cli.renderer.CliOrb
 import link.socket.phosphor.lumos.cli.renderer.DefaultTerminalSize
 import link.socket.phosphor.palette.AtmospherePresets
-import link.socket.phosphor.signal.AtmosphereState
-import link.socket.phosphor.trace.AtmosphereCue
 import link.socket.phosphor.trace.CaptureConfig
 import link.socket.phosphor.trace.CaptureParams
-import link.socket.phosphor.trace.FormCue
 import link.socket.phosphor.trace.Oscilloscope
 import link.socket.phosphor.trace.TraceSegment
 import link.socket.phosphor.trace.TraceStateMachine
@@ -45,14 +41,15 @@ import link.socket.phosphor.trace.seamErrors
  *   falls through to the crossfade, which drags cells and is the pop the morph
  *   exists to avoid.
  *
- * The clip is captured fresh on every run, so the segment layout in the status
- * header is the layout the state machine is actually reading. It is captured
- * with a baked seam blend (PHO-43), so a loop left alone — idle, most of the
- * orb's life — iterates without popping too; the header prints each loop's
- * measured seam. Each loop follows its transition directly: the blend fades
- * toward a lead-in synthesized from the loop's own steady state (PHO-49), so no
- * one-shot carries settle padding and `state` flips as soon as the authored
- * motion lands.
+ * The clip is captured fresh on every run from [DEMO_SEQUENCE_RESOURCE], a
+ * `LumosSequence` written as JSON (PHO-65): thirteen steps, each the segment the
+ * state machine reads, so the layout in the status header is the one the data
+ * says. It is the first clip authored in the format. The capture bakes a seam
+ * blend (PHO-43), so a loop left alone — idle, most of the orb's life — iterates
+ * without popping too; the header prints each loop's measured seam. Each loop
+ * follows its transition directly: the blend fades toward a lead-in synthesized
+ * from the loop's own steady state (PHO-49), so no one-shot carries settle
+ * padding and `state` flips as soon as the authored motion lands.
  *
  * Not a test. Nothing here is asserted; it is meant to be watched.
  *
@@ -81,58 +78,22 @@ private const val UNCERTAIN = "uncertain"
 private const val FIBONACCI = "fibonacci"
 private const val CUBE = "cube"
 
-/** The morph's own 2.4 s at 24 fps, rounded up, so the loop that follows starts settled. */
-private const val MORPH_FRAMES = 58
-
-/** The lattice every preset renders on, to morph back to. */
-private val SPHERE: LumosForm = Forms.Lattice(AtmospherePresets.IDLE.resolution)
-
 /**
- * One stretch of the captured clip.
+ * The capture script, as data: the bundled `LumosSequence`.
  *
- * @property name Segment name written into the trace, arrow convention included.
- * @property frames How many captured frames the stretch covers.
- * @property loop Whether a player should loop the stretch or play it once.
- * @property cue Atmosphere to fire at the stretch's first frame, or null to carry on.
- * @property form Form to morph to at the stretch's first frame, or null to keep the current one.
+ * Three resting loops and four of the six directed transitions between them,
+ * then the lattice reshaping into each catalogue form and back (PHO-57).
+ * Transition steps last the authored durations in `AtmosphereChoreographer`'s
+ * table — 0.8 s, 1.0 s, 1.4 s, 1.15 s — and the morph's 2.4 s, each rounded up to
+ * whole frames at 24 fps and written with enough digits to land on them, so each
+ * one has landed by the time the loop that follows starts on the very next
+ * frame. Nothing is padded: a loop's tail fades toward a lead-in synthesized
+ * from its own steady state, not toward these frames (PHO-49). The two
+ * `thinking↔uncertain` pairs are left out on purpose: they are what the
+ * crossfade covers. Every loop step names the state the one-shot before it
+ * landed, which applies nothing — the format's rule for resting beats.
  */
-private data class Beat(
-    val name: String,
-    val frames: Int,
-    val loop: Boolean,
-    val cue: AtmosphereState? = null,
-    val form: LumosForm? = null,
-)
-
-/**
- * The capture script.
- *
- * Three resting loops and four of the six directed transitions between them.
- * Transition lengths are the authored durations in `AtmosphereChoreographer`'s
- * table — 0.8 s, 1.0 s, 1.4 s, 1.15 s at 24 fps — rounded up to whole frames,
- * so each one has landed by the time the loop that follows starts on the very
- * next frame. Nothing is padded: the loop's tail fades toward a lead-in
- * synthesized from its own steady state, not toward these frames (PHO-49). The
- * two `thinking↔uncertain` pairs are left out on purpose: they are what the
- * crossfade covers.
- */
-private val SCRIPT =
-    listOf(
-        Beat(IDLE, frames = 48, loop = true),
-        Beat("$IDLE→$THINKING", frames = 20, loop = false, cue = AtmospherePresets.THINKING),
-        Beat(THINKING, frames = 48, loop = true),
-        Beat("$THINKING→$IDLE", frames = 24, loop = false, cue = AtmospherePresets.IDLE),
-        Beat("$IDLE→$UNCERTAIN", frames = 34, loop = false, cue = AtmospherePresets.UNCERTAIN),
-        Beat(UNCERTAIN, frames = 48, loop = true),
-        Beat("$UNCERTAIN→$IDLE", frames = 28, loop = false, cue = AtmospherePresets.IDLE),
-        // Form morphs, idle only: the lattice reshaping into each catalogue form and back (PHO-57).
-        Beat("$IDLE→$FIBONACCI", frames = MORPH_FRAMES, loop = false, form = Forms.Fibonacci),
-        Beat(FIBONACCI, frames = 48, loop = true),
-        Beat("$FIBONACCI→$IDLE", frames = MORPH_FRAMES, loop = false, form = SPHERE),
-        Beat("$IDLE→$CUBE", frames = MORPH_FRAMES, loop = false, form = Forms.Cube),
-        Beat(CUBE, frames = 48, loop = true),
-        Beat("$CUBE→$IDLE", frames = MORPH_FRAMES, loop = false, form = SPHERE),
-    )
+internal const val DEMO_SEQUENCE_RESOURCE = "/lumos/demo-sequence.json"
 
 fun main(args: Array<String>) {
     val runSeconds = args.getOrNull(0)?.toIntOrNull()?.coerceAtLeast(1) ?: DEFAULT_SECONDS
@@ -147,43 +108,35 @@ fun main(args: Array<String>) {
     withRawKeys { play(trace, runSeconds) }
 }
 
+/** Read the bundled sequence; a malformed resource is a build error, so this throws. */
+internal fun demoSequence(): LumosSequence {
+    val text =
+        checkNotNull(object {}.javaClass.getResourceAsStream(DEMO_SEQUENCE_RESOURCE)) {
+            "$DEMO_SEQUENCE_RESOURCE is not on the classpath"
+        }.use { stream -> stream.readBytes().decodeToString() }
+    return LumosSequence.fromJson(text).getOrThrow()
+}
+
 /**
- * Capture [SCRIPT] into a trace. [seamBlendFrames] is a parameter so a test can
- * capture the same script unblended and measure what the blend changed.
+ * Capture the bundled sequence into a trace. [seamBlendFrames] is a parameter so
+ * a test can capture the same script unblended and measure what the blend changed.
  */
-internal fun captureDemoTrace(seamBlendFrames: Int = SEAM_BLEND_FRAMES): Result<VoxelTrace> {
-    val totalFrames = SCRIPT.sumOf(Beat::frames)
-    val segments = ArrayList<TraceSegment>(SCRIPT.size)
-    val cues = ArrayList<AtmosphereCue>()
-    val formCues = ArrayList<FormCue>()
-    var cursor = 0
-
-    SCRIPT.forEach { beat ->
-        segments += TraceSegment(beat.name, cursor, cursor + beat.frames - 1, beat.loop)
-        beat.cue?.let { cues += AtmosphereCue(atFrame = cursor, atmosphere = it) }
-        beat.form?.let { formCues += FormCue(atFrame = cursor, form = it) }
-        cursor += beat.frames
-    }
-
-    return Oscilloscope.capture(
-        CaptureConfig(
+internal fun captureDemoTrace(seamBlendFrames: Int = SEAM_BLEND_FRAMES): Result<VoxelTrace> =
+    Oscilloscope.capture(
+        CaptureConfig.forSequence(
+            sequence = demoSequence(),
+            fps = CAPTURE_FPS,
             params = CaptureParams(atmosphere = AtmospherePresets.IDLE),
             seed = 0x10_5E55L,
-            durationMs = (totalFrames * 1_000L + CAPTURE_FPS - 1) / CAPTURE_FPS,
-            fps = CAPTURE_FPS,
-            segments = segments,
-            cues = cues,
             seamBlendFrames = seamBlendFrames,
-            formCues = formCues,
         ),
     )
-}
 
 private fun describe(trace: VoxelTrace) {
     val loops = trace.segments.filter(TraceSegment::loop).map(TraceSegment::name)
     val recorded = trace.segments.filterNot(TraceSegment::loop).map(TraceSegment::name)
 
-    println("Lumos state-driven playback - PHO-39")
+    println("Lumos state-driven playback - PHO-39, scripted by $DEMO_SEQUENCE_RESOURCE (PHO-65)")
     println(
         "frames=${trace.frameCount} fps=${trace.fps} resolution=${trace.staticLattice.resolution} " +
             "cells/frame=${trace.cellCounts.maxOrNull() ?: 0}",

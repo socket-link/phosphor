@@ -131,6 +131,8 @@ tasks.register<JavaExec>("runStateMachineDemo") {
     val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
     dependsOn(jvmMainCompilation.compileTaskProvider)
     classpath = files(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    // The demo's script is a resource, demo-sequence.json, so the resources must be processed too.
+    dependsOn("jvmProcessResources")
     mainClass.set("link.socket.phosphor.lumos.cli.demo.StateMachineDemoKt")
     // Keypresses drive the state changes, so the task must own stdin as well as stdout.
     standardInput = System.`in`

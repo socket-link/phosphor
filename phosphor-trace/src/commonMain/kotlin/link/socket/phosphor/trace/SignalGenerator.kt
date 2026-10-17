@@ -16,6 +16,8 @@ import link.socket.phosphor.lumos.LumosForm
 import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.LumosGlyph
 import link.socket.phosphor.lumos.LumosRenderConfig
+import link.socket.phosphor.lumos.LumosSequence
+import link.socket.phosphor.lumos.LumosSequencePlayer
 import link.socket.phosphor.lumos.VoxelFrame
 import link.socket.phosphor.lumos.VoxelFrameBuilder
 import link.socket.phosphor.lumos.probe.FrameProbe
@@ -59,6 +61,16 @@ import link.socket.phosphor.signal.CognitivePhase
  * generator reads no agent and wears its look by hand, so a generator that
  * never calls them produces the frames it always has. [setLook] picks a look
  * directly and needs no switch.
+ *
+ * ### Sequences
+ *
+ * [play] puts the generator on a [LumosSequence]: at each step boundary it
+ * applies what the step names — [setAtmospherePreset], [morphTo], [setLook],
+ * [queueGlyph] — through the one path [LiveFrameSource.follow] implements, so
+ * `Oscilloscope` captures a sequence and a live orb plays it frame for frame.
+ * `play(sequence)` makes the generator the clock; `play(player)` follows a
+ * [LumosSequencePlayer] someone else advances, such as the orb's `OrbStepper`,
+ * which lets a scroll position or any external driver own time.
  *
  * @param configuration Scene to simulate. Atmosphere must be enabled — it is the
  *  only subsystem a `VoxelFrame` reads.
@@ -214,6 +226,38 @@ class SignalGenerator(
     fun setLook(look: Look) {
         builder.lookTo(look)
     }
+
+    /**
+     * Play [sequence] from its start, this generator being the clock: every
+     * [nextFrame] advances it by `1 / fps` after building, so frame `k` is the
+     * sequence at `k / fps`. Its first step is applied at once, against what the
+     * scene shows now. Replaces any sequence being played.
+     *
+     * @return The player, to pause, seek or [LumosSequencePlayer.control].
+     */
+    fun play(sequence: LumosSequence): LumosSequencePlayer {
+        val player = LumosSequencePlayer(sequence)
+        live.follow(player, clock = true)
+        return player
+    }
+
+    /**
+     * Follow [player] without advancing it: whoever drives the clock — an orb
+     * through [asFrameSource], a scroll position holding
+     * [LumosSequencePlayer.control] — decides where the sequence is, and each
+     * frame applies the step it falls in. Replaces any sequence being played.
+     */
+    fun play(player: LumosSequencePlayer) {
+        live.follow(player, clock = false)
+    }
+
+    /** Leave the sequence; the scene keeps the state its last step put it in. */
+    fun stopSequence() {
+        live.follow(null)
+    }
+
+    /** The sequence player this generator follows, or null. */
+    val sequencePlayer: LumosSequencePlayer? get() = live.sequence
 
     // The agent the setters write to, chosen on first use: the configured one, else the scene's first
     // by id — the one the builder reads — else a new AGENT_ID. Adds it if the scene lacks it, and

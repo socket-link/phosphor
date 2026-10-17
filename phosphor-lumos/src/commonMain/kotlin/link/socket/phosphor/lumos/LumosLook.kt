@@ -1,5 +1,7 @@
 package link.socket.phosphor.lumos
 
+import kotlinx.serialization.Serializable
+
 /**
  * The idiom the orb is wearing: the way its cells move for a cognitive moment,
  * as distinct from the atmosphere that colours them.
@@ -47,10 +49,14 @@ enum class LumosLook(val variants: List<String>) {
 /**
  * A [LumosLook] with one of its variants: what a [VoxelFrameBuilder] wears.
  *
+ * Serialises as `{"look":"WORKING","variant":"gyro"}`, the variant left out when it is
+ * the default, so a `LumosSequence` step can name one.
+ *
  * @property look The idiom.
  * @property variant One of [LumosLook.variants]; `"default"` unless asked otherwise.
  * @throws IllegalArgumentException when [variant] is not one the look offers.
  */
+@Serializable
 data class Look(
     val look: LumosLook,
     val variant: String = "default",

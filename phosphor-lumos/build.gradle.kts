@@ -94,12 +94,13 @@ kotlin {
             dependencies {
                 implementation(project(":phosphor-core"))
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
+                // LumosSequence.fromJson / toJson: the one wire format this module reads and writes.
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             }
         }
     }

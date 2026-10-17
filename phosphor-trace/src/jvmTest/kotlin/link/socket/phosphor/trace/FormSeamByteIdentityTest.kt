@@ -4,6 +4,8 @@ import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import link.socket.phosphor.lumos.LumosRenderConfig
+import link.socket.phosphor.lumos.LumosSequence
+import link.socket.phosphor.lumos.LumosStep
 import link.socket.phosphor.palette.AtmospherePresets
 
 /**
@@ -23,6 +25,12 @@ import link.socket.phosphor.palette.AtmospherePresets
  * PHO-82: an interactive orb is captured to the same bytes. The Oscilloscope's
  * scene has no pointer, so nothing parts, and the render config's `interactive`
  * is not recorded.
+ *
+ * PHO-65 extends it: the same clip scripted as a `LumosSequence` — an `idle`
+ * loop step and an `idle→thinking` step, half a second each — must produce the
+ * same frames and segments. Only `paramSnapshot` differs, by design: it records
+ * the sequence's JSON instead of the cue, so the digest is taken with the cue
+ * capture's snapshot put in its place.
  */
 class FormSeamByteIdentityTest {
     @Test
@@ -40,6 +48,45 @@ class FormSeamByteIdentityTest {
         val payload = gzipDecompress(TraceCodec.encode(trace))
 
         assertEquals(EXPECTED_PAYLOAD_SHA256, sha256Hex(payload), "an interactive orb's capture moved a cell")
+    }
+
+    @Test
+    fun `the same clip scripted as a sequence encodes to the same bytes`() {
+        val sequence =
+            LumosSequence(
+                steps =
+                    listOf(
+                        LumosStep("idle", 0.5f, atmospherePreset = "idle", loop = true),
+                        LumosStep("idle→thinking", 0.5f, atmospherePreset = "thinking"),
+                    ),
+            )
+        val config =
+            CaptureConfig.forSequence(
+                sequence = sequence,
+                fps = 20,
+                params = CaptureParams(atmosphere = AtmospherePresets.IDLE),
+            )
+
+        val captured = Oscilloscope.capture(config).getOrThrow()
+        val trace =
+            VoxelTrace.fromFrames(
+                frames = captured.toFrames(),
+                fps = captured.fps,
+                phosphorVersion = captured.phosphorVersion,
+                createdAtEpochMs = captured.createdAtEpochMs,
+                seed = captured.seed,
+                paramSnapshot = Oscilloscope.snapshotParams(config()),
+                segments = captured.segments,
+            )
+        val payload = gzipDecompress(TraceCodec.encode(trace))
+
+        assertEquals(1_000L, config.durationMs)
+        assertEquals(config().segments, captured.segments)
+        assertEquals(
+            EXPECTED_PAYLOAD_SHA256,
+            sha256Hex(payload),
+            "a sequence capture differs from the cue capture it restates",
+        )
     }
 
     private fun config(renderConfig: LumosRenderConfig = LumosRenderConfig()): CaptureConfig {
