@@ -28,6 +28,8 @@ import kotlinx.serialization.Serializable
  * @property label What the orb means, for screen readers. Null hides the orb from them.
  * @property style The mark each cell is drawn as; see [SurfaceStyle]. [SurfaceStyle.Squares], the
  *  default, is what every orb drew before styles existed.
+ * @property material What each cell is made of; see [Material]. [Material.Flat], the default, is
+ *  the style's own mark. A surface that cannot draw a material draws [Material.Flat] and says so.
  */
 @Serializable
 data class LumosConfig(
@@ -39,6 +41,7 @@ data class LumosConfig(
     val reducedMotion: Boolean = false,
     val label: String? = null,
     val style: SurfaceStyle = SurfaceStyle.Squares,
+    val material: Material = Material.Flat,
 ) {
     init {
         require(speed in MIN_SPEED..MAX_SPEED) { "speed must be in $MIN_SPEED..$MAX_SPEED, was $speed" }

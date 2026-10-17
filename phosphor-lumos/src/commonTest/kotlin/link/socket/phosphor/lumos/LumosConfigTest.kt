@@ -20,6 +20,7 @@ class LumosConfigTest {
         assertFalse(config.reducedMotion)
         assertNull(config.label)
         assertEquals(SurfaceStyle.Squares, config.style)
+        assertEquals(Material.Flat, config.material)
     }
 
     @Test
@@ -61,6 +62,7 @@ class LumosConfigTest {
                 reducedMotion = true,
                 label = "Lumos is thinking",
                 style = SurfaceStyle.Dashes,
+                material = Material.Neon(glow = 0.8f, intensity = 0.9f),
             )
 
         val json = Json.encodeToString(LumosConfig.serializer(), config)
@@ -73,6 +75,7 @@ class LumosConfigTest {
         val config = Json.decodeFromString(LumosConfig.serializer(), """{"speed":2.0}""")
 
         assertEquals(SurfaceStyle.Squares, config.style)
+        assertEquals(Material.Flat, config.material)
     }
 
     @Test
