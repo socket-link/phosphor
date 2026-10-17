@@ -13,8 +13,8 @@ import kotlin.math.sqrt
  * from 35° above. The lattice is not framed: it is the frame everything else
  * is measured against.
  *
- * [VoxelFrameBuilder] reads [scale] and [cellRadius] on every build, so an
- * implementation must answer them without allocating. [tipDegrees] is
+ * [VoxelFrameBuilder] reads [scale], [cellRadius] and [rigid] on every build,
+ * so an implementation must answer them without allocating. [tipDegrees] is
  * declared here so a catalogue form can carry it, and is read by nothing yet:
  * the tip is a view-space rotation that has to come *after* the orb's own
  * spin, which is the projection's job, and PHO-58's `ViewPoint` is where it
@@ -49,6 +49,19 @@ interface FramedForm : LumosForm {
      * overrides it with its own spacing.
      */
     fun cellRadius(count: Int): Float = 0.5f * sqrt(UNIT_SPHERE_AREA / count.coerceAtLeast(1))
+
+    /**
+     * Hold the atmosphere's jitter, bump, pulse and squash off this form.
+     *
+     * On a sphere the skin is the point; on a layout element it blurs the edge
+     * into a blob. A rigid form is drawn where it was sampled: the builder
+     * blends the four terms out by a morph's own progress, the way it blends
+     * [scale], so the skin fades as the body arrives and back in when the orb
+     * is morphed to a form that is not rigid. At rest the four terms are zero.
+     * The atmosphere itself is untouched, so a trace records what it was.
+     * `false` by default, which leaves every frame as it was.
+     */
+    val rigid: Boolean get() = false
 
     companion object {
         private val UNIT_SPHERE_AREA: Float = (4.0 * PI).toFloat()

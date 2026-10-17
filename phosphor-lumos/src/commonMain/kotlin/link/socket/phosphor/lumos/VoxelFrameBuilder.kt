@@ -97,7 +97,8 @@ class VoxelFrameBuilder(
      *
      * Sampled once per frame with the count of the lattice at the atmosphere's
      * resolution, the [look]'s idiom, and the frame's time in seconds; see
-     * [LumosForm.sample]. Setting it takes effect on the next [build].
+     * [LumosForm.sample]. A [ViewForm] is also handed the rotation the frame
+     * will be projected with. Setting it takes effect on the next [build].
      *
      * Setting it is a cut: the next frame is the new form at rest, cell `i` is
      * whatever the new form's cell `i` is, and any morph in flight is dropped.
@@ -504,7 +505,8 @@ class VoxelFrameBuilder(
      * every [build], bent by [choreography]'s arc. The spring runs in
      * unit-sphere space before the atmosphere's pulse, squash and bump, which
      * keep applying on top: the skin rides the body. A [FramedForm]'s scale and
-     * cell size blend across with the spring's own progress. Once settled, the
+     * cell size blend across with the spring's own progress, and so does a
+     * [FramedForm.rigid] form's hold on the skin. Once settled, the
      * builder renders the new form exactly as it renders any form at rest, with
      * no per-frame cost and with its cells in the matched order — which is what
      * keeps a trace's per-index delta coding and a crossfade's cell pairing
@@ -567,7 +569,7 @@ class VoxelFrameBuilder(
             }
         val framingFrom = effectiveFraming(fromSample)
 
-        val toSample = target.sample(lattice.count, look.look, lastTimeSeconds)
+        val toSample = sampleForm(target, lastTimeSeconds, phases)
         val toCount = toSample.count
         val matched = minOf(fromCount, toCount)
         val assignment = matcher.match(origins.subList(0, matched), toSample.positions)
@@ -701,7 +703,70 @@ class VoxelFrameBuilder(
     }
 
     /** The current form sampled where the last build sampled it. */
-    private fun currentSample(): FormSample = form.sample(lattice.count, look.look, lastTimeSeconds)
+    private fun currentSample(): FormSample = sampleForm(form, lastTimeSeconds, phases)
+
+    /**
+     * [form] at the lattice's budget, the [look]'s idiom and [timeSeconds]. A
+     * [ViewForm] is handed the rotation of a frame at [phases]; every other
+     * form is sampled exactly as it always was.
+     *
+     * The frame's yaw is a look's own when it owns one, mixed across a blend
+     * when [live] (a steady state or a still wears one look), and the looks'
+     * modulators are built from the sample. So the form is sampled with the
+     * yaw the modulators already held say, the modulators are resolved over
+     * that sample, and if the yaw they give differs — a modulator was just
+     * built, on the frame a look or the sample changed — the form is sampled
+     * once more with it. A view form rewrites its sample in place, so that
+     * costs a pass and no allocation.
+     */
+    private fun sampleForm(
+        form: LumosForm,
+        timeSeconds: Float,
+        phases: FramePhases,
+        live: Boolean = true,
+    ): FormSample {
+        val viewForm = form as? ViewForm ?: return form.sample(lattice.count, look.look, timeSeconds)
+        val outgoingTime = outgoingSeconds.toFloat()
+        val weight = if (live) lookBlendProgress else 1f
+        val guess = frameYaw(phases, modulator, outgoingModulator, outgoingTime, weight)
+        val sample = viewForm.sample(lattice.count, look.look, timeSeconds, viewRotation(phases, guess))
+        val outgoing = if (weight < 1f) outgoingModulatorFor(sample) else null
+        val yaw = frameYaw(phases, modulatorFor(sample), outgoing, outgoingTime, weight)
+        if (yaw == guess) return sample
+        return viewForm.sample(lattice.count, look.look, timeSeconds, viewRotation(phases, yaw))
+    }
+
+    /**
+     * [rotation] set to the angles a frame at [phases] turning by [yaw] is
+     * projected with. Rates are left at zero: a form needs only the angles,
+     * and the look pass sets the frame's own rates before it reads them.
+     */
+    private fun viewRotation(
+        phases: FramePhases,
+        yaw: Float,
+    ): ViewRotation {
+        rotation.set(phases.orbRotationX, yaw, 0f, 0f)
+        return rotation
+    }
+
+    /**
+     * The yaw a frame at [phases] turns by: [modulator]'s own when it owns
+     * one, else the atmosphere's. Mid-blend, with [weight] below 1, the frame
+     * turns between [outgoing]'s yaw at its own [outgoingTime] (or the
+     * atmosphere's) and that one, the short way round.
+     */
+    private fun frameYaw(
+        phases: FramePhases,
+        modulator: LookModulator?,
+        outgoing: LookModulator?,
+        outgoingTime: Float,
+        weight: Float,
+    ): Float {
+        val yaw = modulator?.yaw(phases.lookSeconds.toFloat()) ?: phases.orbRotationY
+        if (weight >= 1f) return yaw
+        val yawFrom = outgoing?.yaw(outgoingTime) ?: phases.orbRotationY
+        return wrapTwoPi(yawFrom + shortArc(yaw - yawFrom) * weight)
+    }
 
     /**
      * Produce a [VoxelFrame] from [snapshot], advancing phase accumulators
@@ -760,7 +825,7 @@ class VoxelFrameBuilder(
             }
         }
         check(!isMorphing) { "buildSteadyState has no steady state to render while a morph is in flight" }
-        val sample = current.sample(lattice.count, look.look, timestampEpochMillis / 1_000f)
+        val sample = sampleForm(current, timestampEpochMillis / 1_000f, phases, live = false)
         return frameAt(
             atmosphere = atmosphere,
             transition = null,
@@ -822,7 +887,7 @@ class VoxelFrameBuilder(
 
         val glyph = advanceGlyph(dt)?.glyph
         lastTimeSeconds = snapshot.elapsedTimeSeconds
-        val sample = form.sample(lattice.count, look.look, snapshot.elapsedTimeSeconds)
+        val sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
         stillFrame?.let { held ->
             if (atmosphere === stillAtmosphere &&
                 phases == stillPhases &&
@@ -887,7 +952,7 @@ class VoxelFrameBuilder(
         stepSpawn(dt)
 
         lastTimeSeconds = snapshot.elapsedTimeSeconds
-        val sample = form.sample(lattice.count, look.look, snapshot.elapsedTimeSeconds)
+        var sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
         if (outgoingLook != null) {
             val began = blendSample
             if (began == null) {
@@ -895,6 +960,8 @@ class VoxelFrameBuilder(
             } else if (began !== sample) {
                 // The sample moved under the blend: the outgoing tables are the old count's. A cut.
                 landBlend()
+                // A view form was handed the blend's yaw; the cut turns the frame by the incoming look's.
+                if (form is ViewForm) sample = sampleForm(form, snapshot.elapsedTimeSeconds, phases)
             }
         }
         val body = stepMorph(sample, dt)
@@ -950,6 +1017,7 @@ class VoxelFrameBuilder(
         return Framing(
             formScale = from.formScale + (to.formScale - from.formScale) * t,
             cellScale = from.cellScale + (to.cellScale - from.cellScale) * t,
+            rigidity = from.rigidity + (to.rigidity - from.rigidity) * t,
         )
     }
 
@@ -957,13 +1025,18 @@ class VoxelFrameBuilder(
      * How the current [form] is framed, for [sample]: a [FramedForm]'s scale and
      * its cell size relative to the lattice's, `cellRadius · 2 · resolution`,
      * so a renderer sizing cells by the atmosphere's resolution draws them the
-     * size the form asked for. The lattice, and any form that is not framed,
-     * is drawn as is.
+     * size the form asked for, and whether it holds the skin off. The lattice,
+     * and any form that is not framed, is drawn as is.
      */
     private fun framing(sample: FormSample): Framing {
         val framed = form as? FramedForm ?: return Framing.NONE
         val cellScale = framed.cellRadius(sample.count) * 2f * max(lattice.resolution, 1)
-        return if (framed.scale == 1f && cellScale == 1f) Framing.NONE else Framing(framed.scale, cellScale)
+        val rigidity = if (framed.rigid) 1f else 0f
+        return if (framed.scale == 1f && cellScale == 1f && rigidity == 0f) {
+            Framing.NONE
+        } else {
+            Framing(framed.scale, cellScale, rigidity)
+        }
     }
 
     /**
@@ -1022,7 +1095,9 @@ class VoxelFrameBuilder(
      * is null, and sits at [morphPositions]' entry `i` when a morph is in
      * flight, else at the sample's rest position. Positioned at
      * [Framing.formScale] times the form's and sized at [Framing.cellScale]
-     * times the lattice's cell.
+     * times the lattice's cell. [Framing.rigidity] holds the atmosphere's
+     * jitter, bump, pulse and squash off by that share; at `0` they are read
+     * exactly as they always were.
      *
      * With a [modulator], each cell is rotated into view space by the frame's
      * own angles — the rotation the surfaces apply again at projection — from
@@ -1062,13 +1137,21 @@ class VoxelFrameBuilder(
         val blending = weight < 1f
         val formScale = framing.formScale
         val cellScale = framing.cellScale
-        val pulse = 1f + sin(phases.pulsePhase) * atmosphere.pulseAmplitude
+        // The skin: what of the atmosphere's jitter, bump, pulse and squash a rigid form lets through.
+        val rigidity = framing.rigidity
+        val skin = 1f - rigidity
+        val noise = if (rigidity == 0f) atmosphere.noise else atmosphere.noise * skin
+        val surfaceBump = if (rigidity == 0f) atmosphere.surfaceBump else atmosphere.surfaceBump * skin
+        val pulseAmplitude = if (rigidity == 0f) atmosphere.pulseAmplitude else atmosphere.pulseAmplitude * skin
+        val ySquash = if (rigidity == 0f) atmosphere.ySquash else atmosphere.ySquash * skin + rigidity
+        val pulse = 1f + sin(phases.pulsePhase) * pulseAmplitude
         // voxelGap is the fraction of a lattice cell left empty between cubes, so the
         // cube itself fills what remains. Clamped because an overshoot easing can carry
         // an interpolated gap briefly past its endpoints, and a negative fill would
         // invert the cube.
         val voxelFill = (1f - atmosphere.voxelGap).coerceIn(0f, 1f)
-        val effectiveYSquash = atmosphere.ySquash * (config.globalYSquashOverride ?: 1f)
+        // The host's override is a format adjustment, not skin: a rigid form keeps it.
+        val effectiveYSquash = ySquash * (config.globalYSquashOverride ?: 1f)
         val glyphColor =
             glyphLifecycle
                 ?.takeIf { config.enableGlyphCarving }
@@ -1078,16 +1161,14 @@ class VoxelFrameBuilder(
         val lookTime = phases.lookSeconds.toFloat()
         // A look that owns the yaw replaces the atmosphere's wherever this frame reads it.
         val lookYaw = modulator?.yaw(lookTime)
-        var yaw = lookYaw ?: phases.orbRotationY
+        val yaw = frameYaw(phases, modulator, outgoing, outgoingTime, weight)
         if (modulator != null || blending) {
             var rateY = if (lookYaw != null) yawRate(modulator, lookTime) else atmosphere.rotationY
             if (blending) {
-                // Mid-blend the frame turns between the two looks' yaws, the short way round, and the
-                // spin carries cells at the rate between theirs; the outgoing look reads its own clock.
+                // Mid-blend the spin carries cells at the rate between the two looks', as the yaw turns
+                // between theirs (frameYaw); the outgoing look reads its own clock.
                 val outgoingYaw = outgoing?.yaw(outgoingTime)
-                val yawFrom = outgoingYaw ?: phases.orbRotationY
                 val rateFrom = if (outgoingYaw != null) yawRate(outgoing, outgoingTime) else atmosphere.rotationY
-                yaw = wrapTwoPi(yawFrom + shortArc(yaw - yawFrom) * weight)
                 rateY = rateFrom * (1f - weight) + rateY * weight
             }
             rotation.set(phases.orbRotationX, yaw, atmosphere.rotationX, rateY)
@@ -1175,11 +1256,11 @@ class VoxelFrameBuilder(
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 
             val jitter = jitters[index]
-            val px = restX + jitter.x * atmosphere.noise * JITTER_GAIN
-            val py = restY + jitter.y * atmosphere.noise * JITTER_GAIN
-            val pz = restZ + jitter.z * atmosphere.noise * JITTER_GAIN
+            val px = restX + jitter.x * noise * JITTER_GAIN
+            val py = restY + jitter.y * noise * JITTER_GAIN
+            val pz = restZ + jitter.z * noise * JITTER_GAIN
             val bumpAmount =
-                atmosphere.surfaceBump *
+                surfaceBump *
                     sin(thetas[index] * BUMP_THETA + phis[index] * BUMP_PHI + phases.patternPhase * BUMP_PHASE)
 
             val ux = direction.x
@@ -1338,10 +1419,12 @@ class VoxelFrameBuilder(
 
     /**
      * A [FramedForm]'s framing resolved against the lattice: [formScale]
-     * multiplies every position, [cellScale] every cell's scale. [NONE] is the
-     * lattice's own, and leaves every frame as it was before forms were framed.
+     * multiplies every position, [cellScale] every cell's scale, and
+     * [rigidity], `0..1`, is how much of the atmosphere's skin is held off:
+     * `1` for a [FramedForm.rigid] form at rest. [NONE] is the lattice's own,
+     * and leaves every frame as it was before forms were framed.
      */
-    private class Framing(val formScale: Float, val cellScale: Float) {
+    private class Framing(val formScale: Float, val cellScale: Float, val rigidity: Float = 0f) {
         companion object {
             val NONE = Framing(1f, 1f)
         }

@@ -13,7 +13,9 @@ import kotlin.math.sqrt
  * Also holds the atmosphere's rotation rates, which fix which way the spin is
  * carrying each cell ([ViewPoint.dx], [ViewPoint.dy]).
  *
- * One instance per builder, reset by [set] each frame; never retained.
+ * One instance per builder, reset by [set] each frame; never retained. A
+ * [link.socket.phosphor.lumos.ViewForm] is handed the builder's own to undo the
+ * frame's rotation, and reads it only during that call.
  */
 class ViewRotation {
     /** `cos` of the X rotation. */
@@ -46,7 +48,7 @@ class ViewRotation {
      * @param rateY The Y rotation rate in radians per second: the atmosphere's, or the
      *  look's own yaw's.
      */
-    fun set(
+    internal fun set(
         rotationX: Float,
         rotationY: Float,
         rateX: Float,
@@ -127,4 +129,12 @@ class ViewRotation {
         ox: Float,
         oy: Float,
     ): Float = -oy * sinX + ox * sinY * cosX
+
+    companion object {
+        /**
+         * No rotation: view space is rest space. What a
+         * [link.socket.phosphor.lumos.ViewForm] is sampled with outside a builder.
+         */
+        val NONE: ViewRotation = ViewRotation()
+    }
 }

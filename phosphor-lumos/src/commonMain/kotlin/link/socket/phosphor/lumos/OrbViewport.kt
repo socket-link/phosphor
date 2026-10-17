@@ -21,4 +21,16 @@ data class OrbViewport(
         require(centerYPx.isFinite()) { "centerYPx must be finite, got $centerYPx" }
         require(radiusPx.isFinite() && radiusPx > 0f) { "radiusPx must be finite and > 0, got $radiusPx" }
     }
+
+    /** Unit-space `x` of root-pixel [px]. */
+    fun unitX(px: Float): Float = (px - centerXPx) / radiusPx
+
+    /** Unit-space `y` of root-pixel [py]: up is positive. */
+    fun unitY(py: Float): Float = (centerYPx - py) / radiusPx
+
+    /** Root-pixel `x` of unit-space [ux]. */
+    fun pixelX(ux: Float): Float = centerXPx + ux * radiusPx
+
+    /** Root-pixel `y` of unit-space [uy]: down is positive. */
+    fun pixelY(uy: Float): Float = centerYPx - uy * radiusPx
 }

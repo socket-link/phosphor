@@ -8,6 +8,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import link.socket.phosphor.field.VoxelSphere
+import link.socket.phosphor.lumos.look.ViewRotation
 import link.socket.phosphor.math.Vector3
 
 /**
@@ -221,15 +222,17 @@ object Forms {
 /**
  * This form at a fixed [count], whatever count the builder has budget for: the
  * way a host runs an 80-cell inline orb on a builder whose atmosphere is at
- * resolution 10. Look, time and the form's framing pass through.
+ * resolution 10. Look, time and the form's framing pass through, and a
+ * [ViewForm] stays one, still handed the frame's rotation.
  *
  * @throws IllegalArgumentException when [count] is not positive.
  */
-fun LumosForm.counted(count: Int): FramedForm = CountedForm(this, count)
+fun LumosForm.counted(count: Int): FramedForm =
+    if (this is ViewForm) CountedViewForm(this, count) else CountedForm(this, count)
 
-private class CountedForm(
+private open class CountedForm(
     private val inner: LumosForm,
-    private val fixedCount: Int,
+    protected val fixedCount: Int,
 ) : FramedForm {
     init {
         require(fixedCount >= 1) { "count must be >= 1, was $fixedCount" }
@@ -241,6 +244,8 @@ private class CountedForm(
 
     override val tipDegrees: Float get() = framed?.tipDegrees ?: 0f
 
+    override val rigid: Boolean get() = framed?.rigid ?: false
+
     override fun cellRadius(count: Int): Float = framed?.cellRadius(count) ?: super.cellRadius(count)
 
     override fun sample(
@@ -250,4 +255,23 @@ private class CountedForm(
     ): FormSample = inner.sample(fixedCount, look, time)
 
     override fun toString(): String = "$inner.counted($fixedCount)"
+}
+
+private class CountedViewForm(
+    private val inner: ViewForm,
+    fixedCount: Int,
+) : CountedForm(inner, fixedCount),
+    ViewForm {
+    override fun sample(
+        count: Int,
+        look: LumosLook,
+        time: Float,
+        view: ViewRotation,
+    ): FormSample = inner.sample(fixedCount, look, time, view)
+
+    override fun sample(
+        count: Int,
+        look: LumosLook,
+        time: Float,
+    ): FormSample = inner.sample(fixedCount, look, time)
 }
