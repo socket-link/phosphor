@@ -97,7 +97,8 @@ jobs:
           mkdir -p ~/.gradle
           echo 'org.gradle.jvmargs=-Xmx3g -Dkotlin.daemon.jvm.options=-Xmx6g' >> ~/.gradle/gradle.properties
 
-      # A healthy run takes about 4 minutes from a cold cache.
+      # A healthy run takes about 4 minutes from a cold cache. Every module with a web target
+      # runs here, :phosphor-trace's decode-only one included.
       - name: Run JS and Wasm browser tests
         timeout-minutes: 15
         run: ./gradlew jsTest wasmJsTest

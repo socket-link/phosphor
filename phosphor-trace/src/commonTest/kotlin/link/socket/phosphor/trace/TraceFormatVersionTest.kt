@@ -20,7 +20,7 @@ class TraceFormatVersionTest {
     @Test
     fun `decode rejects an unknown formatVersion`() {
         // A payload from a future build: only the version field is guaranteed to parse.
-        val future = gzipCompress(Cbor.encodeToByteArray(FormatVersionProbe.serializer(), FormatVersionProbe(999)))
+        val future = gzipForTest(Cbor.encodeToByteArray(FormatVersionProbe.serializer(), FormatVersionProbe(999)))
 
         val result = TraceCodec.decode(future)
 
@@ -39,7 +39,7 @@ class TraceFormatVersionTest {
     fun `decode accepts v1`() {
         val v1 = TraceTestData.sampleTrace(formatVersion = 1)
 
-        val result = TraceCodec.decode(TraceCodec.encode(v1))
+        val result = TraceCodec.decode(encodeForTest(v1))
 
         assertTrue(result.isSuccess)
         assertEquals(v1, result.getOrThrow())
@@ -49,7 +49,7 @@ class TraceFormatVersionTest {
     fun `decode accepts v2`() {
         val v2 = TraceTestData.sampleTrace(formatVersion = 2)
 
-        val result = TraceCodec.decode(TraceCodec.encode(v2))
+        val result = TraceCodec.decode(encodeForTest(v2))
 
         assertTrue(result.isSuccess)
         TraceTestData.assertV2Equivalent(v2, result.getOrThrow())
@@ -59,7 +59,7 @@ class TraceFormatVersionTest {
     fun `decode accepts v3`() {
         val v3 = TraceTestData.sampleTrace(formatVersion = 3)
 
-        val result = TraceCodec.decode(TraceCodec.encode(v3))
+        val result = TraceCodec.decode(encodeForTest(v3))
 
         assertTrue(result.isSuccess)
         TraceTestData.assertV2Equivalent(v3, result.getOrThrow())
@@ -94,7 +94,7 @@ class TraceFormatVersionTest {
                 ambient = wire.ambient,
                 glyphs = wire.glyphs,
             )
-        val bytes = gzipCompress(Cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), truncated))
+        val bytes = gzipForTest(Cbor.encodeToByteArray(VoxelTraceWireV2.serializer(), truncated))
 
         val result = TraceCodec.decode(bytes)
 

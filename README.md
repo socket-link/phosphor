@@ -212,6 +212,8 @@ Phosphor compiles to:
 
 The `:phosphor-lumos-cli` module is JVM-only by design; non-terminal Lumos surfaces live in separate sibling modules.
 
+`:phosphor-trace` encodes only on the JVM and iOS. On JavaScript and WebAssembly it decodes and plays back `.vxt` traces but `TraceCodec.encode` throws, so encode on the JVM and ship the file to the browser.
+
 ---
 
 ## Building

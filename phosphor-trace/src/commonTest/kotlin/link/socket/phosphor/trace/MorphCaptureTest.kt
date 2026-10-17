@@ -53,11 +53,12 @@ class MorphCaptureTest {
     }
 
     @Test
+    @NeedsBinary32
     fun `the capture round-trips through v3 exactly and v3 is no larger than it needs to be`() {
         val trace = Oscilloscope.capture(config).getOrThrow()
         assertEquals(3, trace.formatVersion)
 
-        val encoded = TraceCodec.encode(trace)
+        val encoded = encodeForTest(trace)
         val decoded = TraceCodec.decode(encoded).getOrThrow()
         assertIs<CellChannels.Quantized>(decoded.cells)
         assertEquals(trace.frameCount, decoded.frameCount)
@@ -65,7 +66,7 @@ class MorphCaptureTest {
         TraceTestData.assertV2Equivalent(trace, decoded)
 
         val idleOnly = Oscilloscope.capture(config.copy(formCues = emptyList())).getOrThrow()
-        val idleBytes = TraceCodec.encode(idleOnly).size
+        val idleBytes = encodeForTest(idleOnly).size
         println("morph capture: ${encoded.size} B against $idleBytes B for the same frames at rest")
     }
 

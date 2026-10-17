@@ -3,6 +3,7 @@ import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.SonatypeHost
 import org.gradle.plugins.signing.Sign
 import org.gradle.plugins.signing.SigningExtension
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
@@ -37,12 +38,34 @@ val isPublishingToMavenLocal =
         it == "publishToMavenLocal" || it.endsWith(":publishToMavenLocal")
     }
 
+// Per-test timeout for the browser runners; mocha's default is 2 s.
+val browserTestTimeout = "60s"
+
 kotlin {
     applyDefaultHierarchyTemplate()
 
     jvm {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+
+    // Decode only: the web targets inflate in Kotlin (PureGzip) and refuse to encode. See TraceCodec.
+    js(IR) {
+        browser {
+            testTask {
+                // The capture tests run Oscilloscope over full-resolution orbs; mocha's 2 s is not enough in a browser.
+                useMocha { timeout = browserTestTimeout }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser {
+            testTask {
+                useMocha { timeout = browserTestTimeout }
+            }
         }
     }
 
