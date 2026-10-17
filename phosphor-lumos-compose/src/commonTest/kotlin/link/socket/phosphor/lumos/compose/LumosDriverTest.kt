@@ -13,6 +13,8 @@ import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
+import link.socket.phosphor.math.Vector2
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * What [LumosDriver] adds to the `OrbStepper` it wraps: the frame it draws, in Compose state.
@@ -74,10 +76,34 @@ class LumosDriverTest {
         }
     }
 
+    @Test
+    fun `the pointer goes to the source and lights the next frame drawn in canvas pixels`() {
+        val source = StillSource()
+        val driver = LumosDriver(source, LookClock()) { false }
+        driver.resize(100, 100)
+        driver.step(secondsToNanos(1.0))
+        val before = assertNotNull(driver.canvasFrame)
+
+        driver.onInput(LumosInput(Vector2(0.5f, 0.5f)))
+
+        assertEquals(listOf(LumosInput(Vector2(0.5f, 0.5f))), source.inputs)
+        assertSame(before, driver.canvasFrame, "a pointer alone publishes no frame")
+
+        source.frame = frame(tick = 2L)
+        driver.step(secondsToNanos(1.016))
+        assertEquals(Vector2(75f, 25f), assertNotNull(driver.canvasFrame).pointer)
+    }
+
     private class StillSource(
         var frame: VoxelFrame = frame(),
     ) : LumosFrameSource {
+        val inputs = mutableListOf<LumosInput>()
+
         override fun next(dt: Float): VoxelFrame = frame
+
+        override fun setInput(input: LumosInput) {
+            inputs += input
+        }
 
         override fun still(dt: Float): VoxelFrame = frame
     }

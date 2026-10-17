@@ -8,12 +8,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.math.Vector2
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * PHO-53: the rules a pixel-surface orb keeps about time — speed, the cap on a step, alignment to
  * a shared look clock, reduced motion, the paused redraw — and the projection it reuses. Moved
  * with [OrbStepper] out of `LumosOrb`'s driver (PHO-85). PHO-79: a look change aligns the look
- * alone.
+ * alone. PHO-83: the pointer goes to the source and lights every frame projected after it.
  */
 class OrbStepperTest {
     @Test
@@ -372,6 +374,54 @@ class OrbStepperTest {
         assertNull(stepper.hold(), "a frame is already drawn")
     }
 
+    @Test
+    fun `the pointer goes to the source and projects nothing by itself`() {
+        val source = RecordingSource()
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.resize(100, 100)
+        stepper.step(secondsToNanos(1.0))
+        val pointing = LumosInput(Vector2(0.5f, 0.5f))
+
+        stepper.setInput(pointing)
+
+        assertEquals(listOf(pointing), source.inputs)
+        assertNull(stepper.frame?.pointer, "the frame drawn before the pointer is not redrawn")
+    }
+
+    @Test
+    fun `the latest pointer lights every frame projected after it — live or still or recorded`() {
+        val source = RecordingSource()
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.resize(100, 100)
+        stepper.setInput(LumosInput(Vector2(0.5f, 0.5f)))
+
+        source.frame = frame(tick = 2L)
+        val live = assertNotNull(stepper.step(secondsToNanos(1.0)))
+        assertEquals(Vector2(75f, 25f), live.pointer, "a frame carrying no input is lit by the stepper's pointer")
+
+        stepper.update(LumosConfig(reducedMotion = true), FrameProbe.Disabled)
+        source.frame = frame(tick = 3L)
+        val still = assertNotNull(stepper.step(secondsToNanos(1.016)))
+        assertEquals(Vector2(75f, 25f), still.pointer, "a still is lit too")
+
+        stepper.setInput(LumosInput.NONE)
+        source.frame = frame(tick = 4L, input = LumosInput(Vector2(-0.5f, 0f)))
+        val gone = assertNotNull(stepper.step(secondsToNanos(1.032)))
+        assertNull(gone.pointer, "a pointer that left lights nothing, even on a frame built before it left")
+    }
+
+    @Test
+    fun `a stepper never handed input leaves the frame's own pointer alone`() {
+        val source = RecordingSource(frame = frame(input = LumosInput(Vector2(-1f, 1f))))
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.resize(100, 100)
+
+        val projected = assertNotNull(stepper.step(secondsToNanos(1.0)))
+
+        assertEquals(Vector2(0f, 0f), projected.pointer)
+        assertTrue(source.inputs.isEmpty())
+    }
+
     private class RecordingSource(
         var key: String? = "idle",
         var frame: VoxelFrame = frame(),
@@ -380,7 +430,12 @@ class OrbStepperTest {
         val stills = mutableListOf<Float>()
         val aligned = mutableListOf<Double>()
         val alignedLooks = mutableListOf<Double>()
+        val inputs = mutableListOf<LumosInput>()
         var revisionValue = 0L
+
+        override fun setInput(input: LumosInput) {
+            inputs += input
+        }
 
         override fun next(dt: Float): VoxelFrame {
             steps += dt
@@ -413,6 +468,7 @@ class OrbStepperTest {
         fun frame(
             tick: Long = 1L,
             cellY: Float = 0f,
+            input: LumosInput? = null,
         ): VoxelFrame =
             VoxelFrame(
                 tick = tick,
@@ -429,6 +485,7 @@ class OrbStepperTest {
                         orbRotationY = 0f,
                         orbRotationZ = 0f,
                     ),
+                input = input,
             )
     }
 }

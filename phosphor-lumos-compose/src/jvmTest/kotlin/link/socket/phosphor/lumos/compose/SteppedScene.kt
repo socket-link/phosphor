@@ -1,7 +1,15 @@
 package link.socket.phosphor.lumos.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerButtons
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.scene.ComposeScenePointer
 import androidx.compose.ui.unit.Density
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -22,8 +30,11 @@ import org.jetbrains.skia.Image
  * Here every effect is queued on a [StandardTestDispatcher] and run by [render], on the thread that
  * calls it. Each frame advances the scheduler by the frame's length, so `delay`s elapse in step with
  * the frames the orb sees.
+ *
+ * Pointer events pass straight through to the scene ([sendPointerEvent], [sendTouch]): a pointer
+ * handler resumes inside the dispatch, so what it reports is reported before the call returns.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, ExperimentalComposeUiApi::class)
 internal class SteppedScene(
     width: Int,
     height: Int,
@@ -65,10 +76,38 @@ internal class SteppedScene(
         return image
     }
 
+    /** A mouse at [position]: `Enter`, `Move`, `Exit`, or `Press` and `Release` of [button]. */
+    fun sendPointerEvent(
+        eventType: PointerEventType,
+        position: Offset,
+        buttons: PointerButtons = PointerButtons(),
+        button: PointerButton? = null,
+        type: PointerType = PointerType.Mouse,
+    ) = scene.sendPointerEvent(
+        eventType = eventType,
+        position = position,
+        buttons = buttons,
+        button = button,
+        type = type,
+        timeMillis = nowNanos / NANOS_PER_MILLI,
+    )
+
+    /** One finger at [position]: `Press`, then `Move`s while [pressed], then `Release`. */
+    fun sendTouch(
+        eventType: PointerEventType,
+        position: Offset,
+        pressed: Boolean,
+    ) = scene.sendPointerEvent(
+        eventType = eventType,
+        pointers = listOf(ComposeScenePointer(PointerId(TOUCH_ID), position, pressed, PointerType.Touch)),
+        timeMillis = nowNanos / NANOS_PER_MILLI,
+    )
+
     override fun close() = scene.close()
 
     private companion object {
         const val FRAME_NANOS = 33_333_333L
         const val NANOS_PER_MILLI = 1_000_000L
+        const val TOUCH_ID = 1L
     }
 }

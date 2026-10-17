@@ -10,12 +10,14 @@ import link.socket.phosphor.lumos.OrbStepper
 import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * [OrbStepper] behind [LumosOrb], with the frame it draws held in Compose state so the canvas
  * follows it. The rules about time are the stepper's — the step, the cap, aligning on a rejoin
  * ([LumosFrameSource.align]) and on a look change ([LumosFrameSource.alignLook]) — and this only
- * hands each new frame to Compose.
+ * hands each new frame to Compose. The pointer is the stepper's too ([OrbStepper.setInput]): it
+ * goes to the source, and the latest one is laid over every frame published, live or recorded.
  *
  * Main-thread only, like the source it steps.
  */
@@ -35,6 +37,9 @@ internal class LumosDriver(
 
     /** The frame callback a frame loop hands to `withFrameNanos`, allocated once. */
     val onFrame: (Long) -> Unit = { frameTimeNanos -> step(frameTimeNanos) }
+
+    /** The input callback [lumosPointer] is given, allocated once. */
+    val onInput: (LumosInput) -> Unit = { input -> setInput(input) }
 
     /** See [OrbStepper.update]. */
     fun update(
@@ -59,6 +64,12 @@ internal class LumosDriver(
 
     /** See [OrbStepper.pollHeld]. */
     fun pollHeld() = publish(stepper.pollHeld())
+
+    /**
+     * See [OrbStepper.setInput]. Publishes nothing: a pointer move while the orb is paused or
+     * under reduced motion is lit on the next frame drawn for another reason.
+     */
+    fun setInput(input: LumosInput) = stepper.setInput(input)
 
     // Only a new projection is written, so an unchanged frame costs Compose nothing.
     private fun publish(frame: LumosCanvasFrame?) {

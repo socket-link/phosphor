@@ -3,6 +3,7 @@ package link.socket.phosphor.lumos.compose
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.SideEffect
@@ -35,6 +36,7 @@ import link.socket.phosphor.lumos.Material
 import link.socket.phosphor.lumos.PlatformMotionPreference
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.probe.FrameProbe
+import link.socket.phosphor.signal.LumosInput
 
 /**
  * The [LookClock] the orbs below share, so orbs of one look breathe together. One per process
@@ -69,6 +71,13 @@ val LocalLookClock: ProvidableCompositionLocal<LookClock> = staticCompositionLoc
  *   look's phase alone ([LumosFrameSource.alignLook]), so its spin never snaps.
  * - **Screen readers.** With a [LumosConfig.label], the orb is one image described by it. Without
  *   one, screen readers skip it.
+ * - **The pointer.** The orb answers the pointer on every target — hover where the platform has
+ *   it, touch everywhere — through [Modifier.lumosPointer], and takes no gesture from its parents:
+ *   an orb in a scrolling column still scrolls it. What it reads goes to
+ *   [LumosFrameSource.setInput], so a live scene that is `interactive` parts its cells around it,
+ *   and the latest pointer is laid over every frame drawn, live or recorded, for a material's
+ *   light. When the orb leaves composition, or its source is replaced, the source is told the
+ *   pointer has gone.
  *
  * One orb per source: a source stepped by two orbs runs twice as fast. To show one orb in two
  * places, project its frame once and draw it with two [LumosCanvas]es.
@@ -124,6 +133,12 @@ fun LumosOrb(
         }
     }
 
+    // A source left behind — replaced, or the orb gone — is told the pointer has gone, so no
+    // ghost pointer keeps its cells parted.
+    DisposableEffect(driver) {
+        onDispose { driver.setInput(LumosInput.NONE) }
+    }
+
     Box(
         modifier =
             modifier
@@ -131,7 +146,8 @@ fun LumosOrb(
                 .onSizeChanged { driver.resize(it.width, it.height) }
                 .onGloballyPositioned { coordinates ->
                     onScreen = coordinates.isAttached && !coordinates.boundsInWindow().isEmpty
-                },
+                }
+                .lumosPointer(config.tiltDegrees, driver.onInput),
     ) {
         HeldCanvas(driver, backgroundColor, showHalo, showGlyphOverlay, probe, config.style, config.material)
     }
