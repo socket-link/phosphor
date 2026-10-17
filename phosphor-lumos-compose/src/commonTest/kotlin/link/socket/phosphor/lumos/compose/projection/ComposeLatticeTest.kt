@@ -2,6 +2,7 @@ package link.socket.phosphor.lumos.compose.projection
 
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -275,6 +276,40 @@ class ComposeLatticeTest {
     @Test
     fun `READY atmosphere snapshot at 400x400 matches baseline voxel count and centroid`() {
         assertSnapshot(AtmospherePresets.READY, READY_BASELINE)
+    }
+
+    @Test
+    fun `dx and dy are the yaw's direction before the tilt and in canvas orientation`() {
+        val front = VoxelCell(x = 0f, y = 0f, z = 1f, scale = 1f, red = 1f, green = 1f, blue = 1f)
+        val side = VoxelCell(x = 0.5f, y = 0f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f)
+        val frame =
+            VoxelFrame(
+                tick = 0L,
+                timestampEpochMillis = 0L,
+                resolution = 10,
+                cells = listOf(front, side),
+                ambient = VoxelAmbient(0f, 0f, 0f, 0f, orbRotationX = 0f, orbRotationY = 0f, orbRotationZ = 0f),
+            )
+
+        val flat = ComposeLattice(widthPx = 100, heightPx = 100).project(frame).voxels
+        val flatFront = flat.single { it.screenX == 50f }
+        val flatSide = flat.single { it.screenX == 75f }
+        assertEquals(1f, flatFront.dx, 1e-6f, "the front of the sphere is carried along +x by a yaw")
+        assertEquals(0f, flatFront.dy, 1e-6f)
+        assertEquals(0f, flatSide.dx, 1e-6f, "the limb moves in depth, not across the screen")
+        assertEquals(0f, flatSide.dy, 1e-6f, "untilted, nothing moves vertically")
+
+        val tilted = ComposeLattice(widthPx = 100, heightPx = 100, tiltDegrees = 30f).project(frame).voxels
+        val tiltedFront = tilted.single { it.screenX == 50f }
+        val tiltedSide = tilted.single { it.screenX == 75f }
+        assertEquals(1f, tiltedFront.dx, 1e-6f, "dx is the z before the tilt")
+        assertEquals(0f, tiltedFront.dy, 1e-6f)
+        assertEquals(
+            -0.5f * sin(PI / 6.0).toFloat(),
+            tiltedSide.dy,
+            1e-6f,
+            "seen from above, the limb drifts vertically",
+        )
     }
 
     private fun assertSnapshot(

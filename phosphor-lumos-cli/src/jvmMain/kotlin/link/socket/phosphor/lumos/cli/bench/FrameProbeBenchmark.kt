@@ -2,6 +2,9 @@ package link.socket.phosphor.lumos.cli.bench
 
 import java.io.OutputStream
 import java.io.PrintStream
+import link.socket.phosphor.lumos.Look
+import link.socket.phosphor.lumos.LumosLook
+import link.socket.phosphor.lumos.LumosRenderConfig
 import link.socket.phosphor.lumos.VoxelFrameBuilder
 import link.socket.phosphor.lumos.cli.glyph.CliGlyph
 import link.socket.phosphor.lumos.cli.projection.CliLattice
@@ -32,7 +35,10 @@ import link.socket.phosphor.runtime.SceneConfiguration
  * gap is noted in the run output.
  *
  * Run: `./gradlew :phosphor-lumos-cli:runFrameProbeBenchmark` (60s) or pass a
- * duration in seconds as the first argument.
+ * duration in seconds as an argument. A look's name (`working`, `searching`,
+ * `reasoning`, or `base` for the rim fade) as another argument wears that look
+ * (PHO-58), so BUILD includes the view-space pass; with none the builder runs
+ * the look-free path it always has.
  */
 private const val DEFAULT_DURATION_SECONDS = 60
 private const val WARMUP_SECONDS = 3
@@ -43,14 +49,16 @@ private const val OVERHEAD_FRAMES = 3_000
 private const val OVERHEAD_ROUNDS = 3
 
 fun main(args: Array<String>) {
-    val durationSeconds = args.getOrNull(0)?.toIntOrNull()?.coerceAtLeast(1) ?: DEFAULT_DURATION_SECONDS
+    val durationSeconds = args.firstNotNullOfOrNull { it.toIntOrNull() }?.coerceAtLeast(1) ?: DEFAULT_DURATION_SECONDS
+    val look = args.firstOrNull { it.isNotBlank() && it.toIntOrNull() == null }?.let { lookNamed(it) }
 
     val enabledProbe = RingBufferFrameProbe()
-    val enabled = newPipeline(enabledProbe)
+    val enabled = newPipeline(enabledProbe, look)
     val voxelCount = enabled.frameVoxelCount()
 
     println("FrameProbe baseline - CLI path (BUILD + PROJECT + DRAW)")
     println("grid=${GRID_WIDTH}x$GRID_HEIGHT  voxels/frame=$voxelCount  tickDt=${FIXED_DT_SECONDS}s")
+    println("look=${look?.key ?: "none (BASE, rim fade off)"}")
     println("warmup=${WARMUP_SECONDS}s  measured=${durationSeconds}s")
     println()
 
@@ -62,8 +70,15 @@ fun main(args: Array<String>) {
     printSummary(enabledProbe.summary(), measuredFrames, durationSeconds)
 
     println()
-    printOverheadComparison()
+    printOverheadComparison(look)
 }
+
+/** The look named on the command line; `base` wears the rim fade. */
+private fun lookNamed(name: String): Look =
+    Look(
+        LumosLook.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            ?: error("no look named \"$name\"; one of ${LumosLook.entries.joinToString { it.name.lowercase() }}"),
+    )
 
 /** One pipeline instance: a runtime plus the three measured stages, all sharing one probe. */
 private class Pipeline(
@@ -85,7 +100,10 @@ private class Pipeline(
     }
 }
 
-private fun newPipeline(probe: FrameProbe): Pipeline {
+private fun newPipeline(
+    probe: FrameProbe,
+    look: Look? = null,
+): Pipeline {
     val config =
         SceneConfiguration(
             width = GRID_WIDTH,
@@ -94,7 +112,13 @@ private fun newPipeline(probe: FrameProbe): Pipeline {
             initialAtmosphere = AtmospherePresets.THINKING,
         )
     val runtime = CognitiveSceneRuntime(config)
-    val builder = VoxelFrameBuilder(initialResolution = config.initialAtmosphere.resolution, probe = probe)
+    val builder =
+        VoxelFrameBuilder(
+            initialResolution = config.initialAtmosphere.resolution,
+            config = LumosRenderConfig(rimFade = look != null),
+            probe = probe,
+        )
+    if (look != null) builder.look = look
     val lattice = CliLattice(width = GRID_WIDTH, height = GRID_HEIGHT, probe = probe)
     val orb =
         CliOrb(
@@ -125,9 +149,9 @@ private fun runFor(
  * vs disabled and report the per-frame delta. Reports the min across rounds to
  * shed scheduling noise.
  */
-private fun printOverheadComparison() {
-    val disabled = newPipeline(FrameProbe.Disabled)
-    val enabled = newPipeline(RingBufferFrameProbe())
+private fun printOverheadComparison(look: Look?) {
+    val disabled = newPipeline(FrameProbe.Disabled, look)
+    val enabled = newPipeline(RingBufferFrameProbe(), look)
 
     // Warm both before timing.
     repeat(OVERHEAD_FRAMES) { disabled.step() }

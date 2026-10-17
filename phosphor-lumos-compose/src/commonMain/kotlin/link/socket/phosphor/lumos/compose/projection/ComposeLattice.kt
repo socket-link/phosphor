@@ -77,7 +77,11 @@ class ComposeLattice(
      *    `screenY = (1 - (ry + 1) * 0.5) * heightPx * (1 / aspectRatio)`
      * 3. Skip voxels whose projected center falls outside `[0, widthPx) × [0, heightPx)`.
      * 4. Emit one [CanvasVoxel] per surviving voxel with `radiusPx = voxelRadiusPx * scale`,
-     *    sRGB color forwarded directly, and rotated `z` preserved for depth compositing.
+     *    sRGB color forwarded directly, rotated `z` preserved for depth compositing, and the
+     *    direction the yaw carries it: `dx = z` before the tilt, `dy = -x · sin(tilt)`, in canvas
+     *    orientation. The yaw's direction, computed from the rotated position alone, so a replayed
+     *    trace carries it as a live frame does; an atmosphere that also rotates about X tips the
+     *    true direction off this one.
      *
      * Ambient and glyph state pass through unchanged.
      */
@@ -145,6 +149,8 @@ class ComposeLattice(
                     blue = cell.blue,
                     alpha = cell.alpha ?: 1.0f,
                     z = rz,
+                    dx = z2,
+                    dy = if (tilted) -rx * sinTilt else 0f,
                 )
             // Flip the magnitude bits of negatives so signed-int order matches float order.
             val bits = rz.toRawBits()

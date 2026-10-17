@@ -8,6 +8,11 @@ import link.socket.phosphor.field.Choreography
 import link.socket.phosphor.field.FormMatcher
 import link.socket.phosphor.field.FormMorph
 import link.socket.phosphor.field.VoxelSphere
+import link.socket.phosphor.lumos.look.CellModulation
+import link.socket.phosphor.lumos.look.LookModulator
+import link.socket.phosphor.lumos.look.Looks
+import link.socket.phosphor.lumos.look.ViewPoint
+import link.socket.phosphor.lumos.look.ViewRotation
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
@@ -83,7 +88,7 @@ class VoxelFrameBuilder(
      * a resolution change and is sampled with the new resolution's cell count.
      *
      * Sampled once per frame with the count of the lattice at the atmosphere's
-     * resolution, [LumosLook.BASE], and the frame's time in seconds; see
+     * resolution, the [look]'s idiom, and the frame's time in seconds; see
      * [LumosForm.sample]. Setting it takes effect on the next [build].
      *
      * Setting it is a cut: the next frame is the new form at rest, cell `i` is
@@ -104,6 +109,33 @@ class VoxelFrameBuilder(
         activeForm = value
         if (value is Forms.Lattice) lattice = value
     }
+
+    /**
+     * How the cells move: the idiom the orb is wearing, [LumosLook.BASE] by
+     * default.
+     *
+     * Each frame, every cell is rotated into view space and handed to the look's
+     * [LookModulator], which scales it, fades it, moves it and lights it as the
+     * idiom says, on the look's shared clock ([FramePhases.lookSeconds]). The
+     * modulator and its tables are built once from the current [form]'s sample,
+     * and again when the look or the sample changes. [LumosLook.BASE] without
+     * [LumosRenderConfig.rimFade] builds none, and the frame is exactly what the
+     * builder produced before looks existed. Setting it takes effect on the next
+     * [build].
+     */
+    var look: Look = Look(LumosLook.BASE)
+        set(value) {
+            if (value != field) modulator = null
+            field = value
+        }
+
+    private var modulator: LookModulator? = null
+    private var modulatorSample: FormSample? = null
+
+    // Reused by every cell of every frame; a modulator reads them and keeps nothing.
+    private val rotation = ViewRotation()
+    private val view = ViewPoint()
+    private val modulation = CellModulation()
 
     /**
      * The lattice at the atmosphere's current resolution. Rebuilt when
@@ -236,7 +268,7 @@ class VoxelFrameBuilder(
             }
         val framingFrom = effectiveFraming(fromSample)
 
-        val toSample = target.sample(lattice.count, LumosLook.BASE, lastTimeSeconds)
+        val toSample = target.sample(lattice.count, look.look, lastTimeSeconds)
         val toCount = toSample.count
         val matched = minOf(fromCount, toCount)
         val assignment = matcher.match(origins.subList(0, matched), toSample.positions)
@@ -310,7 +342,7 @@ class VoxelFrameBuilder(
     }
 
     /** The current form sampled where the last build sampled it. */
-    private fun currentSample(): FormSample = form.sample(lattice.count, LumosLook.BASE, lastTimeSeconds)
+    private fun currentSample(): FormSample = form.sample(lattice.count, look.look, lastTimeSeconds)
 
     /**
      * Produce a [VoxelFrame] from [snapshot], advancing phase accumulators
@@ -328,7 +360,9 @@ class VoxelFrameBuilder(
     /**
      * The frame this builder would produce in steady state: [atmosphere] with no
      * transition and no glyph, at [phases]. Nothing the builder owns moves — its
-     * own accumulators, glyph, and lattice are left as they were.
+     * own accumulators, glyph, and lattice are left as they were; the [look]'s
+     * modulator, if one is needed and not yet built, is built here and kept, as
+     * [build] would have.
      *
      * With [FramePhases.advanced] this reconstructs frames the builder never
      * produced. A loop recorded straight after a transition fades its tail
@@ -342,8 +376,10 @@ class VoxelFrameBuilder(
      * emits them, sampled at the frame's time with the lattice's budget; a
      * lattice form must match [atmosphere] in resolution, since the lattice is
      * the atmosphere's. The form must be settled: a frame mid-[morphTo] is not
-     * a steady state, and this is where a loop's lead-in comes from. Not
-     * measured by the probe, which times the live render loop.
+     * a steady state, and this is where a loop's lead-in comes from. The
+     * [look]'s modulator is the live one too, built here if the live stream has
+     * not needed it yet. Not measured by the probe, which times the live render
+     * loop.
      *
      * @param tick [VoxelFrame.tick] of the result.
      * @param timestampEpochMillis [VoxelFrame.timestampEpochMillis] of the result.
@@ -365,7 +401,7 @@ class VoxelFrameBuilder(
             }
         }
         check(!isMorphing) { "buildSteadyState has no steady state to render while a morph is in flight" }
-        val sample = current.sample(lattice.count, LumosLook.BASE, timestampEpochMillis / 1_000f)
+        val sample = current.sample(lattice.count, look.look, timestampEpochMillis / 1_000f)
         return frameAt(
             atmosphere = atmosphere,
             transition = null,
@@ -375,6 +411,7 @@ class VoxelFrameBuilder(
             permutation = permutation,
             morphPositions = null,
             framing = framing(sample),
+            modulator = modulatorFor(sample),
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -417,7 +454,7 @@ class VoxelFrameBuilder(
 
         val glyph = advanceGlyph(dt)?.glyph
         lastTimeSeconds = snapshot.elapsedTimeSeconds
-        val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
+        val sample = form.sample(lattice.count, look.look, snapshot.elapsedTimeSeconds)
         stillFrame?.let { held ->
             if (atmosphere === stillAtmosphere &&
                 phases == stillPhases &&
@@ -444,6 +481,7 @@ class VoxelFrameBuilder(
                     permutation = permutation,
                     morphPositions = null,
                     framing = framing(sample),
+                    modulator = modulatorFor(sample),
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
                 )
@@ -472,7 +510,7 @@ class VoxelFrameBuilder(
         phases = phases.advanced(atmosphere, dt)
 
         lastTimeSeconds = snapshot.elapsedTimeSeconds
-        val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
+        val sample = form.sample(lattice.count, look.look, snapshot.elapsedTimeSeconds)
         val body = stepMorph(sample, dt)
         return frameAt(
             atmosphere = atmosphere,
@@ -483,6 +521,7 @@ class VoxelFrameBuilder(
             permutation = permutation,
             morphPositions = body?.positions,
             framing = if (body == null) framing(sample) else effectiveFraming(sample),
+            modulator = modulatorFor(sample),
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
         )
@@ -538,14 +577,37 @@ class VoxelFrameBuilder(
     }
 
     /**
+     * The [look]'s modulator over [sample]: the one already built when neither has
+     * changed, a new one otherwise. Null when [LumosLook.BASE] has nothing to do.
+     */
+    private fun modulatorFor(sample: FormSample): LookModulator? {
+        if (look.look == LumosLook.BASE && !config.rimFade) return null
+        val current = modulator
+        if (current != null && modulatorSample === sample) return current
+        return Looks.forLook(look, sample).also {
+            modulator = it
+            modulatorSample = sample
+        }
+    }
+
+    /**
      * The pure core of a build: every input named, nothing read from the
-     * builder but its lattice resolution and [config]. [build] advances state
-     * and calls this; [buildSteadyState] calls it as it is. One cell per entry
-     * of [sample]: cell `i` reads sample entry `permutation[i]`, or `i` when
-     * [permutation] is null, and sits at [morphPositions]' entry `i` when a
-     * morph is in flight, else at the sample's rest position. Positioned at
+     * builder but its lattice resolution, [config] and the three scratch
+     * objects the look pass reuses. [build] advances state and calls this;
+     * [buildSteadyState] calls it as it is. One cell per entry of [sample]:
+     * cell `i` reads sample entry `permutation[i]`, or `i` when [permutation]
+     * is null, and sits at [morphPositions]' entry `i` when a morph is in
+     * flight, else at the sample's rest position. Positioned at
      * [Framing.formScale] times the form's and sized at [Framing.cellScale]
      * times the lattice's cell.
+     *
+     * With a [modulator], each cell is rotated into view space by the frame's
+     * own angles — the rotation the surfaces apply again at projection — from
+     * where it rests this frame, mid-morph or not, and modulated in the form's
+     * own unit space, before the atmosphere's jitter, bump, pulse and squash
+     * and before the framing scales it. The modulator is keyed by sample index,
+     * so a cell keeps its place in the walk's table across a morph. Without
+     * one, the loop is exactly what it was before looks existed.
      */
     @Suppress("LongParameterList")
     private fun frameAt(
@@ -557,6 +619,7 @@ class VoxelFrameBuilder(
         permutation: IntArray?,
         morphPositions: FloatArray?,
         framing: Framing,
+        modulator: LookModulator?,
         tick: Long,
         timestampEpochMillis: Long,
     ): VoxelFrame {
@@ -576,6 +639,11 @@ class VoxelFrameBuilder(
         val glyphShape = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.let { GlyphShape.forGlyph(it.glyph) }
         val glyphVisibility = glyphLifecycle?.takeIf { config.enableGlyphCarving }?.visibility ?: 0f
         val glyphRotation = Vector3(phases.orbRotationX, phases.orbRotationY, 0f)
+        val lookTime = phases.lookSeconds.toFloat()
+        if (modulator != null) {
+            rotation.set(phases.orbRotationX, phases.orbRotationY, atmosphere.rotationX, atmosphere.rotationY)
+            modulator.beginFrame(lookTime, rotation)
+        }
 
         val positions = sample.positions
         val directions = sample.unitDirections
@@ -608,16 +676,10 @@ class VoxelFrameBuilder(
                 } else {
                     1f
                 }
-            val scale = voxelFill * pulse * boundaryShrink * glyphShrink
-
-            // Omission reads the atmosphere's own scale: a form's cell size changes how big a
-            // cell is drawn, not whether it is worth drawing.
-            if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
-
-            val jitter = jitters[index]
-            val restX: Float
-            val restY: Float
-            val restZ: Float
+            // Where the cell rests this frame: on the way to the form mid-morph, else at the form.
+            var restX: Float
+            var restY: Float
+            var restZ: Float
             if (morphPositions != null) {
                 restX = morphPositions[3 * cell]
                 restY = morphPositions[3 * cell + 1]
@@ -628,6 +690,35 @@ class VoxelFrameBuilder(
                 restY = position.y
                 restZ = position.z
             }
+            var lookRadius = 1f
+            var lookAlpha = 1f
+            var lit = 0f
+            if (modulator != null) {
+                modulation.reset()
+                rotation.place(view, restX, restY, restZ, direction.x, direction.y, direction.z)
+                modulator.modulate(index, view, lookTime, modulation)
+                val extent = modulation.extent
+                restX *= extent
+                restY *= extent
+                restZ *= extent
+                val ox = modulation.ox
+                val oy = modulation.oy
+                if (ox != 0f || oy != 0f) {
+                    restX += rotation.unrotateX(ox, oy)
+                    restY += rotation.unrotateY(ox, oy)
+                    restZ += rotation.unrotateZ(ox, oy)
+                }
+                lookRadius = modulation.radius
+                lookAlpha = modulation.alpha.coerceIn(0f, 1f)
+                lit = modulation.lit.coerceIn(0f, 1f)
+            }
+            val scale = voxelFill * pulse * boundaryShrink * glyphShrink * lookRadius
+
+            // Omission reads the atmosphere's own scale: a form's cell size changes how big a
+            // cell is drawn, not whether it is worth drawing.
+            if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
+
+            val jitter = jitters[index]
             val px = restX + jitter.x * atmosphere.noise * JITTER_GAIN
             val py = restY + jitter.y * atmosphere.noise * JITTER_GAIN
             val pz = restZ + jitter.z * atmosphere.noise * JITTER_GAIN
@@ -643,15 +734,17 @@ class VoxelFrameBuilder(
             val finalY = (py + uy * bumpAmount) * effectiveYSquash * pulse * formScale
             val finalZ = (pz + uz * bumpAmount) * pulse * formScale
 
+            val litColor = if (lit > 0f) NeutralColor.lerp(color, NeutralColor.WHITE, lit * LIT_MIX) else color
             cells +=
                 VoxelCell(
                     x = finalX,
                     y = finalY,
                     z = finalZ,
                     scale = scale * cellScale,
-                    red = color.red,
-                    green = color.green,
-                    blue = color.blue,
+                    red = litColor.red,
+                    green = litColor.green,
+                    blue = litColor.blue,
+                    alpha = if (lookAlpha != 1f) lookAlpha else null,
                 )
         }
 
@@ -805,6 +898,9 @@ class VoxelFrameBuilder(
 
         /** How long [morphTo] takes by default: Dots' 2.4 s. */
         const val DEFAULT_MORPH_SECONDS: Float = 2.4f
+
+        /** How far a fully lit cell's colour moves toward white; see [CellModulation.lit]. */
+        internal const val LIT_MIX: Float = 0.5f
 
         // Where a held glyph sits in its envelope: the middle of the hold, at full strength.
         private const val STILL_GLYPH_PROGRESS: Float = 0.5f

@@ -122,6 +122,20 @@ class LiveFrameSourceTest {
     }
 
     @Test
+    fun `lookKey carries the builder's look when it is not BASE`() {
+        val source = LiveFrameSource(scene(initial = AtmospherePresets.THINKING))
+
+        source.builder.look = Look(LumosLook.WORKING, "gyro")
+        assertEquals("thinking/working-gyro", source.lookKey)
+
+        source.builder.look = Look(LumosLook.SEARCHING)
+        assertEquals("thinking/searching", source.lookKey)
+
+        source.builder.look = Look(LumosLook.BASE)
+        assertEquals("thinking", source.lookKey, "BASE keeps the preset's key, so today's orbs share it")
+    }
+
+    @Test
     fun `align puts a steady scene on the clock's phase`() {
         val source = LiveFrameSource(scene())
         source.next(0.3f)

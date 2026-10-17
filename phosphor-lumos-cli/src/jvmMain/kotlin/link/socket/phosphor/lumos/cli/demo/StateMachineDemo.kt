@@ -325,7 +325,7 @@ private fun stateFor(key: Char): String? =
  * Polling rather than a reader thread: the machine is single-threaded by
  * contract, so a request has to be made from the coroutine that drives it.
  */
-private fun drainKeys(): List<Char> {
+internal fun drainKeys(): List<Char> {
     val keys = ArrayList<Char>()
     while (System.`in`.available() > 0) {
         val byte = System.`in`.read()
@@ -342,7 +342,7 @@ private fun drainKeys(): List<Char> {
  * Falls back to the terminal's normal line discipline when `stty` is not
  * available — the demo still works, it just wants Enter after each key.
  */
-private fun withRawKeys(block: () -> Unit) {
+internal fun withRawKeys(block: () -> Unit) {
     val raw = stty("-echo", "-icanon")
     try {
         block()
