@@ -309,7 +309,7 @@ internal class VirtualPointer {
     }
 }
 
-/** A keypress: a plain key, or an arrow moving the pointer one step along [dx] and [dy]. */
+/** A keypress: a plain key, or an arrow moving the pointer one step along [Arrow.dx] and [Arrow.dy]. */
 internal sealed interface Press {
     data class Key(val char: Char) : Press
 

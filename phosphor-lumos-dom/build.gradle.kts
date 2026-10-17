@@ -57,8 +57,10 @@ kotlin {
 }
 
 // PHO-88's budget for the bundle a page loads: 110 KB gzipped before PHO-87 dropped
-// kotlinx-datetime, 70 KB after. Nothing from Skiko or Compose may reach it.
-val bundleBudgetBytes = 70 * 1024
+// kotlinx-datetime, 70 KB after. PHO-82 raised it to 75 KB: pointer input in the shared
+// builder — the resting body, the repel and the gaze — is reachable from every mount, and
+// took the bundle from 69.2 to 72.0 KB. Nothing from Skiko or Compose may reach it.
+val bundleBudgetBytes = 75 * 1024
 
 val checkBundleSize by tasks.registering {
     group = "verification"
