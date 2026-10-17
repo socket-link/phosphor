@@ -159,6 +159,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 - Test particle spawn/decay lifecycle to completion
 - Test 3D projection against known camera→screen coordinate pairs
 - Visual regression tests: render a known CellBuffer to string and compare against golden files in `testdata/`
+- Backtick test names in `commonTest` must also compile for Kotlin/Native, which rejects some characters that the JVM accepts. Leave out `, . ; : / \ < > [ ]` (use `—` to separate clauses). `jvmTest` won't catch this. Only the iOS job will (#165).
+- `jvmTest` is the fast local gate, but it isn't the whole check. All four CI jobs (JVM, Web, iOS, Dokka) are required to merge into `main`
 
 ## Safety Boundaries
 
