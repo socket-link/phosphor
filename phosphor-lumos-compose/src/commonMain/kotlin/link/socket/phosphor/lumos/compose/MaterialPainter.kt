@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import link.socket.phosphor.lumos.Material
 import link.socket.phosphor.lumos.MaterialStatus
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 
 /**
  * The painter that draws [this] material over [inner], the style's own painter. [Material.Flat]

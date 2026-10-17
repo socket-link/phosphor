@@ -1,4 +1,4 @@
-package link.socket.phosphor.lumos.compose.frame
+package link.socket.phosphor.lumos.frame
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,5 +59,17 @@ class LumosCanvasFrameTest {
 
         assertEquals(0f, voxel.dx)
         assertEquals(0f, voxel.dy)
+    }
+
+    @Test
+    fun `the serial names are the ones the frame had in the Compose module`() {
+        assertEquals(
+            "link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame",
+            LumosCanvasFrame.serializer().descriptor.serialName,
+        )
+        assertEquals(
+            "link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame.CanvasVoxel",
+            LumosCanvasFrame.CanvasVoxel.serializer().descriptor.serialName,
+        )
     }
 }

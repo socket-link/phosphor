@@ -1,4 +1,4 @@
-package link.socket.phosphor.lumos.compose.projection
+package link.socket.phosphor.lumos.projection
 
 import kotlin.math.PI
 import kotlin.math.abs
@@ -13,16 +13,16 @@ import link.socket.phosphor.lumos.VoxelCell
 import link.socket.phosphor.lumos.VoxelFrame
 
 /**
- * PHO-53: [ComposeLattice.tiltDegrees] views the orb from above its equator — a rotation about the
+ * PHO-53: [PixelLattice.tiltDegrees] views the orb from above its equator — a rotation about the
  * screen's X axis applied after the orb's own, not added to it.
  */
-class ComposeLatticeTiltTest {
+class PixelLatticeTiltTest {
     @Test
     fun `no tilt projects exactly as a lattice without one`() {
         val frame = frameOf(cell(0.3f, -0.4f, 0.5f), cell(-0.6f, 0.2f, -0.1f), rotationX = 0.4f, rotationY = 1.1f)
 
-        val untilted = ComposeLattice(widthPx = SIZE, heightPx = SIZE).project(frame)
-        val zeroTilt = ComposeLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = 0f).project(frame)
+        val untilted = PixelLattice(widthPx = SIZE, heightPx = SIZE).project(frame)
+        val zeroTilt = PixelLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = 0f).project(frame)
 
         assertEquals(untilted, zeroTilt)
     }
@@ -56,7 +56,7 @@ class ComposeLatticeTiltTest {
     @Test
     fun `a tilt must be finite`() {
         assertFailsWith<IllegalArgumentException> {
-            ComposeLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = Float.NaN)
+            PixelLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = Float.NaN)
         }
     }
 
@@ -64,7 +64,7 @@ class ComposeLatticeTiltTest {
         cell: VoxelCell,
         tiltDegrees: Float,
         rotationY: Float = 0f,
-    ) = ComposeLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = tiltDegrees)
+    ) = PixelLattice(widthPx = SIZE, heightPx = SIZE, tiltDegrees = tiltDegrees)
         .project(frameOf(cell, rotationY = rotationY))
         .voxels
         .single()

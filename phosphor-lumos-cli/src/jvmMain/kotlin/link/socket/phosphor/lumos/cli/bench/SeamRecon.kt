@@ -37,7 +37,7 @@ import link.socket.phosphor.trace.seamError
  *   each voxel by the frame's orb rotation, so a rotation seam shows in these
  *   numbers as well as in the Compose raster;
  * - Compose visibility: mean pixel change through a Java2D raster of the exact
- *   `ComposeLattice` projection (Euler X → Y → Z, orthographic, painter-sorted),
+ *   `PixelLattice` projection (Euler X → Y → Z, orthographic, painter-sorted),
  *   since there is no Compose host here.
  *
  * Every visibility number is a ratio against the median ordinary step of the
@@ -65,7 +65,7 @@ private const val CLI_HEIGHT = 32
 private const val RASTER_PX = 192
 
 /**
- * Zoom applied on top of the `ComposeLattice` mapping. Jittered voxels reach
+ * Zoom applied on top of the `PixelLattice` mapping. Jittered voxels reach
  * past `[-1, 1]`, so the stock mapping clips the orb's limb — which is where a
  * rotation seam shows first.
  */
@@ -395,7 +395,7 @@ private fun colorChange(
 }
 
 /**
- * The `ComposeLattice` projection, rasterized: rotate X → Y → Z, orthographic,
+ * The `PixelLattice` projection, rasterized: rotate X → Y → Z, orthographic,
  * far voxels first, zoomed by [RASTER_VIEW].
  */
 internal fun raster(frame: VoxelFrame): BufferedImage {

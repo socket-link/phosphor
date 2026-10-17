@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 
 /**
  * Unit tests for [LumosCanvas] composable semantics.

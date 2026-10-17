@@ -23,7 +23,7 @@ import link.socket.phosphor.lumos.VoxelFrame
  * [transduce] collapses the superposition into a single [VoxelFrame] upstream of
  * projection, which is the only place in the pipeline where the collapse is
  * well-defined. Both surface adapters compact their cell lists on the way to the
- * screen — `ComposeLattice` drops zero-scale and off-screen voxels per frame,
+ * screen — `PixelLattice` drops zero-scale and off-screen voxels per frame,
  * `CliLattice` keeps one z-winner per character cell and then quantizes scale
  * onto a ten-step luminance ramp — so neither can recover the index pairing a
  * pairwise blend needs, and the terminal ramp has no continuous interpolant at

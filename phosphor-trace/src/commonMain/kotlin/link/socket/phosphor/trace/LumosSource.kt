@@ -25,7 +25,7 @@ import link.socket.phosphor.runtime.SceneConfiguration
  * ```
  *
  * The seam sits *upstream* of projection, which is what makes the swap free.
- * `ComposeLattice`, `CliLattice`, and `LumosCanvas` all consume a `VoxelFrame`
+ * `PixelLattice`, `CliLattice`, and `LumosCanvas` all consume a `VoxelFrame`
  * and have no idea whether it was simulated a microsecond ago or recorded last
  * week — so rotation, depth sorting, halo, theming, and the glyph overlay stay
  * live over a replay without a line of adapter code.

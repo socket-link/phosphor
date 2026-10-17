@@ -35,11 +35,11 @@ import link.socket.phosphor.lumos.MaterialStatus
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
-import link.socket.phosphor.lumos.compose.frame.LumosCanvasFrame
-import link.socket.phosphor.lumos.compose.projection.ComposeLattice
+import link.socket.phosphor.lumos.frame.LumosCanvasFrame
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
 import link.socket.phosphor.lumos.probe.measure
+import link.socket.phosphor.lumos.projection.PixelLattice
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
 
@@ -49,7 +49,7 @@ import link.socket.phosphor.signal.AtmosphereState
  * Each recomposition paints:
  * 1. An optional ambient halo (radial gradient behind the orb).
  * 2. All voxels back-to-front, each as the mark [style] asks for, made of [material]. No per-frame sort:
- *    [link.socket.phosphor.lumos.compose.projection.ComposeLattice] emits voxels z-ascending; only a
+ *    [link.socket.phosphor.lumos.projection.PixelLattice] emits voxels z-ascending; only a
  *    hand-built, out-of-order frame is sorted here.
  * 3. An optional glyph overlay at the canvas center, faded by [GlyphEnvelope.visibility] of
  *    [VoxelGlyphState.progress].
@@ -64,7 +64,7 @@ import link.socket.phosphor.signal.AtmosphereState
  * The composable is [Stable]: identical [LumosCanvasFrame] values (structural equality via data class)
  * produce identical output, letting Compose's machinery skip recomposition when frames are unchanged.
  *
- * @param frame       Projected canvas frame, typically from [link.socket.phosphor.lumos.compose.projection.ComposeLattice.project].
+ * @param frame       Projected canvas frame, typically from [link.socket.phosphor.lumos.projection.PixelLattice.project].
  * @param modifier    Sizing and placement modifier; must include an explicit size (e.g. [androidx.compose.ui.unit.dp]).
  * @param backgroundColor Optional opaque background drawn before halo and voxels. Transparent by default.
  * @param showHalo    Paint the ambient breath-ring gradient behind the orb. Defaults to true.
@@ -122,7 +122,7 @@ internal fun DrawScope.drawLumosFrame(
     }
 }
 
-// Paints in list order, which is painter's order for any frame from ComposeLattice.project.
+// Paints in list order, which is painter's order for any frame from PixelLattice.project.
 // A hand-built frame that is out of order is sorted first (the only allocation on this path).
 // Every style draws a cell at least SurfaceStyle.MIN_RADIUS_PX across: below it a cell rasterises
 // to grey haze, and at 20 px most of the orb would.
@@ -532,8 +532,8 @@ internal fun surfacePreviewFrames(
         surfacePreviewLattice(SURFACE_PREVIEW_SMALL_PX, frame.resolution).project(frame)
 }
 
-// Half a lattice cell per voxel, as LumosDriver sizes it.
+// Half a lattice cell per voxel, as OrbStepper sizes it.
 internal fun surfacePreviewLattice(
     px: Int,
     resolution: Int,
-): ComposeLattice = ComposeLattice(widthPx = px, heightPx = px, voxelRadiusPx = px / (4f * resolution))
+): PixelLattice = PixelLattice(widthPx = px, heightPx = px, voxelRadiusPx = px / (4f * resolution))

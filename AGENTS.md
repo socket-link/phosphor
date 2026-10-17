@@ -60,9 +60,9 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | Module | Purpose |
 |--------|---------|
 | `phosphor-core/` | Shared rendering pipeline — signals, fields, palettes, cells, choreography, emitters, and runtime bridges |
-| `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core` |
+| `phosphor-lumos/` | Framework-free voxel-orb companion visualization for cognitive state, built as a sibling output module over `phosphor-core`; also the `LumosCanvasFrame` DTO, `PixelLattice` projection and `OrbStepper` clock every pixel surface shares |
 | `phosphor-lumos-cli/` | JVM terminal frame DTOs, the `CliLattice` projection, and the `CliOrb` ANSI renderer for Lumos voxel frames |
-| `phosphor-lumos-compose/` | Compose Multiplatform DTO and Canvas rendering surface for projected Lumos voxel frames |
+| `phosphor-lumos-compose/` | Compose Multiplatform Canvas rendering surface (`LumosCanvas`, `LumosOrb`) for projected Lumos voxel frames |
 | `phosphor-trace/` | Recorded `VoxelTrace` format, capture, codec, and playback — versioned segments and a CBOR + gzip codec |
 
 ### Future / Aspirational Modules
@@ -84,8 +84,8 @@ Phosphor is a layered rendering pipeline: cognitive signals flow in, visible cha
 | `phosphor-lumos/src/commonTest/` | Lumos smoke tests and future voxel-frame API tests |
 | `phosphor-lumos-cli/src/commonMain/` | JVM CLI-facing Lumos terminal frame DTOs |
 | `phosphor-lumos-cli/src/commonTest/` | CLI DTO serialization and shape-contract tests |
-| `phosphor-lumos-compose/src/commonMain/` | Compose Multiplatform Canvas-facing Lumos frame DTOs |
-| `phosphor-lumos-compose/src/commonTest/` | Compose DTO serialization and shape-contract tests |
+| `phosphor-lumos-compose/src/commonMain/` | Compose Multiplatform Canvas surface for Lumos frames |
+| `phosphor-lumos-compose/src/commonTest/` | Compose surface and Compose-state tests |
 
 ## Before You Change Anything
 

@@ -1,4 +1,4 @@
-package link.socket.phosphor.lumos.compose.projection
+package link.socket.phosphor.lumos.projection
 
 import kotlin.math.PI
 import kotlin.math.abs
@@ -19,32 +19,32 @@ import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.CognitivePhase
 
-class ComposeLatticeTest {
+class PixelLatticeTest {
     @Test
     fun `constructor rejects non-positive dimensions and radius and aspect ratio`() {
-        assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = 0, heightPx = 600) }
-        assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = -1, heightPx = 600) }
-        assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = 800, heightPx = 0) }
-        assertFailsWith<IllegalArgumentException> { ComposeLattice(widthPx = 800, heightPx = -1) }
+        assertFailsWith<IllegalArgumentException> { PixelLattice(widthPx = 0, heightPx = 600) }
+        assertFailsWith<IllegalArgumentException> { PixelLattice(widthPx = -1, heightPx = 600) }
+        assertFailsWith<IllegalArgumentException> { PixelLattice(widthPx = 800, heightPx = 0) }
+        assertFailsWith<IllegalArgumentException> { PixelLattice(widthPx = 800, heightPx = -1) }
         assertFailsWith<IllegalArgumentException> {
-            ComposeLattice(widthPx = 800, heightPx = 600, voxelRadiusPx = 0f)
+            PixelLattice(widthPx = 800, heightPx = 600, voxelRadiusPx = 0f)
         }
         assertFailsWith<IllegalArgumentException> {
-            ComposeLattice(widthPx = 800, heightPx = 600, voxelRadiusPx = -1f)
+            PixelLattice(widthPx = 800, heightPx = 600, voxelRadiusPx = -1f)
         }
         assertFailsWith<IllegalArgumentException> {
-            ComposeLattice(widthPx = 800, heightPx = 600, aspectRatio = 0f)
+            PixelLattice(widthPx = 800, heightPx = 600, aspectRatio = 0f)
         }
         assertFailsWith<IllegalArgumentException> {
-            ComposeLattice(widthPx = 800, heightPx = 600, aspectRatio = -1f)
+            PixelLattice(widthPx = 800, heightPx = 600, aspectRatio = -1f)
         }
         // Valid construction should not throw
-        ComposeLattice(widthPx = 800, heightPx = 600)
+        PixelLattice(widthPx = 800, heightPx = 600)
     }
 
     @Test
     fun `voxels are emitted z ascending with ties in lattice order over repeated projections`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val zs = listOf(0.5f, -0.9f, 0.0f, 0.5f, -0.2f, 0.99f, -0.9f)
         val frame = voxelFrame(cells = zs.mapIndexed { i, z -> voxelAt(x = i * 0.1f - 0.3f, y = 0f, z = z) })
 
@@ -58,7 +58,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel at origin with no rotation projects to canvas center`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 0f, y = 0f, z = 0f)))
         val canvas = lattice.project(frame)
 
@@ -72,7 +72,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel at 1 0 0 with no rotation projects to right edge`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 1f, y = 0f, z = 0f)))
         val canvas = lattice.project(frame)
 
@@ -83,7 +83,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel at neg1 0 0 with no rotation projects to left edge`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = -1f, y = 0f, z = 0f)))
         val canvas = lattice.project(frame)
 
@@ -97,7 +97,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel at 0 1 0 with no rotation projects to top edge Y-flip`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val frame = voxelFrame(cells = listOf(voxelAt(x = 0f, y = 1f, z = 0f)))
         val canvas = lattice.project(frame)
 
@@ -111,7 +111,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `zero-scale voxel is dropped`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val cell = VoxelCell(x = 0f, y = 0f, z = 0f, scale = 0f, red = 1f, green = 1f, blue = 1f)
         val canvas = lattice.project(voxelFrame(cells = listOf(cell)))
 
@@ -120,7 +120,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `negative-scale voxel is dropped`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val cell = VoxelCell(x = 0f, y = 0f, z = 0f, scale = -0.1f, red = 1f, green = 1f, blue = 1f)
         val canvas = lattice.project(voxelFrame(cells = listOf(cell)))
 
@@ -129,7 +129,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `scale maps to radiusPx and colors are forwarded unchanged`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400, voxelRadiusPx = 8f)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400, voxelRadiusPx = 8f)
         val cell =
             VoxelCell(
                 x = 0f,
@@ -154,7 +154,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `null alpha defaults to 1f`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val cell = VoxelCell(x = 0f, y = 0f, z = 0f, scale = 1f, red = 1f, green = 1f, blue = 1f, alpha = null)
         val canvas = lattice.project(voxelFrame(cells = listOf(cell)))
 
@@ -164,7 +164,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel at 1 0 0 with orbRotationY pi over 2 projects near canvas center with negative z`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val ambient = DEFAULT_AMBIENT.copy(orbRotationY = (PI / 2).toFloat())
         val frame = voxelFrame(cells = listOf(voxelAt(x = 1f, y = 0f, z = 0f)), ambient = ambient)
         val canvas = lattice.project(frame)
@@ -182,7 +182,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `identity rotation with all zero angles produces same output as unrotated projection`() {
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
         val cells =
             listOf(
                 voxelAt(x = 0.5f, y = 0.5f, z = 0.5f),
@@ -203,7 +203,7 @@ class ComposeLatticeTest {
 
     @Test
     fun `voxel projected outside canvas bounds is dropped`() {
-        val lattice = ComposeLattice(widthPx = 100, heightPx = 100)
+        val lattice = PixelLattice(widthPx = 100, heightPx = 100)
         // x = 1 maps to screenX = 100 (out of bounds for [0, 100))
         val cell = voxelAt(x = 1f, y = 0f, z = 0f)
         val canvas = lattice.project(voxelFrame(cells = listOf(cell)))
@@ -232,7 +232,7 @@ class ComposeLatticeTest {
                 blue = 0.7f,
             )
         val frame = voxelFrame(tick = 42L, cells = emptyList(), ambient = ambient, glyph = glyph)
-        val canvas = ComposeLattice(widthPx = 400, heightPx = 400).project(frame)
+        val canvas = PixelLattice(widthPx = 400, heightPx = 400).project(frame)
 
         assertEquals(ambient, canvas.ambient)
         assertEquals(glyph, canvas.glyph)
@@ -244,7 +244,7 @@ class ComposeLatticeTest {
     @Test
     fun `projection is deterministic for identical inputs`() {
         val frame = settledFrame(AtmospherePresets.IDLE)
-        val lattice = ComposeLattice(widthPx = 400, heightPx = 400)
+        val lattice = PixelLattice(widthPx = 400, heightPx = 400)
 
         val a = lattice.project(frame)
         val b = lattice.project(frame)
@@ -291,7 +291,7 @@ class ComposeLatticeTest {
                 ambient = VoxelAmbient(0f, 0f, 0f, 0f, orbRotationX = 0f, orbRotationY = 0f, orbRotationZ = 0f),
             )
 
-        val flat = ComposeLattice(widthPx = 100, heightPx = 100).project(frame).voxels
+        val flat = PixelLattice(widthPx = 100, heightPx = 100).project(frame).voxels
         val flatFront = flat.single { it.screenX == 50f }
         val flatSide = flat.single { it.screenX == 75f }
         assertEquals(1f, flatFront.dx, 1e-6f, "the front of the sphere is carried along +x by a yaw")
@@ -299,7 +299,7 @@ class ComposeLatticeTest {
         assertEquals(0f, flatSide.dx, 1e-6f, "the limb moves in depth, not across the screen")
         assertEquals(0f, flatSide.dy, 1e-6f, "untilted, nothing moves vertically")
 
-        val tilted = ComposeLattice(widthPx = 100, heightPx = 100, tiltDegrees = 30f).project(frame).voxels
+        val tilted = PixelLattice(widthPx = 100, heightPx = 100, tiltDegrees = 30f).project(frame).voxels
         val tiltedFront = tilted.single { it.screenX == 50f }
         val tiltedSide = tilted.single { it.screenX == 75f }
         assertEquals(1f, tiltedFront.dx, 1e-6f, "dx is the z before the tilt")
@@ -317,7 +317,7 @@ class ComposeLatticeTest {
         baseline: SnapshotBaseline,
     ) {
         val frame = settledFrame(atmosphere)
-        val canvas = ComposeLattice(widthPx = 400, heightPx = 400).project(frame)
+        val canvas = PixelLattice(widthPx = 400, heightPx = 400).project(frame)
         val count = canvas.voxels.size
         val centroidX = if (count > 0) canvas.voxels.sumOf { it.screenX.toDouble() }.toFloat() / count else 0f
         val centroidY = if (count > 0) canvas.voxels.sumOf { it.screenY.toDouble() }.toFloat() / count else 0f
