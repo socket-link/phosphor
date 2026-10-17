@@ -32,6 +32,7 @@ import link.socket.phosphor.lumos.LookClock
 import link.socket.phosphor.lumos.LumosConfig
 import link.socket.phosphor.lumos.LumosFrameSource
 import link.socket.phosphor.lumos.PlatformMotionPreference
+import link.socket.phosphor.lumos.Material
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.probe.FrameProbe
 
@@ -76,7 +77,7 @@ val LocalLookClock: ProvidableCompositionLocal<LookClock> = staticCompositionLoc
  *
  * @param source Where frames come from; see [LumosFrameSource]. Remember it across recompositions:
  *  a new source restarts the orb.
- * @param config Speed, pause, reduced motion, label, surface style and the drawing knobs; see [LumosConfig].
+ * @param config Speed, pause, reduced motion, label, surface style, material and the drawing knobs; see [LumosConfig].
  * @param modifier Sizing and placement; must give the orb a size.
  * @param backgroundColor Optional opaque background drawn before the halo and voxels.
  * @param showHalo Paint the ambient breath-ring gradient behind the orb.
@@ -131,7 +132,7 @@ fun LumosOrb(
                     onScreen = coordinates.isAttached && !coordinates.boundsInWindow().isEmpty
                 },
     ) {
-        HeldCanvas(driver, backgroundColor, showHalo, showGlyphOverlay, probe, config.style)
+        HeldCanvas(driver, backgroundColor, showHalo, showGlyphOverlay, probe, config.style, config.material)
     }
 }
 
@@ -145,6 +146,7 @@ private fun HeldCanvas(
     showGlyphOverlay: Boolean,
     probe: FrameProbe,
     style: SurfaceStyle,
+    material: Material,
 ) {
     val frame = driver.canvasFrame ?: return
     LumosCanvas(
@@ -155,6 +157,7 @@ private fun HeldCanvas(
         showGlyphOverlay = showGlyphOverlay,
         probe = probe,
         style = style,
+        material = material,
     )
 }
 

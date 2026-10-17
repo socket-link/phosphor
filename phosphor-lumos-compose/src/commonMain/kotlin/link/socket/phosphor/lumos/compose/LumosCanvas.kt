@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,6 +30,8 @@ import link.socket.phosphor.lumos.GlyphEnvelope
 import link.socket.phosphor.lumos.LiveFrameSource
 import link.socket.phosphor.lumos.Look
 import link.socket.phosphor.lumos.LumosLook
+import link.socket.phosphor.lumos.Material
+import link.socket.phosphor.lumos.MaterialStatus
 import link.socket.phosphor.lumos.SurfaceStyle
 import link.socket.phosphor.lumos.VoxelAmbient
 import link.socket.phosphor.lumos.VoxelGlyphState
@@ -45,7 +48,7 @@ import link.socket.phosphor.signal.AtmosphereState
  *
  * Each recomposition paints:
  * 1. An optional ambient halo (radial gradient behind the orb).
- * 2. All voxels back-to-front, each as the mark [style] asks for. No per-frame sort:
+ * 2. All voxels back-to-front, each as the mark [style] asks for, made of [material]. No per-frame sort:
  *    [link.socket.phosphor.lumos.compose.projection.ComposeLattice] emits voxels z-ascending; only a
  *    hand-built, out-of-order frame is sorted here.
  * 3. An optional glyph overlay at the canvas center, faded by [GlyphEnvelope.visibility] of
@@ -70,6 +73,11 @@ import link.socket.phosphor.signal.AtmosphereState
  *  cost; pass a [link.socket.phosphor.lumos.probe.RingBufferFrameProbe] to capture DRAW timings.
  * @param style The mark each voxel is drawn as; see [SurfaceStyle]. [SurfaceStyle.Squares], the
  *  default, draws exactly what the canvas drew before styles existed.
+ * @param material What each voxel is made of; see [Material]. [Material.Flat], the default, is the
+ *  style's own mark. [Material.Ink] and [Material.Neon] draw without a shader on every target;
+ *  [Material.Metal] and [Material.Glass] are not drawn yet and fall back to [Material.Flat].
+ * @param onMaterialStatus Told once per [material] whether this canvas draws it as asked
+ *  ([MaterialStatus.Ready]) or fell back to [Material.Flat] ([MaterialStatus.Unavailable]).
  */
 @Stable
 @Composable
@@ -81,11 +89,16 @@ fun LumosCanvas(
     showGlyphOverlay: Boolean = true,
     probe: FrameProbe = FrameProbe.Disabled,
     style: SurfaceStyle = SurfaceStyle.Squares,
+    material: Material = Material.Flat,
+    onMaterialStatus: ((Material, MaterialStatus) -> Unit)? = null,
 ) {
-    val painter = remember(style) { style.painter() }
+    val painter = remember(style, material) { material.painter(style.painter()) }
+    if (onMaterialStatus != null) {
+        LaunchedEffect(material, onMaterialStatus) { onMaterialStatus(material, material.canvasStatus()) }
+    }
     Canvas(modifier = modifier) {
         probe.measure(FramePhase.DRAW) {
-            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay, painter)
+            drawLumosFrame(frame, backgroundColor, showHalo, showGlyphOverlay, painter, material.haloBoost())
         }
     }
 }
@@ -97,11 +110,12 @@ internal fun DrawScope.drawLumosFrame(
     showHalo: Boolean = true,
     showGlyphOverlay: Boolean = true,
     painter: SurfacePainter = SquaresPainter(),
+    haloBoost: Float = 0f,
 ) {
     if (backgroundColor != Color.Transparent) {
         drawRect(backgroundColor)
     }
-    if (showHalo) drawHalo(frame.ambient)
+    if (showHalo) drawHalo(frame.ambient, haloBoost)
     drawVoxels(frame, painter)
     if (showGlyphOverlay) {
         frame.glyph?.let { drawGlyph(it) }
@@ -133,16 +147,21 @@ internal fun DrawScope.drawVoxels(
 }
 
 // Draws a radial gradient disk centered on the canvas to simulate the ambient breath ring.
-private fun DrawScope.drawHalo(ambient: VoxelAmbient) {
+// A material may lift it: a Neon orb's ambient glows (1 + glow) times as strong, held to opaque.
+private fun DrawScope.drawHalo(
+    ambient: VoxelAmbient,
+    boost: Float = 0f,
+) {
     if (ambient.glowIntensity <= 0f) return
     val center = Offset(size.width / 2f, size.height / 2f)
     val radius = min(size.width, size.height) * 0.55f
+    val intensity = (ambient.glowIntensity * (1f + boost)).coerceAtMost(1f)
     drawCircle(
         brush =
             Brush.radialGradient(
                 colors =
                     listOf(
-                        Color(ambient.glowRed, ambient.glowGreen, ambient.glowBlue, ambient.glowIntensity),
+                        Color(ambient.glowRed, ambient.glowGreen, ambient.glowBlue, intensity),
                         Color.Transparent,
                     ),
                 center = center,
