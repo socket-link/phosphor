@@ -8,7 +8,9 @@ import kotlin.math.min
  * Orbs of one look at one speed share a [LookClock.key] and read one time from it, in seconds.
  * An orb that joins a key late, or comes back after scrolling out of view, reads the time its
  * peers are at and takes their phase ([LumosFrameSource.align]), so a column of orbs in the same
- * state breathes together however long ago each one was first drawn.
+ * state breathes together however long ago each one was first drawn. An orb whose look switches
+ * on screen takes up the incoming look's time alone ([LumosFrameSource.alignLook]), keeping its
+ * spin.
  *
  * A key's time moves by the wall time since it last moved, capped at
  * [LookClock.MAX_GAP_SECONDS] and scaled by speed. A key nobody read for an hour resumes a tenth

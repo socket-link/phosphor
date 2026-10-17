@@ -12,7 +12,8 @@ import link.socket.phosphor.lumos.probe.FrameProbe
 /**
  * PHO-53: the rules a pixel-surface orb keeps about time — speed, the cap on a step, alignment to
  * a shared look clock, reduced motion, the paused redraw — and the projection it reuses. Moved
- * with [OrbStepper] out of `LumosOrb`'s driver (PHO-85).
+ * with [OrbStepper] out of `LumosOrb`'s driver (PHO-85). PHO-79: a look change aligns the look
+ * alone.
  */
 class OrbStepperTest {
     @Test
@@ -104,7 +105,7 @@ class OrbStepperTest {
     }
 
     @Test
-    fun `a change of look is not a return and moves no phase`() {
+    fun `a change of look is not a return and aligns the look alone`() {
         val source = RecordingSource()
         val stepper = OrbStepper(source, LookClock()) { false }
         stepper.step(secondsToNanos(1.0))
@@ -113,6 +114,82 @@ class OrbStepperTest {
         stepper.step(secondsToNanos(1.016))
 
         assertEquals(1, source.aligned.size)
+        assertEquals(1, source.alignedLooks.size)
+    }
+
+    @Test
+    fun `a change of look aligns once to the new key's time a step behind`() {
+        // PHO-79: a peer has kept the new look's key moving; the switching orb takes up its time.
+        val clock = LookClock()
+        val peer = RecordingSource(key = "thinking/working")
+        val peerStepper = OrbStepper(peer, clock) { false }
+        val source = RecordingSource(key = "thinking")
+        val stepper = OrbStepper(source, clock) { false }
+        var now = 1.0
+        repeat(30) {
+            peerStepper.step(secondsToNanos(now))
+            stepper.step(secondsToNanos(now))
+            now += FRAME_SECONDS
+        }
+
+        source.key = "thinking/working"
+        peerStepper.step(secondsToNanos(now))
+        stepper.step(secondsToNanos(now))
+        val keyTime = assertNotNull(clock.timeOf(LookClock.key("thinking/working", 1f)))
+        repeat(5) {
+            now += FRAME_SECONDS
+            peerStepper.step(secondsToNanos(now))
+            stepper.step(secondsToNanos(now))
+        }
+
+        assertEquals(1, source.alignedLooks.size)
+        assertEquals(keyTime - source.steps[30], source.alignedLooks.single(), 1e-6)
+        assertEquals(1, source.aligned.size, "only the first step rejoined")
+    }
+
+    @Test
+    fun `a change of speed alone aligns nothing`() {
+        val source = RecordingSource()
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.step(secondsToNanos(1.0))
+
+        stepper.update(LumosConfig(speed = 2f), FrameProbe.Disabled)
+        stepper.step(secondsToNanos(1.016))
+        stepper.step(secondsToNanos(1.032))
+
+        assertTrue(source.alignedLooks.isEmpty())
+        assertEquals(1, source.aligned.size)
+    }
+
+    @Test
+    fun `a change of look on a return aligns everything rather than the look alone`() {
+        val source = RecordingSource()
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.step(secondsToNanos(1.0))
+
+        source.key = "thinking"
+        stepper.rejoin()
+        stepper.step(secondsToNanos(2.0))
+        stepper.step(secondsToNanos(2.016))
+
+        assertEquals(2, source.aligned.size)
+        assertTrue(source.alignedLooks.isEmpty())
+    }
+
+    @Test
+    fun `a look that leaves the clocks and comes back aligns on its return`() {
+        // A custom atmosphere has no key; coming back to a preset's is a change of look.
+        val source = RecordingSource()
+        val stepper = OrbStepper(source, LookClock()) { false }
+        stepper.step(secondsToNanos(1.0))
+
+        source.key = null
+        stepper.step(secondsToNanos(1.016))
+        assertTrue(source.alignedLooks.isEmpty())
+
+        source.key = "idle"
+        stepper.step(secondsToNanos(1.032))
+        assertEquals(1, source.alignedLooks.size)
     }
 
     @Test
@@ -281,6 +358,7 @@ class OrbStepperTest {
         val steps = mutableListOf<Float>()
         val stills = mutableListOf<Float>()
         val aligned = mutableListOf<Double>()
+        val alignedLooks = mutableListOf<Double>()
         var revisionValue = 0L
 
         override fun next(dt: Float): VoxelFrame {
@@ -299,6 +377,10 @@ class OrbStepperTest {
 
         override fun align(lookTime: Double) {
             aligned += lookTime
+        }
+
+        override fun alignLook(lookTime: Double) {
+            alignedLooks += lookTime
         }
     }
 

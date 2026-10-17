@@ -65,7 +65,8 @@ val LocalLookClock: ProvidableCompositionLocal<LookClock> = staticCompositionLoc
  * - **A shared clock.** Orbs whose sources share a [LumosFrameSource.lookKey] and run at one speed
  *   read one [LocalLookClock] time. An orb that starts or resumes stepping takes that look's phase,
  *   so a row scrolled into view breathes with its neighbours. An orb unpaused while its peers kept
- *   moving catches up to them as it resumes.
+ *   moving catches up to them as it resumes. An orb whose look changes on screen takes up the new
+ *   look's phase alone ([LumosFrameSource.alignLook]), so its spin never snaps.
  * - **Screen readers.** With a [LumosConfig.label], the orb is one image described by it. Without
  *   one, screen readers skip it.
  *

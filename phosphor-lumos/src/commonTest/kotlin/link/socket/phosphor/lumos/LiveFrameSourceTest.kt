@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -171,6 +172,119 @@ class LiveFrameSourceTest {
         assertPhasesClose(early.builder.phases, late.builder.phases)
     }
 
+    @Test
+    fun `two orbs that switch to one look at different times share its clock and keep their spins`() {
+        // PHO-79: each switch re-anchors the incoming look's clock alone. The control never
+        // switches, so its breath and spin are where the switchers' would be had nothing snapped.
+        val clock = LookClock()
+        // The presets themselves, not the test's lower-resolution copies: only a preset has a key.
+        val control = LiveFrameSource(scene(initial = AtmospherePresets.THINKING))
+        val first = LiveFrameSource(scene(initial = AtmospherePresets.THINKING))
+        val second = LiveFrameSource(scene(initial = AtmospherePresets.THINKING))
+        val steppers = listOf(control, first, second).map { OrbStepper(it, clock) { false } }
+        var now = 1.0
+
+        fun frames(count: Int) =
+            repeat(count) {
+                steppers.forEach { it.step((now * 1_000_000_000.0).toLong()) }
+                now += FRAME_SECONDS
+            }
+        frames(30)
+        first.builder.lookTo(WORKING)
+        frames(20)
+        second.builder.lookTo(WORKING)
+        frames(20)
+
+        val key = LookClock.key(assertNotNull(first.lookKey), 1f)
+        assertEquals(second.lookKey, first.lookKey)
+        assertEquals(assertNotNull(clock.timeOf(key)), first.builder.phases.lookSeconds, 1e-6)
+        assertEquals(first.builder.phases.lookSeconds, second.builder.phases.lookSeconds, 1e-6)
+        assertTrue(
+            abs(control.builder.phases.lookSeconds - second.builder.phases.lookSeconds) > 0.1,
+            "the second orb left the base look's clock for the incoming look's",
+        )
+        assertPhasesClose(control.builder.phases, first.builder.phases)
+        assertPhasesClose(control.builder.phases, second.builder.phases)
+    }
+
+    @Test
+    fun `alignLook in a blend's first moments sets the incoming look's clock and nothing else`() {
+        val source = LiveFrameSource(scene())
+        source.next(0.3f)
+        source.builder.lookTo(WORKING)
+        source.next(FRAME_SECONDS.toFloat())
+        val before = source.builder.phases
+
+        source.alignLook(42.0)
+
+        assertEquals(before.copy(lookSeconds = 42.0), source.builder.phases)
+    }
+
+    @Test
+    fun `alignLook aligns a blend once`() {
+        val source = LiveFrameSource(scene())
+        source.builder.lookTo(WORKING)
+        source.alignLook(42.0)
+        source.next(FRAME_SECONDS.toFloat())
+        val before = source.builder.phases
+
+        source.alignLook(7.0)
+
+        assertEquals(before, source.builder.phases)
+    }
+
+    @Test
+    fun `alignLook with no blend in its first moments moves nothing`() {
+        val source = LiveFrameSource(scene())
+        source.next(0.3f)
+
+        val steady = source.builder.phases
+        source.alignLook(42.0)
+        assertEquals(steady, source.builder.phases, "no blend in flight")
+
+        source.builder.look = WORKING
+        val cut = source.builder.phases
+        source.alignLook(42.0)
+        assertEquals(cut, source.builder.phases, "a manual look is a cut, not a blend")
+
+        source.builder.lookTo(Look(LumosLook.SEARCHING))
+        source.next(0.15f)
+        val under = source.builder.phases
+        source.alignLook(42.0)
+        assertEquals(under, source.builder.phases, "a blend a quarter in would show the jump")
+    }
+
+    @Test
+    fun `an atmosphere change moves nothing`() {
+        val source = LiveFrameSource(scene(initial = AtmospherePresets.THINKING))
+        source.next(0.3f)
+
+        source.runtime.setAtmosphere(AtmospherePresets.IDLE)
+        assertEquals("idle", source.lookKey)
+        val blended = source.builder.phases
+        source.alignLook(42.0)
+        assertEquals(blended, source.builder.phases)
+
+        source.next(0.05f)
+        source.runtime.setAtmosphere(AtmospherePresets.READY, AtmosphereTransitionSpec.Immediate)
+        val immediate = source.builder.phases
+        source.alignLook(42.0)
+        assertEquals(immediate, source.builder.phases)
+    }
+
+    @Test
+    fun `align during a look blend aligns the look alone`() {
+        val source = LiveFrameSource(scene())
+        source.next(0.3f)
+        source.builder.lookTo(WORKING)
+        source.next(0.3f)
+        val before = source.builder.phases
+
+        source.align(42.0)
+
+        assertEquals(before.copy(lookSeconds = 42.0), source.builder.phases)
+    }
+
     private fun assertPhasesClose(
         expected: FramePhases,
         actual: FramePhases,
@@ -197,6 +311,9 @@ class LiveFrameSourceTest {
     private companion object {
         const val RESOLUTION = 5
         const val TOLERANCE = 1e-4f
+        const val FRAME_SECONDS = 1.0 / 60.0
+
+        val WORKING: Look = Look(LumosLook.WORKING)
 
         val IDLE: AtmosphereState = AtmospherePresets.IDLE.copy(resolution = RESOLUTION)
         val THINKING: AtmosphereState = AtmospherePresets.THINKING.copy(resolution = RESOLUTION)

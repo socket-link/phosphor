@@ -13,9 +13,13 @@ import link.socket.phosphor.lumos.projection.PixelLattice
  * Each [step] turns a frame time into the step its source takes: the gap since the last step,
  * capped at [LookClock.MAX_GAP_SECONDS] so a return from the background carries on rather than
  * jumping, times [LumosConfig.speed]. A step after [rejoin] first aligns a keyed source to its
- * look's clock. Under reduced motion the source draws stills instead. The projection is reused
- * until the size, the dot size, the tilt or the lattice's resolution changes, and a frame the
- * source hands back unchanged is not projected again.
+ * look's clock ([LumosFrameSource.align]); any other step on which the source's
+ * [LumosFrameSource.lookKey] names a different look than the last step's aligns that look alone
+ * ([LumosFrameSource.alignLook]), so a look switch takes up its siblings' phase without the spin
+ * snapping. A change of speed alone moves the orb to another clock key but aligns nothing. Under
+ * reduced motion the source draws stills instead. The projection is reused until the size, the
+ * dot size, the tilt or the lattice's resolution changes, and a frame the source hands back
+ * unchanged is not projected again.
  *
  * Every call that can draw returns the frame it projected, or null when what is drawn did not
  * change, so a surface hands only new frames on: Compose's `LumosOrb` puts them in its state.
@@ -51,6 +55,7 @@ class OrbStepper(
     private var rejoining: Boolean = true
     private var seenRevision: Long = 0L
 
+    private var steppedLook: String? = null
     private var keyLook: String? = null
     private var keySpeed: Float = Float.NaN
     private var key: String? = null
@@ -114,12 +119,18 @@ class OrbStepper(
         lastFrameNanos = frameTimeNanos
         val dt = (gapSeconds * speed).toFloat()
 
-        val lookKey = keyFor(source.lookKey, speed)
+        val look = source.lookKey
+        val lookKey = keyFor(look, speed)
         if (lookKey != null) {
             val lookTime = clock.tick(lookKey, frameTimeNanos / NANOS_PER_SECOND, speed)
             // Aligned a step behind, so the step itself lands the orb where its peers are.
-            if (rejoining) source.align(lookTime - dt)
+            if (rejoining) {
+                source.align(lookTime - dt)
+            } else if (look != steppedLook) {
+                source.alignLook(lookTime - dt)
+            }
         }
+        steppedLook = look
         rejoining = false
 
         return show(if (reducedMotion) source.still(dt) else source.next(dt))

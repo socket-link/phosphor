@@ -202,6 +202,9 @@ class VoxelFrameBuilder(
     private var blendElapsed: Float = 0f
     private var blendDuration: Float = LOOK_BLEND_SECONDS
 
+    // Whether the blend in flight has taken its incoming look's shared clock; see alignLook.
+    private var blendAligned: Boolean = false
+
     // The look asked for mid-blend, taken up when the blend lands.
     private var pendingLook: Look? = null
     private var pendingDuration: Float = LOOK_BLEND_SECONDS
@@ -300,6 +303,7 @@ class VoxelFrameBuilder(
         blendSample = null
         blendElapsed = 0f
         blendDuration = durationSeconds
+        blendAligned = false
         worn = target
         modulator = null
         modulatorSample = null
@@ -319,6 +323,27 @@ class VoxelFrameBuilder(
         modulatorSample = fromSample
         phases = phases.copy(lookSeconds = fromSeconds)
         blendElapsed = blendDuration - blendElapsed
+    }
+
+    /**
+     * Set the incoming look's clock, [FramePhases.lookSeconds], to [seconds] — the shared
+     * [LookClock]'s time for the look a blend is heading to — and nothing else: pulse, pattern,
+     * rotation and the outgoing look's clock are left where they are, so neither the spin nor the
+     * look being left jumps.
+     *
+     * Only in a blend's first moments, once per blend: while the incoming look weighs less than
+     * [LOOK_ALIGN_WEIGHT]. A driver sees the new look a frame after the blend begins, at about 1 %
+     * weight at 60 fps, so the re-anchor does not show. A reversal is the same blend, so it does
+     * not align again; the look it heads back to has kept its own clock throughout. At any other
+     * time — no blend, a blend already aligned or too far in — this does nothing.
+     *
+     * @return Whether the clock was set.
+     */
+    internal fun alignLook(seconds: Double): Boolean {
+        if (outgoingLook == null || blendAligned || lookBlendProgress >= LOOK_ALIGN_WEIGHT) return false
+        phases = phases.copy(lookSeconds = seconds)
+        blendAligned = true
+        return true
     }
 
     /** Drop the outgoing look: the incoming look is worn alone from the next frame. */
@@ -1343,6 +1368,10 @@ class VoxelFrameBuilder(
 
         /** How long [lookTo] takes by default. */
         const val LOOK_BLEND_SECONDS: Float = 0.6f
+
+        // The weight on the incoming look past which an alignLook would show, and is skipped: one
+        // frame of the default blend weighs under 1 % at 30 fps and above, and 5 % at about 12 fps.
+        private const val LOOK_ALIGN_WEIGHT: Float = 0.05f
 
         /**
          * How long the spawn fade takes: `AgentLayer`'s own ramp at its default

@@ -137,6 +137,8 @@ class MorphingFrameSource(
 
     override fun align(lookTime: Double) = inner.align(lookTime)
 
+    override fun alignLook(lookTime: Double) = inner.alignLook(lookTime)
+
     /** Run the cycle forward [seconds] in steps the morph can follow, without drawing. */
     fun advance(seconds: Float) {
         var remaining = seconds
