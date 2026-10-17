@@ -39,6 +39,9 @@ val isPublishingToMavenLocal =
         it == "publishToMavenLocal" || it.endsWith(":publishToMavenLocal")
     }
 
+// Per-test timeout for the browser runners; mocha's default is 2 s.
+val browserTestTimeout = "60s"
+
 kotlin {
     applyDefaultHierarchyTemplate()
 
@@ -59,13 +62,22 @@ kotlin {
     }
 
     js(IR) {
-        browser()
+        browser {
+            testTask {
+                // FormCatalogueTest samples every form at ~370 counts; mocha's default 2 s is not enough in a browser.
+                useMocha { timeout = browserTestTimeout }
+            }
+        }
         binaries.executable()
     }
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        browser {
+            testTask {
+                useMocha { timeout = browserTestTimeout }
+            }
+        }
         binaries.executable()
     }
 

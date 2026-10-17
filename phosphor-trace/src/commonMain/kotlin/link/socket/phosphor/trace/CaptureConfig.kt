@@ -1,6 +1,9 @@
 package link.socket.phosphor.trace
 
+import link.socket.phosphor.field.Choreography
+import link.socket.phosphor.lumos.LumosForm
 import link.socket.phosphor.lumos.LumosRenderConfig
+import link.socket.phosphor.lumos.VoxelFrameBuilder
 import link.socket.phosphor.palette.AtmospherePresets
 import link.socket.phosphor.signal.AtmosphereState
 
@@ -35,6 +38,33 @@ data class AtmosphereCue(
 )
 
 /**
+ * A scripted form change applied during capture: `VoxelFrameBuilder.morphTo`
+ * fired immediately before the step that produces frame [atFrame], so that
+ * frame is the first in which the cells have left their old positions. Cells
+ * keep their index across the morph, so a v3 trace keeps delta-coding them and
+ * a crossfade keeps pairing them; a [count] other than the current one makes
+ * that frame a cut for both.
+ *
+ * The segment a morph is recorded into is named like any transition, with the
+ * arrow between the two forms: `"sphere→fibonacci"`; see [TraceSegment].
+ *
+ * @property atFrame Zero-based frame index at which the cue fires. Must be in `0 until frameCount`.
+ * @property form The form to morph to.
+ * @property count Cells to sample it at; null keeps the current count.
+ * @property choreography The arc cells travel on.
+ * @property durationSeconds How long the spring takes to settle; `0` snaps.
+ * @property easingName Easing for the arc envelope, resolved by `Easing.byName`; null is linear.
+ */
+data class FormCue(
+    val atFrame: Int,
+    val form: LumosForm,
+    val count: Int? = null,
+    val choreography: Choreography = Choreography.FLOW,
+    val durationSeconds: Float = VoxelFrameBuilder.DEFAULT_MORPH_SECONDS,
+    val easingName: String? = null,
+)
+
+/**
  * Everything [Oscilloscope.capture] needs to produce a [VoxelTrace], and nothing
  * it may read from the environment.
  *
@@ -48,6 +78,7 @@ data class AtmosphereCue(
  * @property fps Frames per second; the simulation is stepped at exactly `1f / fps`. Must be `> 0`.
  * @property segments Named slices of the captured stream; each must fit inside `0 until frameCount`.
  * @property cues Scripted atmosphere changes; each must fire inside `0 until frameCount`.
+ * @property formCues Scripted form changes; each must fire inside `0 until frameCount`.
  * @property phosphorVersion Library version stamped into the trace header.
  * @property createdAtEpochMs Creation timestamp stamped into the trace header. Defaults to `0`
  *  so captures are reproducible; callers that want a real timestamp supply one explicitly.
@@ -66,6 +97,7 @@ data class CaptureConfig(
     val phosphorVersion: String = DEFAULT_PHOSPHOR_VERSION,
     val createdAtEpochMs: Long = 0L,
     val seamBlendFrames: Int = 0,
+    val formCues: List<FormCue> = emptyList(),
 ) {
     /**
      * Number of frames the capture produces: `durationMs * fps / 1000`, truncated.

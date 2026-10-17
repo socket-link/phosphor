@@ -673,18 +673,21 @@ class VoxelFrameBuilderTest {
     }
 
     @Test
-    fun `buildSteadyState rejects a form that is not a lattice`() {
+    fun `buildSteadyState renders a settled form that is not a lattice`() {
         val builder = VoxelFrameBuilder(initialResolution = 4)
-        builder.form = LumosForm { _, _, _ -> FormSample.derive(listOf(Vector3.ZERO)) }
+        builder.form = LumosForm { _, _, _ -> FormSample.derive(listOf(Vector3(0.5f, 0f, 0f))) }
+        val atmosphere = AtmospherePresets.IDLE.copy(resolution = 4)
+        val live = builder.build(snapshot(atmosphere = atmosphere), dt = 0f)
 
-        assertFailsWith<IllegalArgumentException> {
+        val steady =
             builder.buildSteadyState(
-                atmosphere = AtmospherePresets.IDLE.copy(resolution = 4),
-                phases = FramePhases.ZERO,
+                atmosphere = atmosphere,
+                phases = builder.phases,
                 tick = 0L,
                 timestampEpochMillis = 0L,
             )
-        }
+
+        assertEquals(live.cells, steady.cells)
     }
 
     private class RecordingForm(private val delegate: LumosForm) : LumosForm {

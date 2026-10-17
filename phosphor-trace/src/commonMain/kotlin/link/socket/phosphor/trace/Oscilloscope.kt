@@ -119,6 +119,21 @@ object Oscilloscope {
                 )
             }
         }
+        config.formCues.forEachIndexed { index, cue ->
+            if (cue.atFrame < 0 || cue.atFrame >= frameCount) {
+                return CaptureError.InvalidConfig(
+                    "Form cue $index atFrame ${cue.atFrame} is outside the $frameCount-frame clip",
+                )
+            }
+            if (cue.count != null && cue.count < 1) {
+                return CaptureError.InvalidConfig("Form cue $index count must be >= 1, was ${cue.count}")
+            }
+            if (cue.durationSeconds < 0f) {
+                return CaptureError.InvalidConfig(
+                    "Form cue $index durationSeconds must be >= 0, was ${cue.durationSeconds}",
+                )
+            }
+        }
         return validateSeamBlend(config)
     }
 
@@ -170,6 +185,7 @@ object Oscilloscope {
         // groupBy preserves list order within each frame bucket, so cues on the
         // same frame apply in declaration order.
         val cuesByFrame = config.cues.groupBy(AtmosphereCue::atFrame)
+        val formCuesByFrame = config.formCues.groupBy(FormCue::atFrame)
         val blendFrames = config.seamBlendFrames
         val loopStarts =
             if (blendFrames == 0) {
@@ -182,6 +198,9 @@ object Oscilloscope {
         val leadIns = HashMap<Int, List<VoxelFrame>>()
         for (frameIndex in 0 until config.frameCount) {
             cuesByFrame[frameIndex]?.forEach { cue -> generator.setAtmosphere(cue.atmosphere) }
+            formCuesByFrame[frameIndex]?.forEach { cue ->
+                generator.morphTo(cue.form, cue.count, cue.choreography, cue.durationSeconds, cue.easingName)
+            }
             frames += generator.nextFrame()
             // A loop's lead-in is read the moment the loop starts: the generator
             // is in the loop's atmosphere and its phases are the first frame's.
@@ -263,6 +282,15 @@ object Oscilloscope {
         config.cues.forEachIndexed { index, cue ->
             snapshot["cue.$index.atFrame"] = cue.atFrame.toString()
             putAtmosphere(snapshot, "cue.$index.atmosphere", cue.atmosphere)
+        }
+        // Only when present, so a capture without form cues keeps its bytes.
+        config.formCues.forEachIndexed { index, cue ->
+            snapshot["formCue.$index.atFrame"] = cue.atFrame.toString()
+            snapshot["formCue.$index.form"] = cue.form.toString()
+            snapshot["formCue.$index.count"] = cue.count?.toString() ?: "current"
+            snapshot["formCue.$index.choreography"] = cue.choreography.name
+            snapshot["formCue.$index.durationSeconds"] = cue.durationSeconds.toString()
+            snapshot["formCue.$index.easing"] = cue.easingName ?: "linear"
         }
         return snapshot
     }

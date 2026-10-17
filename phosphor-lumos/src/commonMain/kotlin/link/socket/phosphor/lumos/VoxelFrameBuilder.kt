@@ -4,6 +4,9 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sin
 import link.socket.phosphor.color.NeutralColor
+import link.socket.phosphor.field.Choreography
+import link.socket.phosphor.field.FormMatcher
+import link.socket.phosphor.field.FormMorph
 import link.socket.phosphor.field.VoxelSphere
 import link.socket.phosphor.lumos.probe.FramePhase
 import link.socket.phosphor.lumos.probe.FrameProbe
@@ -13,6 +16,7 @@ import link.socket.phosphor.runtime.SceneSnapshot
 import link.socket.phosphor.signal.AtmospherePattern
 import link.socket.phosphor.signal.AtmosphereState
 import link.socket.phosphor.signal.AtmosphereTransition
+import link.socket.phosphor.timeline.Easing
 
 /**
  * Stateful translator from Phosphor's runtime state into a [VoxelFrame].
@@ -81,12 +85,25 @@ class VoxelFrameBuilder(
      * Sampled once per frame with the count of the lattice at the atmosphere's
      * resolution, [LumosLook.BASE], and the frame's time in seconds; see
      * [LumosForm.sample]. Setting it takes effect on the next [build].
+     *
+     * Setting it is a cut: the next frame is the new form at rest, cell `i` is
+     * whatever the new form's cell `i` is, and any morph in flight is dropped.
+     * [morphTo] is the way to change form while keeping each cell's identity.
      */
-    var form: LumosForm = lattice
+    var form: LumosForm
+        get() = activeForm
         set(value) {
-            field = value
-            if (value is Forms.Lattice) lattice = value
+            adoptForm(value)
+            permutation = null
+            morph = null
         }
+
+    private var activeForm: LumosForm = lattice
+
+    private fun adoptForm(value: LumosForm) {
+        activeForm = value
+        if (value is Forms.Lattice) lattice = value
+    }
 
     /**
      * The lattice at the atmosphere's current resolution. Rebuilt when
@@ -96,6 +113,21 @@ class VoxelFrameBuilder(
      */
     val voxelSphere: VoxelSphere get() = lattice.sphere
 
+    private val matcher = FormMatcher()
+
+    // Which sample index rendered cell i reads: identity when null. Set by morphTo so a cell keeps
+    // its index across a form change, cleared by anything that cuts (setting form, a resolution change).
+    private var permutation: IntArray? = null
+
+    // The body in flight, or null when the form is at rest and frames read the sample directly.
+    private var morph: FormMorph? = null
+
+    // The framing the morph left from, blended toward the new form's by the morph's progress.
+    private var morphFramingFrom: Framing = Framing.NONE
+
+    // The last frame time the form was sampled at, so morphTo samples the form where build did.
+    private var lastTimeSeconds: Float = 0f
+
     private var activeGlyph: GlyphLifecycle? = null
 
     // The last still built and what it was built from; see buildStill.
@@ -104,6 +136,7 @@ class VoxelFrameBuilder(
     private var stillPhases: FramePhases? = null
     private var stillGlyph: LumosGlyph? = null
     private var stillSample: FormSample? = null
+    private var stillPermutation: IntArray? = null
 
     /** True if a glyph is currently being rendered. */
     val hasActiveGlyph: Boolean get() = activeGlyph != null
@@ -121,6 +154,163 @@ class VoxelFrameBuilder(
                 ageSeconds = 0f,
             )
     }
+
+    /** Whether a [morphTo] is in flight: cells are still springing to the new form's positions. */
+    val isMorphing: Boolean get() = morph?.isSettling == true
+
+    /**
+     * How many cells the current [form] yields at the atmosphere's budget: the
+     * count [morphTo] keeps unless told otherwise.
+     */
+    val currentCount: Int get() = currentSample().count
+
+    /**
+     * Reshape the orb into [form], keeping every cell's identity: cell `i` of the
+     * frames that follow is cell `i` of the frames before, sprung from where it
+     * was to the nearest free position of the new form rather than cut there.
+     *
+     * The match is [FormMatcher]'s greedy nearest-free assignment, run once
+     * here; the motion is a [FormMorph] critically damped spring stepped by
+     * every [build], bent by [choreography]'s arc. The spring runs in
+     * unit-sphere space before the atmosphere's pulse, squash and bump, which
+     * keep applying on top: the skin rides the body. A [FramedForm]'s scale and
+     * cell size blend across with the spring's own progress. Once settled, the
+     * builder renders the new form exactly as it renders any form at rest, with
+     * no per-frame cost and with its cells in the matched order — which is what
+     * keeps a trace's per-index delta coding and a crossfade's cell pairing
+     * working across the change.
+     *
+     * Equal counts are the common case. With a smaller [count], the cells with
+     * the highest indices are dropped and the rest are matched. With a larger
+     * one, the cells that exist are matched first and the new form's leftover
+     * positions become new cells, which start at the current position of the
+     * nearest existing cell and spring out from there. Either way, the frame on
+     * which the count changes is a cut for anything that pairs cells by index.
+     *
+     * Calling this mid-morph starts a new trip from wherever the cells are,
+     * keeping their velocity. A [LumosConfig.reducedMotion] host draws through
+     * [buildStill], which snaps the morph to its destination. A resolution
+     * change during a morph is a cut: the lattice's count changes, so the morph
+     * is dropped and identity reset, as a resolution change always has been.
+     *
+     * No-op when [form] is already the current form at the current count and
+     * nothing is in flight.
+     *
+     * @param form Where the cells should rest from now on; [form] becomes it. A
+     *  [Forms.Lattice] fixes its own count and ignores [count].
+     * @param count Cells to sample the new form at; defaults to [currentCount].
+     *  A count other than the lattice's is pinned with [counted], so the form
+     *  keeps it when the atmosphere's resolution changes.
+     * @param choreography The arc cells travel on; see [Choreography].
+     * @param durationSeconds How long the spring takes to settle. `0` snaps.
+     * @param easingName An `Easing.byName` identifier that reshapes the arc's
+     *  envelope only; null or unknown leaves it linear. The spring is not eased.
+     * @throws IllegalArgumentException when [count] is not positive or
+     *  [durationSeconds] is negative.
+     */
+    fun morphTo(
+        form: LumosForm,
+        count: Int = currentCount,
+        choreography: Choreography = Choreography.FLOW,
+        durationSeconds: Float = DEFAULT_MORPH_SECONDS,
+        easingName: String? = null,
+    ) {
+        require(count >= 1) { "count must be >= 1, was $count" }
+        require(durationSeconds >= 0f && durationSeconds.isFinite()) {
+            "durationSeconds must be >= 0, was $durationSeconds"
+        }
+        val target = if (form is Forms.Lattice || count == lattice.count) form else form.counted(count)
+        if (target === this.form && !isMorphing) return
+
+        val fromSample = currentSample()
+        val fromPermutation = permutation
+        val fromMorph = morph
+        val fromCount = fromSample.count
+        val origins =
+            List(fromCount) { i ->
+                if (fromMorph != null) {
+                    Vector3(fromMorph.positions[3 * i], fromMorph.positions[3 * i + 1], fromMorph.positions[3 * i + 2])
+                } else {
+                    fromSample.positions[fromPermutation?.get(i) ?: i]
+                }
+            }
+        val framingFrom = effectiveFraming(fromSample)
+
+        val toSample = target.sample(lattice.count, LumosLook.BASE, lastTimeSeconds)
+        val toCount = toSample.count
+        val matched = minOf(fromCount, toCount)
+        val assignment = matcher.match(origins.subList(0, matched), toSample.positions)
+        val nextPermutation = IntArray(toCount)
+        assignment.copyInto(nextPermutation)
+        val body = FormMorph(toCount)
+        for (i in 0 until matched) {
+            val origin = origins[i]
+            body.positions[3 * i] = origin.x
+            body.positions[3 * i + 1] = origin.y
+            body.positions[3 * i + 2] = origin.z
+            if (fromMorph != null) {
+                body.velocities[3 * i] = fromMorph.velocities[3 * i]
+                body.velocities[3 * i + 1] = fromMorph.velocities[3 * i + 1]
+                body.velocities[3 * i + 2] = fromMorph.velocities[3 * i + 2]
+            }
+        }
+        if (toCount > fromCount) spawnLeftovers(nextPermutation, assignment, origins, toSample.positions, body)
+
+        // Not through the public setter, which would reset the identity just built.
+        adoptForm(target)
+        permutation = nextPermutation
+        if (durationSeconds == 0f) {
+            morph = null
+            return
+        }
+        morphFramingFrom = framingFrom
+        body.retarget(
+            targets = toSample.positions,
+            assignment = nextPermutation,
+            choreography = choreography,
+            durationSeconds = durationSeconds,
+            arcEasing = easingName?.let(Easing::byName),
+        )
+        morph = body
+    }
+
+    /**
+     * Give every target no origin was matched to a new cell, starting where the
+     * nearest existing cell is now so it springs out of the body rather than
+     * appearing in place.
+     */
+    private fun spawnLeftovers(
+        nextPermutation: IntArray,
+        assignment: IntArray,
+        origins: List<Vector3>,
+        targets: List<Vector3>,
+        body: FormMorph,
+    ) {
+        val taken = BooleanArray(targets.size)
+        for (j in assignment) taken[j] = true
+        var cell = assignment.size
+        for (j in targets.indices) {
+            if (taken[j]) continue
+            nextPermutation[cell] = j
+            val target = targets[j]
+            var nearest = Vector3.ZERO
+            var nearestDistance = Float.POSITIVE_INFINITY
+            for (origin in origins) {
+                val d = (origin - target).lengthSquared()
+                if (d < nearestDistance) {
+                    nearestDistance = d
+                    nearest = origin
+                }
+            }
+            body.positions[3 * cell] = nearest.x
+            body.positions[3 * cell + 1] = nearest.y
+            body.positions[3 * cell + 2] = nearest.z
+            cell++
+        }
+    }
+
+    /** The current form sampled where the last build sampled it. */
+    private fun currentSample(): FormSample = form.sample(lattice.count, LumosLook.BASE, lastTimeSeconds)
 
     /**
      * Produce a [VoxelFrame] from [snapshot], advancing phase accumulators
@@ -148,16 +338,18 @@ class VoxelFrameBuilder(
      * [build] returned at those phases, up to float rounding; `Oscilloscope` in
      * `:phosphor-trace` is the caller this exists for.
      *
-     * Cells are ordered as in [voxelSphere], which [form] must be and
-     * [atmosphere] must match in resolution: the lattice is the one thing a
-     * steady-state frame shares with the live stream, and building a throwaway
-     * one here would hide a per-call allocation behind a method that promises
-     * none. Not measured by the probe, which times the live render loop.
+     * Cells are the current [form]'s at rest, in the order the live stream
+     * emits them, sampled at the frame's time with the lattice's budget; a
+     * lattice form must match [atmosphere] in resolution, since the lattice is
+     * the atmosphere's. The form must be settled: a frame mid-[morphTo] is not
+     * a steady state, and this is where a loop's lead-in comes from. Not
+     * measured by the probe, which times the live render loop.
      *
      * @param tick [VoxelFrame.tick] of the result.
      * @param timestampEpochMillis [VoxelFrame.timestampEpochMillis] of the result.
-     * @throws IllegalArgumentException when [form] is not a [Forms.Lattice], or
-     *  [atmosphere]'s resolution differs from [voxelSphere]'s.
+     * @throws IllegalArgumentException when [form] is a [Forms.Lattice] whose
+     *  resolution differs from [atmosphere]'s.
+     * @throws IllegalStateException when a morph is in flight; see [isMorphing].
      */
     fun buildSteadyState(
         atmosphere: AtmosphereState,
@@ -166,20 +358,23 @@ class VoxelFrameBuilder(
         timestampEpochMillis: Long,
     ): VoxelFrame {
         val current = form
-        require(current is Forms.Lattice) {
-            "buildSteadyState renders on the builder's lattice, but the current form is $current"
+        if (current is Forms.Lattice) {
+            require(atmosphere.resolution == current.resolution) {
+                "buildSteadyState renders on the builder's lattice: atmosphere resolution ${atmosphere.resolution} " +
+                    "differs from the current ${current.resolution}"
+            }
         }
-        require(atmosphere.resolution == current.resolution) {
-            "buildSteadyState renders on the builder's lattice: atmosphere resolution ${atmosphere.resolution} " +
-                "differs from the current ${current.resolution}"
-        }
+        check(!isMorphing) { "buildSteadyState has no steady state to render while a morph is in flight" }
+        val sample = current.sample(lattice.count, LumosLook.BASE, timestampEpochMillis / 1_000f)
         return frameAt(
             atmosphere = atmosphere,
             transition = null,
             phases = phases,
             glyphLifecycle = null,
-            sample = current.sample(current.count, LumosLook.BASE, timestampEpochMillis / 1_000f),
-            framing = Framing.NONE,
+            sample = sample,
+            permutation = permutation,
+            morphPositions = null,
+            framing = framing(sample),
             tick = tick,
             timestampEpochMillis = timestampEpochMillis,
         )
@@ -217,14 +412,18 @@ class VoxelFrameBuilder(
                 }
 
         followResolution(atmosphere)
+        // Reduced motion snaps: the body is already where the morph was heading.
+        morph = null
 
         val glyph = advanceGlyph(dt)?.glyph
+        lastTimeSeconds = snapshot.elapsedTimeSeconds
         val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
         stillFrame?.let { held ->
             if (atmosphere === stillAtmosphere &&
                 phases == stillPhases &&
                 glyph == stillGlyph &&
                 sample === stillSample &&
+                permutation === stillPermutation &&
                 held.resolution == lattice.resolution
             ) {
                 return held
@@ -242,6 +441,8 @@ class VoxelFrameBuilder(
                             GlyphLifecycle(it, totalDurationSeconds = 1f, ageSeconds = STILL_GLYPH_PROGRESS)
                         },
                     sample = sample,
+                    permutation = permutation,
+                    morphPositions = null,
                     framing = framing(sample),
                     tick = snapshot.frameIndex,
                     timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
@@ -252,6 +453,7 @@ class VoxelFrameBuilder(
         stillPhases = phases
         stillGlyph = glyph
         stillSample = sample
+        stillPermutation = permutation
         return frame
     }
 
@@ -269,16 +471,56 @@ class VoxelFrameBuilder(
         val glyphLifecycle = advanceGlyph(dt)
         phases = phases.advanced(atmosphere, dt)
 
+        lastTimeSeconds = snapshot.elapsedTimeSeconds
         val sample = form.sample(lattice.count, LumosLook.BASE, snapshot.elapsedTimeSeconds)
+        val body = stepMorph(sample, dt)
         return frameAt(
             atmosphere = atmosphere,
             transition = snapshot.atmosphereTransition,
             phases = phases,
             glyphLifecycle = glyphLifecycle,
             sample = sample,
-            framing = framing(sample),
+            permutation = permutation,
+            morphPositions = body?.positions,
+            framing = if (body == null) framing(sample) else effectiveFraming(sample),
             tick = snapshot.frameIndex,
             timestampEpochMillis = millisFromElapsed(snapshot.elapsedTimeSeconds),
+        )
+    }
+
+    /**
+     * Advance the morph in flight by [dt] toward [sample]'s positions and return
+     * it, or null when there is none or it has just settled — from which frame
+     * on the sample is rendered directly, so a settled form costs nothing.
+     */
+    private fun stepMorph(
+        sample: FormSample,
+        dt: Float,
+    ): FormMorph? {
+        val body = morph ?: return null
+        if (body.count != sample.count) {
+            // The form's count moved under the morph: a cut, as before morphs existed.
+            morph = null
+            permutation = null
+            return null
+        }
+        body.step(dt, sample.positions)
+        if (!body.isSettling) {
+            morph = null
+            return null
+        }
+        return body
+    }
+
+    /** The framing to draw: the form's own, or mid-morph the blend from where the morph left. */
+    private fun effectiveFraming(sample: FormSample): Framing {
+        val body = morph?.takeIf { it.isSettling } ?: return framing(sample)
+        val to = framing(sample)
+        val from = morphFramingFrom
+        val t = body.progress
+        return Framing(
+            formScale = from.formScale + (to.formScale - from.formScale) * t,
+            cellScale = from.cellScale + (to.cellScale - from.cellScale) * t,
         )
     }
 
@@ -299,15 +541,21 @@ class VoxelFrameBuilder(
      * The pure core of a build: every input named, nothing read from the
      * builder but its lattice resolution and [config]. [build] advances state
      * and calls this; [buildSteadyState] calls it as it is. One cell per entry
-     * of [sample], in its order, positioned at [Framing.formScale] times the
-     * form's and sized at [Framing.cellScale] times the lattice's cell.
+     * of [sample]: cell `i` reads sample entry `permutation[i]`, or `i` when
+     * [permutation] is null, and sits at [morphPositions]' entry `i` when a
+     * morph is in flight, else at the sample's rest position. Positioned at
+     * [Framing.formScale] times the form's and sized at [Framing.cellScale]
+     * times the lattice's cell.
      */
+    @Suppress("LongParameterList")
     private fun frameAt(
         atmosphere: AtmosphereState,
         transition: AtmosphereTransition?,
         phases: FramePhases,
         glyphLifecycle: GlyphLifecycle?,
         sample: FormSample,
+        permutation: IntArray?,
+        morphPositions: FloatArray?,
         framing: Framing,
         tick: Long,
         timestampEpochMillis: Long,
@@ -335,7 +583,8 @@ class VoxelFrameBuilder(
         val thetas = sample.theta
         val phis = sample.phi
         val cells = ArrayList<VoxelCell>(sample.count)
-        for (index in 0 until sample.count) {
+        for (cell in 0 until sample.count) {
+            val index = permutation?.get(cell) ?: cell
             val mix = computeMix(atmosphere, transition, sample, index, phases.patternPhase)
             val boundaryShrink = computeBoundaryShrink(atmosphere.bipolarStrength, mix)
             val baseColor = computeVoxelColor(atmosphere, transition, mix)
@@ -365,11 +614,23 @@ class VoxelFrameBuilder(
             // cell is drawn, not whether it is worth drawing.
             if (config.omitBelowScale > 0f && scale < config.omitBelowScale) continue
 
-            val position = positions[index]
             val jitter = jitters[index]
-            val px = position.x + jitter.x * atmosphere.noise * JITTER_GAIN
-            val py = position.y + jitter.y * atmosphere.noise * JITTER_GAIN
-            val pz = position.z + jitter.z * atmosphere.noise * JITTER_GAIN
+            val restX: Float
+            val restY: Float
+            val restZ: Float
+            if (morphPositions != null) {
+                restX = morphPositions[3 * cell]
+                restY = morphPositions[3 * cell + 1]
+                restZ = morphPositions[3 * cell + 2]
+            } else {
+                val position = positions[index]
+                restX = position.x
+                restY = position.y
+                restZ = position.z
+            }
+            val px = restX + jitter.x * atmosphere.noise * JITTER_GAIN
+            val py = restY + jitter.y * atmosphere.noise * JITTER_GAIN
+            val pz = restZ + jitter.z * atmosphere.noise * JITTER_GAIN
             val bumpAmount =
                 atmosphere.surfaceBump *
                     sin(thetas[index] * BUMP_THETA + phis[index] * BUMP_PHI + phases.patternPhase * BUMP_PHASE)
@@ -425,7 +686,14 @@ class VoxelFrameBuilder(
     private fun followResolution(atmosphere: AtmosphereState) {
         if (atmosphere.resolution != lattice.resolution) {
             lattice = Forms.Lattice(atmosphere.resolution)
-            if (form is Forms.Lattice) form = lattice
+            if (form is Forms.Lattice) {
+                form = lattice
+            } else {
+                // The budget moved under a form that follows it: the count may change, so the
+                // identity built on the old count cannot hold. A cut, as it was before morphs.
+                permutation = null
+                morph = null
+            }
         }
     }
 
@@ -534,6 +802,9 @@ class VoxelFrameBuilder(
         private const val BAND_GAIN: Float = 0.4f
         private const val GLYPH_FACING_THRESHOLD: Float = 0.15f
         private const val GLYPH_BACKGROUND_SHRINK: Float = 0.30f
+
+        /** How long [morphTo] takes by default: Dots' 2.4 s. */
+        const val DEFAULT_MORPH_SECONDS: Float = 2.4f
 
         // Where a held glyph sits in its envelope: the middle of the hold, at full strength.
         private const val STILL_GLYPH_PROGRESS: Float = 0.5f
