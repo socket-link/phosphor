@@ -91,9 +91,9 @@ kotlin {
                 implementation(compose.runtime)
                 implementation(compose.ui)
                 implementation(compose.foundation)
-                // LumosOrb's lifecycle gate. Compose 1.7.0 already depends on this version at
+                // LumosOrb's lifecycle gate. Compose 1.10.1 already depends on this version at
                 // runtime on every target; declaring it lets commonMain compile against it.
-                implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
+                implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.9.6")
             }
         }
         val commonTest by getting {

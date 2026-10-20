@@ -24,7 +24,9 @@ pluginManagement {
         id("org.jlleitschuh.gradle.ktlint").version("12.2.0")
         id("org.jetbrains.dokka").version("2.1.0")
         id("com.vanniktech.maven.publish").version("0.30.0")
-        id("org.jetbrains.compose").version("1.7.0")
+        // Socket links Compose 1.10.1. Building against an older runtime publishes Native/web klibs
+        // that read Compose's `$stable` properties directly, which 1.10 made private (PHO-91).
+        id("org.jetbrains.compose").version("1.10.1")
         // Socket's Android build runs this AGP on the same Kotlin and Gradle versions. 8.13 is the
         // last AGP line Gradle 8.13 runs; AGP 9 needs Gradle 9 and moves KMP libraries to
         // com.android.kotlin.multiplatform.library.
