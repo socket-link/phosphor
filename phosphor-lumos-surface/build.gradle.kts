@@ -92,9 +92,9 @@ kotlin {
                 implementation(compose.runtime)
                 implementation(compose.ui)
                 implementation(compose.foundation)
-                // The surface's lifecycle gate, as LumosOrb's. Compose 1.7.0 already depends on this
+                // The surface's lifecycle gate, as LumosOrb's. Compose 1.10.1 already depends on this
                 // version at runtime on every target; declaring it lets commonMain compile against it.
-                implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
+                implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.9.6")
             }
         }
         val commonTest by getting {
